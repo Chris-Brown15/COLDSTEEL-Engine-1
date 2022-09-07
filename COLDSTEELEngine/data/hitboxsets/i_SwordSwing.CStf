@@ -1,7 +1,0 @@
-i_SwordSwing
-size:
-	1
-default direction:
-	RIGHT
-hitboxes:
-	0.0,18.395836,4.444458,0.052124023,-0.050048828,0.0,-1.0,

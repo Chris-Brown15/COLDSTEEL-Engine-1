@@ -1,1 +1,0 @@
-E_animList.startHangup(3)

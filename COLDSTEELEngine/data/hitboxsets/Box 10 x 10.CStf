@@ -1,7 +1,0 @@
-10 x 10 box
-size:
-	1
-default direction:
-	RIGHT
-hitboxes:
-	0.0,10.833313,10.96112,0.041748047,0.2111206,0.0,-1.0,
