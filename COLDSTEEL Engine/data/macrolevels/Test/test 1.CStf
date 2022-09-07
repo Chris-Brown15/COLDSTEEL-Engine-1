@@ -1,0 +1,21 @@
+test 1
+macro_level -> Test
+entities 0:
+statics_1 0:
+statics_2 0:
+items 0:
+City_Ruins_2 2:
+	Animated_Fire 2:
+		3 -> 709,271
+		4 -> 823,271
+	Exterior_Tile_Floor_1 4:
+		0 -> 684,227
+		1 -> 748,227
+		2 -> 812,227
+		5 -> 876,227
+tile_set_2 -> null
+triggers 0:
+load_doors 0:
+colliders 0:
+quads_1 0:
+quads_2 0:

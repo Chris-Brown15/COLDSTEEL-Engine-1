@@ -1,0 +1,9 @@
+e_Alucard Jumping Punch Down
+swap interval:
+	0.11999998
+default direction:
+	RIGHT
+sprites:
+	0.6926066,0.74972886,0.31741858,0.27361736,26.0,29.0,
+	0.75768256,0.8148048,0.31741858,0.27361736,26.0,29.0,
+	fin

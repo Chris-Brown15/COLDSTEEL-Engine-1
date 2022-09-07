@@ -1,0 +1,8 @@
+e_Trevor Jump Straight
+swap interval:
+	0.1400006
+default direction:
+	RIGHT
+sprites:
+	0.16164383,0.18356164,0.65868264,0.36526945,8.0,25.0,14.0,
+	fin

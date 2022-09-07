@@ -1,0 +1,44 @@
+SOTN Prologue
+texture -> assets/spritesheets/SOTN Prolog 2.png
+remove -> 0.5019608,0.0,0.0
+tiles 9:
+	Prologue_Stairs_ForeGround:
+		specs -> 0.67411405,0.89753467,0.9843587,0.7028154,290.0,270.0
+		filter -> 0.0,0.0,0.0
+		collider -> yes
+		triangle:
+			type -> 1,0,0,0
+			dimensions -> 254.0,255.0
+			offset -> -37.0,3.0
+	Prologue_Stairs_start:
+		specs -> 0.89753467,0.9137134,0.7570386,0.7028154,21.0,52.0
+		filter -> 0.0,0.0,0.0
+		collider -> no
+	Brick_Wall:
+		specs -> 0.9699538,0.9946071,0.32638165,0.29301354,32.0,32.0
+		filter -> 0.0,0.0,0.0
+		collider -> yes
+	Throne_Room_Ceiling_Tile:
+		specs -> 0.033898305,0.08320493,0.48592284,0.47758082,64.0,8.0
+		filter -> 0.0,0.0,0.0
+		collider -> yes
+	Prologue_Hallway:
+		specs -> 0.008474576,0.69953775,0.48592284,0.26173097,897.0,215.0
+		filter -> 0.0,0.0,0.0
+		collider -> no
+	Background_Railing:
+		specs -> 0.9083205,0.97380584,0.10636079,0.07716371,85.0,28.0
+		filter -> 0.0,0.0,0.0
+		collider -> no
+	Starting_Platform:
+		specs -> 0.80893683,0.9946071,0.07612096,0.00729927,241.0,66.0
+		filter -> 0.0,0.0,0.0
+		collider -> yes
+	Starting_Platform_Entry:
+		specs -> 0.972265,0.9946071,0.1438999,0.07716371,29.0,64.0
+		filter -> 0.0,0.0,0.0
+		collider -> no
+	Starting_Platform_Entry_Roof:
+		specs -> 0.9583975,0.9946071,0.21063608,0.1438999,47.0,64.0
+		filter -> 0.0,0.0,0.0
+		collider -> yes

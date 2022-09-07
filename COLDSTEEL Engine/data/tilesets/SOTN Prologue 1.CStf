@@ -1,0 +1,33 @@
+SOTN Prologue 1
+texture -> assets/spritesheets/SotnPrologue 3.png
+remove -> 0.5019608,0,0
+tiles 5:
+	Prologue_Stair_Foreground:
+		specs -> 0.7542373,0.99306625,0.99478626,0.7122002,310,271
+		filter -> 0,0,0
+		animation -> null
+		collider -> yes
+		data:
+			type -> 1,0,0,0,0
+			dimensions -> 259,260
+			offset -> 36,0
+	Prologue_Starting_Platform:
+		specs -> 0.8135593,0.9946071,0.07716371,0.00729927,235,67
+		filter -> 0,0,0
+		animation -> null
+		collider -> yes
+	Prologue_Entrance_Hall_Background:
+		specs -> 0.97303545,0.9946071,0.14285715,0.07716371,28,63
+		filter -> 0,0,0
+		animation -> null
+		collider -> no
+	Prologue_Entrance_Roof:
+		specs -> 0.9583975,0.9946071,0.21063608,0.14285715,47,65
+		filter -> 0,0,0
+		animation -> null
+		collider -> yes
+	Prologue_Entrance_Right_wall:
+		specs -> 0.9583975,0.9946071,0.48592284,0.1438999,47,328
+		filter -> 0,0,0
+		animation -> null
+		collider -> yes

@@ -1,0 +1,60 @@
+Richter
+texture -> entities\Richter.png
+removed -> 0.5019608,1,0.5019608
+filter -> 0,0,0
+default_sprite -> null
+components 15:
+	Horizontal_Player_Controller:
+		speed -> 2
+	Collision_Detection:
+		array -> null
+		radius -> 1000
+	Gravity_Constant:
+		constant -> 3
+		max_additive -> 30
+		velocity -> 5
+	Horizontal_Displacement:
+	Vertical_Player_Controller:
+		max_jump_time -> 30
+		jump_velocity -> 5
+	Vertical_Displacement:
+	Animations:
+		sprite_sets 0:
+	Hitboxes:
+		number_boxes -> 15
+		hitboxes 0:
+	Rpg_Stats:
+		stats 7:
+			strength -> 25
+			endurance -> 25
+			dexterity -> 15
+			agility -> 20
+			recovery -> 10
+			resistence -> 10
+			luck -> 5
+		lsm 6:
+			currentLife -> 90
+			maxLife -> 90
+			currentStamina -> 70
+			maxStamina -> 70
+			currentMana -> -1
+			maxMana -> -1
+		skills 1:
+			blunts -> 25
+	Camera_Track:
+		horizontal_offset -> -320
+		vertical_offset -> -80
+		zoom -> 16
+	Direction:
+	Inventory:
+		weight_limit -> 100
+		x_size -> 12
+		y_size -> 4
+		items 0:
+		equipped 0:
+	Flags:
+		flags 0:
+	Audio_Emit:
+		sounds 0:
+	Script:
+		script -> null

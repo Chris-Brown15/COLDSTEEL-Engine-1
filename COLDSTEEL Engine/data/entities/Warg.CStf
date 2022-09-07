@@ -1,0 +1,84 @@
+Warg
+texture -> entities/Warg.png
+removed -> 0.0,1.0,0.32941177
+filter -> 0.0,0.0,0.0
+default_sprite -> 0.22060731,0.12088305,0.97316664,0.8912083,108.0,65.999985
+components 9:
+	Collision_Detection:
+		array -> 75.0,59.0,2.5,2.5
+		radius -> 1000.0
+	Gravity_Constant:
+		constant -> 3.0
+		max_additive -> 30.0
+		velocity -> 5.0
+	Horizontal_Displacement:
+	Vertical_Displacement:
+	Animations:
+		sprite_sets 9:
+			e_WargIdle
+			e_WargAggro
+			e_WargBite
+			e_WargWalk
+			e_WargKill
+			e_WargJumpBack
+			e_WargTurnAround
+			e_wargDeath
+			e_WargHurt
+	Hitboxes:
+		number_boxes -> 15
+		hitboxes 8:
+			e_WargAggro1_0
+			e_WargAggro2_4
+			e_WargAggro3_6
+			e_WargAttack4_0
+			e_WargAttack5_1
+			e_WargAttack6_2
+			e_WargIdle
+			e_WargWalk7_0
+	Rpg_Stats:
+		stats 21:
+			strength -> 10
+			endurance -> 10
+			dexterity -> 10
+			agility -> 10
+			recovery -> 10
+			resistence -> 10
+			balance -> 10
+			sharpness -> 10
+			morals -> 10
+			charisma -> 10
+			perception -> 10
+			composure -> 10
+			oratory -> 10
+			emotion -> 10
+			extraSensoryPerception -> 10
+			luck -> 10
+			vessel -> 10
+			physicalDurability -> 10
+			mentalDurability -> 10
+			flow -> 10
+			overload -> 10
+		lsm 6:
+			currentLife -> 40.0
+			maxLife -> 40.0
+			currentStamina -> 40.0
+			maxStamina -> 40.0
+			currentMana -> 5.0
+			maxMana -> 5.0
+		skills 13:
+			swords -> -1
+			blunts -> -1
+			polearms -> -1
+			bows -> -1
+			crossbows -> -1
+			staves -> -1
+			wands -> -1
+			pyromancy -> -1
+			cryomancy -> -1
+			electromancy -> -1
+			heavyArmor -> -1
+			lightArmor -> -1
+			mediumArmor -> -1
+	Direction:
+	Script:
+		script -> e_Warg.py

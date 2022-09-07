@@ -1,0 +1,54 @@
+editor test level
+macro_level -> Editor
+entities 21:
+	Trevor_Belmont -> 574.66693,256.77188
+	Warg -> 901.3125,334
+	Warg -> 1057.375,334
+	Warg -> 1236.6667,334
+	Warg -> 1437.5,334
+	Candle_1 -> 636,244.5
+	Candle_1 -> 682.6667,278.13336
+	Candle_1 -> 726.6667,311.11115
+	Candle_1 -> 352.16663,252.48883
+	Candle_1 -> 384.25,250.8555
+	Candle_1 -> 418.66663,250.8555
+	Candle_1 -> 449.25003,250.9722
+	Candle_1 -> 479.66672,250.77777
+	Candle_1 -> 514.66675,250.38885
+	Candle_1 -> 633.64624,310.775
+	Candle_1 -> 512.18787,309.4917
+	Candle_1 -> 481.25037,310.13336
+	Candle_1 -> 449.85452,310.34723
+	Candle_1 -> 419.83368,310.98892
+	Candle_1 -> 387.97952,310.77502
+	Candle_1 -> 353.83368,310.34723
+statics_1 0:
+statics_2 0:
+items 1:
+	Holy_Cross -> 686,219.02225
+tile_set_1 -> null
+tile_set_2 -> null
+triggers 0:
+load_doors 2:
+	starting_door:
+		specs -> 16,50,572,257
+		linked_level -> Editor\candle hitbox test.CStf
+		linked_door -> null
+	to_next_level:
+		specs -> 29,71,1559.5,336.5
+		linked_level -> Editor\candle hitbox test.CStf
+		linked_door -> test door
+colliders 11:
+	632,115,200,200,0
+	716,202,200,200,2
+	1198,202,764,200,0
+	432,115,200,200,0
+	574.5,223,61,16,0
+	625.5,222.5,41,17,1
+	524,222.5,40,17,2
+	1152,383,40,162,0
+	1062,415.5,18,9,5
+	1123,366.5,18,9,5
+	991,463.5,18,9,5
+quads_1 0:
+quads_2 0:

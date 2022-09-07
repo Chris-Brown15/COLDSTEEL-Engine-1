@@ -1,0 +1,14 @@
+Character Creator Config
+starting_level -> CityRuins/City Ruins Stage 1.CStf
+starting_door -> Game Start
+stat_points -> 20
+entities 3:
+	Alucard:
+		image -> ui/Alucard.png
+		details -> Son of Dracula. Alucard stood against his own father in the distant past with the aid of a legendary Belmont named Trevor. In the end Dracula was slain and Alucard, in the hopes of ending the curse his blood had wreaked on the world, submerged his powers and entered into vampiric sleep. The rise of grave evil has forced him to reawaken and face once more the evil which has ravaged his homeland. Alucard is a dhampir and is capable of using both human and inhuman means to destroy his opponents.  
+	Maria:
+		image -> ui/MariaFace.png
+		details -> Relative of the Belmont clan and inheritor of unique powers. 16 year old Maria is one of the most talented mages in Translvania. Her druidic powers of the Four Beasts are devastatingly powerful and she is also capable of healing her allies. Maria is young however, and has not before in her life faced the night terrors of Dracula's army, and cannot rely on supernatural physical enhancements like Alucard and Richter can.
+	Richter:
+		image -> ui/RichterBust.png
+		details -> Modern descendant of the infamous Belmont Clan. Richter wields the Vampire Killer, an enchanted whip with the ability to decimate Dracula's forces. Besides his whip, Richter is able to use side arms to dispatch enemies from afar. Richter is headstrong and young and, having the blood of a Belmont, is unlike other humans. His strength is unnatural and his will to live is a force unto itself. He must carry on the sacred duty reqiured of his birthright.

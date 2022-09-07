@@ -1,0 +1,7 @@
+e_AlucardFalling4
+size:
+	1
+default direction:
+	RIGHT
+hitboxes:
+	0.0,12.604164,39.666668,15.364582,-9.741663,-1.0,0.0,

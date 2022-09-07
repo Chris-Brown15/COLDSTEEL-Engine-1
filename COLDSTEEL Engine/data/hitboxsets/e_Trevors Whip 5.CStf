@@ -1,0 +1,7 @@
+e_Trevors Whip 5
+size:
+	1
+default direction:
+	RIGHT
+hitboxes:
+	0.0,63.958313,7.0000153,0.020874023,-0.19451904,0.0,-1.0,
