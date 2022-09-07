@@ -1,0 +1,39 @@
+Trevors Whip
+position:
+	x:
+		 572.6251
+	y:
+		 248.93054
+texture path:
+	C:\Users\littl\OneDrive\Desktop\Eclipse\Workspaces\COLDSTEEL Engine\assets\items\Trevors Whip.png
+Vector3f:
+	1.0,1.0,1.0,
+Vector3f:
+	0.0,0.0,0.0,
+icon:
+	0.04404959,0.06803483,0.975512,0.6860384,7.0,6.0
+inventory dimensions:
+	x:
+		1
+	y:
+		1
+weight:
+	0.0
+components:
+	EQUIPPABLE,USABLE,HITBOXABLE
+EQUIPPABLE:
+	slot:
+		0
+	on equip script:
+		null
+	on unequip script:
+		null
+USABLE:
+	on use script:
+		null
+HITBOXABLE:
+	size:
+		15
+	sets:
+		fin
+fin

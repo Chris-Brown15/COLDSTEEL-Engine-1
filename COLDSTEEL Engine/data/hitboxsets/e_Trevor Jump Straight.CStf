@@ -1,0 +1,7 @@
+e_Trevor Jump Straight
+size:
+	1
+default direction:
+	RIGHT
+hitboxes:
+	0.0,12.083313,47.59999,-0.35406494,-0.43063354,-1.0,0.0,

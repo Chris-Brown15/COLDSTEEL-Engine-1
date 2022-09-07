@@ -1,0 +1,7 @@
+e_ZombieSpawn_2
+size:
+	1
+default direction:
+	RIGHT
+hitboxes:
+	0.0,30.875,38.03333,-0.3125,-0.06667328,-1.0,0.0,

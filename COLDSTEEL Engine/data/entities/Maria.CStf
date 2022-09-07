@@ -1,0 +1,77 @@
+Maria
+texture -> entities/Saturn - Castlevania Symphony of the Night - Maria Renard.png
+removed -> 0,0.5019608,0.5019608
+filter -> 0,0,0
+default_sprite -> 0.48535156,0.50334823,0.9893422,0.95976585,16,44.00009
+components 15:
+	Horizontal_Player_Controller:
+		speed -> 2.5
+	Collision_Detection:
+		array -> 16,43.00006,0,0
+		radius -> 1000
+	Gravity_Constant:
+		constant -> 3
+		max_additive -> 30
+		velocity -> 5
+	Horizontal_Displacement:
+	Vertical_Player_Controller:
+		max_jump_time -> 35
+		jump_velocity -> 3
+	Vertical_Displacement:
+	Animations:
+		sprite_sets 8:
+			e_MariaFall
+			e_MariaIdle
+			e_MariaIdle2
+			e_MariaJump
+			e_MariaRun
+			e_MariaStandingKick
+			e_MariaWalk
+			e_MariaSlide
+	Hitboxes:
+		number_boxes -> 15
+		hitboxes 2:
+			e_MariaIdle0_1
+			e_MariaIdle1_2
+	Rpg_Stats:
+		stats 8:
+			strength -> 15
+			endurance -> 10
+			agility -> 15
+			sharpness -> 15
+			luck -> 10
+			vessel -> 10
+			flow -> 10
+			overload -> 5
+		lsm 6:
+			currentLife -> 50
+			maxLife -> 50
+			currentStamina -> 25
+			maxStamina -> 25
+			currentMana -> 40
+			maxMana -> 40
+		skills 7:
+			swords -> 5
+			blunts -> 5
+			pyromancy -> 20
+			cryomancy -> 15
+			electromancy -> 15
+			lightArmor -> 10
+			mediumArmor -> 5
+	Camera_Track:
+		horizontal_offset -> -320
+		vertical_offset -> -150
+		zoom -> 16
+	Direction:
+	Inventory:
+		weight_limit -> 100
+		x_size -> 12
+		y_size -> 4
+		items 0:
+		equipped 0:
+	Flags:
+		flags 0:
+	Audio_Emit:
+		sounds 0:
+	Script:
+		script -> e_Maria.py

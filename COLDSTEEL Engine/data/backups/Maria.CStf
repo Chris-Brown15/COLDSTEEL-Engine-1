@@ -1,0 +1,138 @@
+Maria
+vArray:
+	657.6667,438.82224,0.0,1.0,0.0,0.0,1.0,0.63288224,0.7685619,635.6667,466.82233,0.0,0.0,1.0,0.0,1.0,0.60818917,0.7885396,657.6667,466.82233,0.0,0.0,0.0,1.0,1.0,0.63288224,0.7885396,635.6667,438.82224,0.0,1.0,1.0,1.0,1.0,0.60818917,0.7685619,
+texture:
+	Saturn - Castlevania Symphony of the Night - Maria Renard.png
+Vector3f:
+	0.0,0.5019608,0.5019608,
+Vector3f:
+	0.0,0.0,0.0,
+components:
+	HORIZONTAL_PLAYER_CONTROLLER
+	COLLISION_DETECTION
+	GRAVITY_CONSTANT
+	HORIZONTAL_DISPLACEMENT
+	VERTICAL_PLAYER_CONTROLLER
+	VERTICAL_DISPLACEMENT
+	SCRIPT
+	ANIMATIONS
+	HITBOXES
+	RPG_STATS
+	CAMERA_TRACK
+	DIRECTION
+	INVENTORY
+	FLAGS
+	AUDIO_EMIT
+	fin
+HORIZONTAL_PLAYER_CONTROLLER:
+	speed:
+		2.5
+COLLISION_DETECTION:
+	vArray:
+		655.6667,438.32224,0.0,0.0,0.75,0.0,0.25,1.0,0.0,639.6667,481.3223,0.0,0.0,0.75,0.0,0.25,0.0,1.0,655.6667,481.3223,0.0,0.0,0.75,0.0,0.25,1.0,1.0,639.6667,438.32224,0.0,0.0,0.75,0.0,0.25,0.0,0.0,
+	radius:
+		1000.0
+GRAVITY_CONSTANT:
+	constant:
+		3.0
+	max additive:
+		30.0
+	velocity:
+		5.0
+VERTICAL_PLAYER_CONTROLLER:
+	max jump time:
+		35.0
+	jump velocity:
+		3.0
+ANIMATIONS:
+	size:
+		8
+	sprite sets:
+		e_MariaFall
+		e_MariaIdle
+		e_MariaIdle2
+		e_MariaJump
+		e_MariaRun
+		e_MariaStandingKick
+		e_MariaWalk
+		e_MariaSlide
+HITBOXES:
+	size:
+		15
+	hitbox sets:
+		e_MariaIdle0_1
+		e_MariaIdle1_2
+		fin
+RPG_STATS:
+	strength,15
+	endurance,10
+	dexterity,-10
+	agility,15
+	recovery,-10
+	resistence,-10
+	balance,-10
+	sharpness,15
+	morals,-10
+	charisma,-10
+	perception,-10
+	composure,15
+	oratory,-10
+	emotion,-10
+	extraSensoryPerception,-10
+	luck,10
+	vessel,10
+	physicalDurability,-10
+	mentalDurability,-10
+	flow,10
+	overload,-10
+	currentLife,70.0
+	maxLife,70.0
+	currentStamina,-10.0
+	maxStamina,-10.0
+	currentMana,20.0
+	maxMana,20.0
+	swords,10
+	blunts,-10
+	polearms,-10
+	bows,-10
+	crossbows,-10
+	staves,-10
+	wands,-10
+	pyromancy,-10
+	cryomancy,-10
+	electromancy,-10
+	heavyArmor,-10
+	lightArmor,-10
+	mediumArmor,-10
+	invincibilityTimeMillis,500.0
+	fin
+CAMERA_TRACK:
+	horizontal offset:
+		-320.0
+	vertical offset:
+		-150.0
+	zoom:
+		16.0
+INVENTORY:
+	weight limit:
+		100.0
+	x dimension:
+		12
+	y dimension:
+		4
+	items:
+		fin
+	equipped:
+		fin
+FLAGS:
+	size:
+		0
+	flags:
+		fin
+AUDIO_EMIT:
+	size:
+		0
+	sounds:
+SCRIPT:
+	script file:
+		e_Maria.py
