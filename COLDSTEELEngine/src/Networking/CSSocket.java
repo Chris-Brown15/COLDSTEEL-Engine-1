@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.SocketException;
 
 public class CSSocket {
@@ -13,28 +12,24 @@ public class CSSocket {
 	InetAddress thisAddress;
 	DatagramPacket sendingPacket = null;
 	DatagramPacket receivingPacket = null;
-	final int port;
-		
-	public CSSocket(int port){
-		
-		this.port = port;
-		
+	
+	public CSSocket(){
+				
 		try {
 			
-			thisAddress = InetAddress.getLocalHost();
 			socket = new DatagramSocket();
 			
 		} catch(IOException e) {}
 				
 	}
 	
-	public void connect(InetSocketAddress connectTo) throws SocketException {
+	public void connect(InetAddress connectTo , int port) throws SocketException {
 		
-		socket.connect(connectTo);	
+		socket.connect(connectTo , port);	
 		if(socket.isConnected()) { 
 			
 			System.out.println("Connected to " + connectTo.toString());
-			sendingPacket = new DatagramPacket(new byte [100] , 0 , 100 , connectTo);
+			sendingPacket = new DatagramPacket(new byte [100] , 100);
 			
 		} else System.out.println("Failed to connect to " + connectTo.toString());
 		
