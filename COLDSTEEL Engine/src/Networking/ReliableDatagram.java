@@ -11,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import CSUtil.Timer;
 
-
 /**
  * Reliable Datagram Packet. When a packet is created, it is added to a list of DatagramPackets and will continue to send until an ACK packet is received.
  * For a recipient to know if a DatagramPacket is a reliable packet, the first 4 bytes should contain a special value notating as much.
@@ -23,14 +22,31 @@ public final class ReliableDatagram {
 
 	private static final int RELIABLE_DATAGRAM_KEY = 1701143909;//randomly selected
 	private static final byte RELIABLE_DATAGRAM_KEY_BYTE = 101;
+
+	//keeps track of elapsed seconds
+	private static final Timer SECOND_TIMER = new Timer();
 	
 	private static final ConcurrentHashMap<Integer , ReliableDatagram> DATAGRAMS = new ConcurrentHashMap<>();
 	private static final ByteBuffer HASH_CODE_CONVERTER = ByteBuffer.allocate(4);	
-	
+
+	/*
+	 * Used to keep track of round trip time of packets for the last second. 
+	 * If this value gets above some specific amount, ~300 milliseconds, we can enter a desperate mode 
+	 * where we send packets less frequently.
+	 * 
+	 * We can use Java's LocalTime to keep track of when a reliable datagram was sent, and use that class to get a difference
+	 * in times from when we create a reliable datagram and when we receive an ack for it, and this we can use to determine
+	 * the round trip time.
+	 * 
+	 */
+	private static double rawRTT = 0;
+	private static int numberAcksReceivedLastSecond = 0;
+		
 	private final int cooldownMillis;	
 	private final DatagramPacket packet;
 	private final int hash;
 	private final Timer timer = new Timer();
+	private final double creationTime = System.currentTimeMillis();
 	
 	/**
 	 * Constructs a datagram packet whose destination is undefined.
@@ -77,12 +93,12 @@ public final class ReliableDatagram {
 	private ReliableDatagram(byte[] data , int hash , int cooldownMillis , InetAddress addr , int port) {
 		
 		byte[] fixedData = new byte[data.length + 8];
-		HASH_CODE_CONVERTER.putInt(0 , RELIABLE_DATAGRAM_KEY);		
 
-		fixedData[0] = HASH_CODE_CONVERTER.get(0);
-		fixedData[1] = HASH_CODE_CONVERTER.get(1);
-		fixedData[2] = HASH_CODE_CONVERTER.get(2);
-		fixedData[3] = HASH_CODE_CONVERTER.get(3);
+		fixedData[0] = RELIABLE_DATAGRAM_KEY_BYTE;
+		fixedData[1] = RELIABLE_DATAGRAM_KEY_BYTE;
+		fixedData[2] = RELIABLE_DATAGRAM_KEY_BYTE;
+		fixedData[3] = RELIABLE_DATAGRAM_KEY_BYTE;
+		
 		
 		HASH_CODE_CONVERTER.putInt(0 , hash);
 		
@@ -200,6 +216,8 @@ public final class ReliableDatagram {
 	 * @throws IOException if {@code sender} throws an error during its {@code send} method.
 	 */
 	public synchronized static void tickLiveDatagrams(DatagramSocket sender) throws IOException {
+
+		if(SECOND_TIMER.getElapsedTimeSecs() >= 1) onSecondUpdate();
 		
 		Set<Entry<Integer , ReliableDatagram>> live = DATAGRAMS.entrySet();
 		ReliableDatagram value;
@@ -238,8 +256,30 @@ public final class ReliableDatagram {
 	}
 
 	public static final void acceptAcknowledgement(DatagramPacket ack) {
+
+		ReliableDatagram acked = DATAGRAMS.remove(reliableHashFromPacket(ack));
+		numberAcksReceivedLastSecond++;
+
+		if(acked != null) { 
+
+			double arrivalTime = System.currentTimeMillis();
+			rawRTT += (arrivalTime - acked.creationTime);
+			numberAcksReceivedLastSecond++;			
+			
+		}
 		
-		DATAGRAMS.remove(reliableHashFromPacket(ack));		
+	}
+
+	private static void onSecondUpdate() {
+		
+		numberAcksReceivedLastSecond = 0;
+		SECOND_TIMER.start();
+		
+	}
+
+	static final double computeAverageRTT() {
+		
+		return rawRTT / numberAcksReceivedLastSecond;
 		
 	}
 	

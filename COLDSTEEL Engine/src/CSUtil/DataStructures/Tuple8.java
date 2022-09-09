@@ -2,7 +2,14 @@ package CSUtil.DataStructures;
 
 public class Tuple8 <Q , W , E , R , T , Y , U , I>{
 
-	private Q first; private W second; private E third;	private R fourth; private T fifth; private Y sixth; private U seventh; private I eighth;
+	private Q first; 
+	private W second; 
+	private E third;	
+	private R fourth; 
+	private T fifth; 
+	private Y sixth; 
+	private U seventh; 
+	private I eighth;
 	
 	public Tuple8() {}
 	public Tuple8(Q first,  W second, E third, R fourth,  T fifth,  Y sixth,  U seventh,  I eighth) {

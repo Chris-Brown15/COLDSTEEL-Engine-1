@@ -84,7 +84,7 @@ public class GameRuntime {
 			case MAIN_MENU -> {
 				
 				if(mainMenu == null) mainMenu = new MainMenu();
-				mainMenu.layoutMainMenu(engine);
+				mainMenu.layoutMainMenus(engine);
 				
 			}
 			

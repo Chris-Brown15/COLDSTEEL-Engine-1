@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class Tuple2<U , V> implements Iterable<Object> {
+public class Tuple2<U , V> {
 
 	private U first;
 	private V second;
@@ -48,14 +48,4 @@ public class Tuple2<U , V> implements Iterable<Object> {
 		
 	}
 	
-	@Override public Iterator<Object> iterator() {
-
-		List<Object> TupleAsList = new ArrayList<Object>(2);
-		TupleAsList.add(first);
-		TupleAsList.add(second);
-
-		return TupleAsList.iterator();
-		
-	}
-		
 }
