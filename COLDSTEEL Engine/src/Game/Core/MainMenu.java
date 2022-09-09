@@ -1,6 +1,5 @@
 package Game.Core;
 
-import static CS.COLDSTEEL.assets;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_NO_SCROLLBAR;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
@@ -11,7 +10,6 @@ import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_property_float;
 
-import java.net.SocketException;
 import java.nio.FloatBuffer;
 
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
@@ -26,7 +24,6 @@ import CS.RuntimeState;
 import Core.NKUI;
 import Core.Quads;
 import Core.TemporalExecutor;
-import Networking.CSSocket;
 
 /**
  * 
@@ -56,6 +53,7 @@ public class MainMenu implements NKUI{
 	}	
 	
 	boolean showOptions = false;
+	boolean showMultiplayer = false;
 	
 	public void layoutMainMenu(Engine engine) {
 		
@@ -103,7 +101,7 @@ public class MainMenu implements NKUI{
 //					
 //				});
 				
-				
+				showMultiplayer = showMultiplayer ? false:true;
 				
 			}
 			
@@ -145,6 +143,42 @@ public class MainMenu implements NKUI{
 					FloatBuffer slider = stack.floats(SoundEngine.getGlobalVolume());
 					nk_property_float(context , "Sound Volume" , -999 , slider , 999 , 0.05f , 0.05f);
 					SoundEngine.setGlobalVolume(slider.get());
+					
+				}
+				
+				nk_end(context);
+				
+			}
+			
+		}
+		
+		if(showMultiplayer) {
+			
+			try(MemoryStack stack = allocator.push()) {
+				
+				NkRect multiplayerRect = NkRect.malloc(allocator).set(showOptions ? 1470 : 1165 , 540 , 300 , 310);
+				if(nk_begin(context , "Multiplayer" , multiplayerRect ,  NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
+					
+					nk_layout_row_dynamic(context , 30 , 1);
+					if(nk_button_label(context , "Host Multiplayer Session")) {
+						
+						
+						
+					}
+					
+					nk_layout_row_dynamic(context , 30 , 1);
+					if(nk_button_label(context , "Start Server")) {
+						
+						
+						
+					}
+					
+					nk_layout_row_dynamic(context , 30 , 1);
+					if(nk_button_label(context , "Join Session")) {
+						
+						
+						
+					}
 					
 				}
 				
