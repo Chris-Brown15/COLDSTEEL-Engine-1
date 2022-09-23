@@ -43,7 +43,7 @@ public class DebugInfo implements NKUI {
 	
 	public static boolean showDebug = false;
 	
-	private final NkRect rect = NkRect.malloc(allocator).set(1920 - 355 , 5, 350 , 600);
+	private final NkRect rect = NkRect.malloc(allocator).set(1565 , 5, 350 , 600);
 	private final int options = NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE;
 	private final DecimalFormat decimalFormatter = new DecimalFormat();
 	private boolean showAllEntities = false;

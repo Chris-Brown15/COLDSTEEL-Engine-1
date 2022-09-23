@@ -5,15 +5,21 @@ import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
+import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
+import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
 import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_property_float;
-
-import java.nio.FloatBuffer;
-
+import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
+
+import static org.lwjgl.system.MemoryUtil.memUTF8Safe;
+
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 import org.lwjgl.nuklear.NkRect;
 import org.lwjgl.system.MemoryStack;
@@ -45,7 +51,7 @@ public class MainMenu implements NKUI{
 		MULTIPLAYER,
 		MULTIPLAYER_HOSTING,
 		MULTIPLAYER_JOINING,
-		NEW,
+		MULTIPLAYER_JOINED_CHOOSE,
 		OPTIONS,
 		;
 				
@@ -56,7 +62,10 @@ public class MainMenu implements NKUI{
 	public boolean menuReturned = false;	
 	NkRect rect;	
 	Quads mainMenuBillboard = new Quads(-1);
-		
+	CharacterCreator multiplayerCharacterCreator = new CharacterCreator(false);	
+	ByteBuffer portAndInetAddrInput = allocator.calloc(1 , 23);
+	IntBuffer portAndInetAddrLength = allocator.callocInt(1);
+	
 	public MainMenu() {
 		
 		rect = NkRect.malloc(allocator).set(760 , 540 , 400, 310);
@@ -72,11 +81,6 @@ public class MainMenu implements NKUI{
 				
 	}	
 	
-	boolean showOptions = false;
-	boolean showMultiplayer = false;
-	//ui class for creating characters
-	private CharacterCreator characterCreator = null;
-	
 	public void layoutMainMenus(Engine engine) {
 		
 		TemporalExecutor.process();		
@@ -86,10 +90,10 @@ public class MainMenu implements NKUI{
 			case MAIN -> layoutMainMenu(engine);
 			case MULTIPLAYER -> layoutMainMultiplayer();
 			case MULTIPLAYER_HOSTING -> layoutMultiplayerHosting();
-			case MULTIPLAYER_JOINING -> {}
-			case NEW -> characterCreator.layout();
+			case MULTIPLAYER_JOINING -> layoutMultiplayerJoining();
+			case MULTIPLAYER_JOINED_CHOOSE -> layoutMultiplayerChooseCharacterAfterJoining();
 			case OPTIONS -> layoutOptions();	
-			
+						
 		}
 				
 	}
@@ -103,18 +107,15 @@ public class MainMenu implements NKUI{
 			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Continue")) {
 				
-				GameRuntime.STATE = GameState.GAME_RUNTIME;
+				GameRuntime.STATE = GameState.GAME_RUNTIME_SINGLEPLAYER;
 				menuReturned = true;
 				
 			}	
 			
 			if(nk_button_label(context , "New Character")) {
 				
-				characterCreator = new CharacterCreator();
-				menuState = MenuStates.NEW;
-				
-//				GameRuntime.STATE = GameState.NEW_CHARACTER;
-//				menuReturned = true;
+				GameRuntime.STATE = GameState.NEW_SINGLEPLAYER;
+				menuReturned = true;
 				
 			}			
 			
@@ -187,11 +188,7 @@ public class MainMenu implements NKUI{
 				SoundEngine.setGlobalVolume(slider.get());
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Back")) { 
-					
-					menuState = MenuStates.MAIN;
-					
-				}
+				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
 				
 			}
 			
@@ -209,25 +206,13 @@ public class MainMenu implements NKUI{
 			if(nk_begin(context , "Multiplayer" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Host Session")) {
-					
-					menuState = MenuStates.MULTIPLAYER_HOSTING;
-					
-				}
+				if(nk_button_label(context , "Host Session")) menuState = MenuStates.MULTIPLAYER_HOSTING;
 
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Join Session")) {
-					
-					
-					
-				}
+				if(nk_button_label(context , "Join Session")) menuState = MenuStates.MULTIPLAYER_JOINING;
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Start Server")) {
-					
-					
-					
-				}
+				if(nk_button_label(context , "Start Server")) {}
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
@@ -249,16 +234,10 @@ public class MainMenu implements NKUI{
 			if(nk_begin(context , "Host a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "New Character")) { 
-					
-					menuState = MenuStates.NEW;							
-					
-				}
+				if(nk_button_label(context , "New Character")) GameRuntime.STATE = GameState.NEW_MULTIPLAYER_HOST;
 				
 				nk_layout_row_dynamic(context , 30 , 1);				
-				if(nk_button_label(context , "Load Character")) {
-					
-				}
+				if(nk_button_label(context , "Load Character")) GameRuntime.STATE = GameState.LOAD_MULTIPLAYER_HOST;
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER;			
@@ -268,6 +247,67 @@ public class MainMenu implements NKUI{
 			nk_end(context);
 			
 		}
+		
+	}
+	
+	/**
+	 * First, input IP and port of the server, then connect to the server then choose to create or load a character, then begin joining
+	 * 
+	 */
+	private void layoutMultiplayerJoining() {
+		
+		try(MemoryStack stack = allocator.push()) { 
+			
+			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
+			if(nk_begin(context , "Join a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) { 
+				
+				nk_layout_row_dynamic(context , 20 , 1);
+				nk_text(context  , "IP Address:Port" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED);
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , portAndInetAddrInput , portAndInetAddrLength , 22 , NKUI.DEFAULT_FILTER);
+
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Accept")) menuState = MenuStates.MULTIPLAYER_JOINED_CHOOSE;
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER;
+				
+			}
+			
+			nk_end(context);
+			
+		}
+		
+	}
+	
+	private void layoutMultiplayerChooseCharacterAfterJoining() {
+		
+		try(MemoryStack stack = allocator.push()){
+
+			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
+			if(nk_begin(context , "Join a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
+				
+				nk_layout_row_dynamic(context  , 30 , 1);
+				if(nk_button_label(context , "New Character")) GameRuntime.STATE = GameState.NEW_MULTIPLAYER_CLIENT; 
+
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Load Character")) GameRuntime.STATE = GameState.LOAD_MULTIPLAYER_CLIENT;
+
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER_JOINING;
+				
+			}
+			
+			nk_end(context);
+			
+		}
+		
+	}
+	
+	String getServerConnectionInfo() {
+		
+		return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
 		
 	}
 	

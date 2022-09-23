@@ -2,7 +2,6 @@ package CS;
 
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
-import static CS.COLDSTEEL.root;
 import static CSUtil.BigMixin.getSCToWCForX;
 import static CSUtil.BigMixin.getSCToWCForY;
 import static org.lwjgl.Version.getVersion;
@@ -373,18 +372,10 @@ public class Engine {
 		Console.shutDown();
 		
     	switch(STATE) {
-    	
-    	case EDITOR:
-    	
-    		editor.shutDown();
-    		
-    		break;
-    	
-    	case GAME:
-    		
-    		
-    		break;
-    		
+
+	    	case EDITOR -> editor.shutDown();
+	    	case GAME -> gameRuntime.shutDown();	    		
+
     	}
     	
     	System.out.println("Program shut down, until next time...");    	
@@ -401,15 +392,8 @@ public class Engine {
 
 		switch(STATE) {
 
-	    	case EDITOR:
-
-	    		editor.shutDown();
-
-	    		break;
-
-	    	case GAME:
-
-	    		break;
+	    	case EDITOR -> editor.shutDown();
+	    	case GAME -> gameRuntime.shutDown();	    		
 
     	}
 
@@ -510,7 +494,7 @@ public class Engine {
 	 * In charge of calling scripts and checking players against load doors
 	 * 
 	 */
-	public void levelUpdate() {
+	public void g_levelUpdate() {
 		
 		currentLevel.runScripts();
 		LevelLoadDoors door;
@@ -523,7 +507,7 @@ public class Engine {
 		 */
 		if((door = currentLevel.playerCollidingWithLoadDoor(player)) != null  && door != player.previouslyUsedLoadDoor() && door.hasLinkedDoor()) {
 			
-			loadLevelFromLoadDoor(door);
+			g_loadLevelFromLoadDoor(door);
 			
 		} else if (door == null) player.previouslyUsedLoadDoor(null);
 		
@@ -535,55 +519,59 @@ public class Engine {
 	 * 
 	 * @param loadDoor
 	 */
-	public void loadLevelFromLoadDoor(LevelLoadDoors loadDoor) {
+	public void g_loadLevelFromLoadDoor(LevelLoadDoors loadDoor) {
 				
+		GameState previousState = GameRuntime.getState();
+		
 		GameRuntime.setState(GameState.BUSY);
 		fadeToBlack(100d);
 		TemporalExecutor.onElapseOf(100d , () -> {
 			
 			PlayerCharacter player = gameRuntime.player();
-			loadClearDeploy(data + "macrolevels/" + loadDoor.linkedLevel());
+			g_loadClearDeploy(data + "macrolevels/" + loadDoor.linkedLevel());
 			//this sets the player used load door to the load door linked to the one they just walked through
 			player.previouslyUsedLoadDoor(currentLevel.getLoadDoorByName(loadDoor.linkedLoadDoorName()));
 			player.moveTo(player.previouslyUsedLoadDoor().getConditionArea().getMidpoint());
 			scene.entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
-			GameRuntime.setState(GameState.GAME_RUNTIME);
+			GameRuntime.setState(previousState);
 			fadeIn(100d);
 			
 		});
 		
 	}
 	
-	public void loadSave(String selectedSave) {
+	public void g_loadSave(String selectedSaveNamePath) {
 		
-		fadeToBlack(2400);
+		fadeToBlack(2000);
 		GameRuntime.setState(GameState.BUSY);
 		
 		TemporalExecutor.onElapseOf(2400d , () -> {
 			
-			String filepath = root + selectedSave;			
-			
-			try (BufferedReader reader = Files.newBufferedReader(Paths.get(filepath))){
+			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
 				
 				PlayerCharacter player = gameRuntime.player();
 				
 				if(player == null) player = new PlayerCharacter();
 				player.load(reader);
-				player.nextSave(Character.getNumericValue(filepath.length() - 6));
+				player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
 				player.playersEntity().LID(0);
 				
 				CSTFParser cstf = new CSTFParser(reader);
-				String playerLevel = cstf.rlabel("location");
+				cstf.rlist();
 				
-				loadClearDeploy(data + "macrolevels/" + playerLevel + ".CStf");
+				g_loadClearDeploy(data + "macrolevels/" + cstf.rlabel("level") + ".CStf");
 				float[] playersPosition = new float[2];
 				cstf.rlabel("position" , playersPosition);
 				
+				cstf.endList();
+				
 				player.moveTo(playersPosition);
 				scene.entities().addStraightIn(player.playersEntity());
-	
-				GameRuntime.setState(GameState.GAME_RUNTIME);
+								
+				GameRuntime.setState(player.isSingleplayer() ? GameState.GAME_RUNTIME_SINGLEPLAYER : GameState.GAME_RUNTIME_MULTIPLAYER);				
+				gameRuntime.player(player);
+								
 				fadeIn(1000);
 				
 			} catch (IOException e) {
@@ -596,7 +584,50 @@ public class Engine {
 		
 	}
 
-	private void buildOSTIntro(CSLinked<Sounds> introSegments) {
+	public void g_loadSave(String selectedSaveNamePath , GameState targetState) {
+		
+		fadeToBlack(2000);
+		GameRuntime.setState(GameState.BUSY);
+		
+		TemporalExecutor.onElapseOf(2400d , () -> {
+			
+			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
+				
+				PlayerCharacter player = gameRuntime.player();
+				
+				if(player == null) player = new PlayerCharacter();
+				player.load(reader);
+				player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
+				player.playersEntity().LID(0);
+				
+				CSTFParser cstf = new CSTFParser(reader);
+				cstf.rlist();
+				
+				g_loadClearDeploy(data + "macrolevels/" + cstf.rlabel("level") + ".CStf");
+				float[] playersPosition = new float[2];
+				cstf.rlabel("position" , playersPosition);
+				
+				cstf.endList();
+				
+				player.moveTo(playersPosition);
+				scene.entities().addStraightIn(player.playersEntity());
+								
+				GameRuntime.setState(targetState);				
+				gameRuntime.player(player);
+								
+				fadeIn(1000);
+				
+			} catch (IOException e) {
+				
+				e.printStackTrace();
+				
+			}
+			
+		});
+		
+	}
+
+	private void g_buildOSTIntro(CSLinked<Sounds> introSegments) {
 		
 		//play sounds and queue all the next ones.
 		cdNode<Sounds> iter = introSegments.get(0);
@@ -617,7 +648,7 @@ public class Engine {
 		
 	}
 	
-	private void buildOSTLoop(CSLinked<Sounds> loopSegments) {
+	private void g_buildOSTLoop(CSLinked<Sounds> loopSegments) {
 		
 		cdNode<Sounds> iter = loopSegments.get(0);
 		iter.val.play();
@@ -632,12 +663,12 @@ public class Engine {
 			}
 			
 			cdNode<Sounds> node = iter;
-			TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> buildOSTLoop(loopSegments));
+			TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> g_buildOSTLoop(loopSegments));
 			
 		} else {
 			
 			cdNode<Sounds> node = iter;
-			TemporalExecutor.onTrue(() -> node.val.stopped() , () -> buildOSTLoop(loopSegments));
+			TemporalExecutor.onTrue(() -> node.val.stopped() , () -> g_buildOSTLoop(loopSegments));
 		
 		}
 		
@@ -649,7 +680,7 @@ public class Engine {
 	 * 
 	 * @param filepath — filepath to the level
 	 */
-	public void loadClearDeploy(String filepath) {
+	public void g_loadClearDeploy(String filepath) {
 				
 		Levels newLevel = new Levels((CharSequence)(filepath));
 		MacroLevels macroLevel = newLevel.associatedMacroLevel();
@@ -663,13 +694,13 @@ public class Engine {
 			CSLinked<Sounds> loopSegments = new CSLinked<>();			
 			macroLevel.forEachLoopSegment(x -> loopSegments.add(SoundEngine.add(assets + "sounds/" + x)));
 			
-			if(introSegments.size() > 0) buildOSTIntro(introSegments);
+			if(introSegments.size() > 0) g_buildOSTIntro(introSegments);
 			
 			if(loopSegments.size() > 0) {			
 			
 				if(introSegments.size() > 0) 
-					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> buildOSTLoop(loopSegments));
-				else buildOSTLoop(loopSegments);
+					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> g_buildOSTLoop(loopSegments));
+				else g_buildOSTLoop(loopSegments);
 				
 			}
 			
@@ -685,13 +716,13 @@ public class Engine {
 			CSLinked<Sounds> loopSegments = new CSLinked<>();			
 			macroLevel.forEachLoopSegment(x -> loopSegments.add(SoundEngine.add(assets + "sounds/" + x)));
 			
-			if(introSegments.size() > 0) buildOSTIntro(introSegments);
+			if(introSegments.size() > 0) g_buildOSTIntro(introSegments);
 			
 			if(loopSegments.size() > 0) {			
 			
 				if(introSegments.size() > 0) 
-					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> buildOSTLoop(loopSegments));
-				else buildOSTLoop(loopSegments);
+					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> g_buildOSTLoop(loopSegments));
+				else g_buildOSTLoop(loopSegments);
 				
 			}
 		
@@ -704,8 +735,14 @@ public class Engine {
 		
 		currentLevel = newLevel;
 		onLevelLoad.accept(newLevel);
-		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);
+		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);		
 		
+	}
+	
+	public void g_toggleMultiplayerUI() {
+		
+		if(STATE != RuntimeState.GAME) return;
+		gameRuntime.toggleMultiplayerUI();
 		
 	}
 	

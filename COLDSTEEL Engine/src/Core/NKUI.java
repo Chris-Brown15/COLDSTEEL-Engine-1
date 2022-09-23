@@ -21,7 +21,9 @@ import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.nuklear.NkImage;
+import org.lwjgl.nuklear.NkPluginFilter;
 import org.lwjgl.nuklear.NkRect;
+import org.lwjgl.nuklear.Nuklear;
 import org.lwjgl.system.MemoryStack;
 
 import CS.Engine;
@@ -31,6 +33,9 @@ import Renderer.Textures.ImageInfo;
 
 public interface NKUI {
 
+	public static final NkPluginFilter DEFAULT_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_default);
+	public static final NkPluginFilter NUMBER_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_float);
+	
 	NkContext context = Engine.NuklearContext();
 	MemoryStack allocator = Engine.UIAllocator();
 	Supplier<int[]> windowDims = Engine.windowDims;

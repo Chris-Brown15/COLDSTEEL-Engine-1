@@ -1,7 +1,6 @@
 package Game.Player;
 
 import static CSUtil.BigMixin.toByte;
-import static CSUtil.BigMixin.toLocalPath;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_UP;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
@@ -18,7 +17,6 @@ import java.io.File;
 
 import org.lwjgl.nuklear.NkRect;
 
-import CS.Engine;
 import Core.NKUI;
 
 /**
@@ -30,7 +28,7 @@ import Core.NKUI;
 public class PlayerLoader implements NKUI{
 
 	private final File[] saves;	
-	private NkRect rect = NkRect.malloc(allocator).set(5, 5, 300, 400);
+	private NkRect rect = NkRect.malloc(allocator).set(810, 540, 300, 400);
 	private boolean uiExpanded = false;
 	private String playerSavePath = null;
 	
@@ -40,7 +38,7 @@ public class PlayerLoader implements NKUI{
 		
 	}
 		
-	public void layout(Engine engine) {
+	public void layout() {
 		
 		if(nk_begin(context , "Load" , rect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
 
@@ -50,18 +48,10 @@ public class PlayerLoader implements NKUI{
 				uiExpanded = uiExpanded ? false : true;
 			allocator.pop();
 			
-			if(uiExpanded) {
+			if(uiExpanded) for(int i = 0 ; i < saves.length ; i ++) {
 				
-				for(int i = 0 ; i < saves.length ; i ++) {
-					
-					nk_layout_row_dynamic(context , 30 , 1);
-					if(nk_button_label(context , saves[i].getName())){
-						
-						playerSavePath = (String) toLocalPath(saves[i].listFiles()[0].getAbsolutePath());
-						
-					}
-					
-				}
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , saves[i].getName())) playerSavePath = saves[i].listFiles()[0].getAbsolutePath();
 				
 			}
 			
@@ -71,6 +61,10 @@ public class PlayerLoader implements NKUI{
 		
 	}
 	
+	/**
+	 * 
+	 * @return either {@code null} or the absolute path of the selected save.
+	 */
 	public String load() {
 		
 		return playerSavePath;

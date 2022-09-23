@@ -5279,112 +5279,15 @@ public class EditorUI implements NKUI{
 			nk_layout_row_dynamic(context , 30 , 1);
 			if(nk_button_label(context , "test")) {
 				
-				//each element in the outer list is a tuple where first is the name of the entity and second is a list of IDs and positions
-				CSLinked<Tuple2<String , CSLinked<float[]>>> uniques = new CSLinked<>();
 				
-				cdNode<Entities> iter = scene.entities().iter();
-				for(int i = 0 ; i < scene.entities().size() ; i ++ , iter = iter.next) {
-					
-					boolean found = false;					
-					cdNode<Tuple2<String , CSLinked<float[]>>> uniquesIter = uniques.get(0);
-					for(int j = 0 ; j < uniques.size() ; j++ , uniquesIter = uniquesIter.next) {
-						
-						//this entity exists, add a new float[]
-						if(iter.val.name().equals(uniquesIter.val.getFirst())) {
-							
-							uniquesIter.val.getSecond().add(new float[] {iter.val.getID() , iter.val.xMid() , iter.val.yMid()});
-							found = true;
-							break;
-							
-						}
-						
-					}						
-										
-					if(!found) {
-						
-						var instances = new CSLinked<float[]>();
-						instances.add(new float[] {iter.val.getID() , iter.val.xMid() , iter.val.yMid()});
-						uniques.add(new Tuple2<>(iter.val.name() , instances));
-						
-					}
-					
-				}				
-				
-				uniques.forEachVal(tuple -> {
-					
-					System.out.println(tuple.getFirst());
-					tuple.getSecond().forEachVal(instance -> System.out.println(instance[0] + ", " + instance[1] + ", " + instance[2]));
-					
-				});
 				
 			}		
-			
-			nk_layout_row_dynamic(context , 30 , 2);
-			if(nk_button_label(context , "Print")) list.print();
-			if(nk_button_label(context , "moveTo"))	{ 
-				
-				Supplier<String> index = DialogUtils.newInputBox("Index", 5, 270, DialogUtils.NUMBER_FILTER);
-				Supplier<String> destination = DialogUtils.newInputBox("Destination", 360, 270, DialogUtils.NUMBER_FILTER);
-				TemporalExecutor.onTrue(() -> index.get() != null && destination.get() != null , () -> {
-					
-					int ind = Integer.parseInt(index.get());
-					int dest = Integer.parseInt(destination.get());
-					list.moveTo(ind, dest);
-					
-				});
-				
-			}
-
-			nk_layout_row_dynamic(context , 30 , 1);
-			if(nk_button_label(context , "Reset")) {
-				
-				list.clear();
-
-				list.add("Str 1");
-				list.add("Str 2");
-				list.add("Str 3");
-				list.add("Str 4");
-				list.add("Str 5");
-				list.add("Str 6");
-				list.add("Str 7");
-				list.add("Str 8");
-				list.add("Str 9");
-				list.add("Str 10");
-				list.add("Str 11");
-				list.add("Str 12");
-				list.add("Str 13");
-				list.add("Str 14");
-				list.add("Str 15");
-				
-			}
 			
 		}	
 		
 		nk_end(context);
 
 	} 
-	
-	CSLinked<String> list = new CSLinked<>();
-	{
-		
-		list.add("Str 1");
-		list.add("Str 2");
-		list.add("Str 3");
-		list.add("Str 4");
-		list.add("Str 5");
-		list.add("Str 6");
-		list.add("Str 7");
-		list.add("Str 8");
-		list.add("Str 9");
-		list.add("Str 10");
-		list.add("Str 11");
-		list.add("Str 12");
-		list.add("Str 13");
-		list.add("Str 14");
-		list.add("Str 15");
-		
-		
-	}
 	
 	float getMoveSpeed(){
 	

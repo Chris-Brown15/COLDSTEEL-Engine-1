@@ -23,23 +23,26 @@ import Game.Levels.Levels;
 public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 
 	private Entities playerEntity;
-	private String saveName;
+	private String saveName = "UNNAMED";
 	private int nextSave = 0;
 	private LevelLoadDoors previouslyUsedLoadDoor;
+	private boolean isSinglePlayerCharacter = true;
 	
-	public PlayerCharacter(String saveName , Entities playersEntity) {
+	
+	public PlayerCharacter(String saveName , Entities playersEntity , boolean isSinglePlayerCharacter) {
 		
 		this.saveName = saveName;
 		this.playerEntity = playersEntity;
+		this.isSinglePlayerCharacter = isSinglePlayerCharacter;
 		
 	}
 
 	public PlayerCharacter() {
-				
+		
 		playerEntity = new Entities();
 		
 	}
-
+	
 	public void moveTo(float x , float y) {
 		
 		playerEntity.moveTo(x , y);
@@ -75,6 +78,12 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 		this.nextSave = nextSave;
 		
 	}
+
+	public int nextSave() {
+		
+		return nextSave;
+		
+	}
 	
 	public void previouslyUsedLoadDoor(LevelLoadDoors door) {
 		
@@ -88,7 +97,11 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 		
 	}
 	
-	
+	public boolean isSingleplayer() {
+		
+		return isSinglePlayerCharacter;
+		
+	}
 	
 	@Override public void delete() {}
 
@@ -108,11 +121,12 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 			
 		}
 		
-		try(BufferedWriter writer = Files.newBufferedWriter(Paths.get(CS.COLDSTEEL.data + "saves/" + saveName + "/" + saveName + nextSave + ".CStf"))){
+		try(BufferedWriter writer = Files.newBufferedWriter(Paths.get(CS.COLDSTEEL.data + "saves/" + saveName + "/" + saveName + " #" + nextSave + ".CStf"))){
 			
 			CSTFParser cstf = new CSTFParser(writer);
 			
 			cstf.wname(saveName);
+			cstf.wlabelValue("singleplayer", isSinglePlayerCharacter);
 			playerEntity.write(writer);
 			
 			cstf.wlist("location");
@@ -133,10 +147,11 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 		
 		try (BufferedReader reader = Files.newBufferedReader(Paths.get(filepath))){
 			
-			saveName = reader.readLine();
-			nextSave = Character.getNumericValue(filepath.charAt(filepath.length() - 6));
+			CSTFParser cstf = new CSTFParser(reader);
+			saveName = cstf.rname();
+			isSinglePlayerCharacter = cstf.rbooleanLabel("singleplayer");
 			playerEntity.load(reader);
-			
+						
 		} catch (IOException e) {
 			
 			e.printStackTrace();
@@ -148,10 +163,11 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 	@Override public void write(BufferedWriter writer , Object...data) {}
 
 	@Override public void load(BufferedReader reader) throws IOException {
-		
-		saveName = reader.readLine();		
+				
+		CSTFParser cstf = new CSTFParser(reader);
+		saveName = cstf.rname();		
+		isSinglePlayerCharacter = cstf.rbooleanLabel("singleplayer");
 		playerEntity.load(reader);
-		
 		
 	}
 	

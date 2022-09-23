@@ -1022,19 +1022,10 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
-
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
+    						
     					}
 
     					break;
@@ -1043,17 +1034,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1063,19 +1046,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1085,17 +1058,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1105,19 +1070,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							
-    							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1128,18 +1083,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
+    							DebugInfo.showDebug = DebugInfo.showDebug ? false:true;
+    							break;
     							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1151,17 +1100,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							
-
+    							engine.g_toggleMultiplayerUI();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1171,20 +1114,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-   							
-    							DebugInfo.showDebug = DebugInfo.showDebug ? false:true;
-    							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1218,17 +1150,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1238,17 +1162,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1258,17 +1174,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1278,17 +1186,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1847,17 +1747,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2850,19 +2742,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							
-    							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2889,8 +2771,7 @@ public class GLFWWindow {
     					}
 
     					break;
-
-
+    				
     				case GLFW_KEY_RIGHT_SHIFT:
 
     					switch(action){

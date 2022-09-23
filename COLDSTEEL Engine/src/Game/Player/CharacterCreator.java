@@ -44,6 +44,8 @@ import Core.NKUI;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
 import Core.Entities.EntityRPGStats;
+import Game.Core.GameRuntime;
+import Game.Core.GameState;
 import Renderer.Textures.ImageInfo;
 
 /**
@@ -55,6 +57,14 @@ import Renderer.Textures.ImageInfo;
  */
 public class CharacterCreator implements NKUI {
 		
+	private final boolean isForSingleplayer;
+	
+	public CharacterCreator(boolean isForSingleplayer) {
+		
+		this.isForSingleplayer = isForSingleplayer;
+		
+	}
+	
 	private static record CharacterCreatorData(String name , NkImage graphic , ImageInfo graphicInfo, String details , Entities entity) {}
 	private final CSLinked<CharacterCreatorData> charactersToChooseFrom = new CSLinked<>();
 	
@@ -111,7 +121,7 @@ public class CharacterCreator implements NKUI {
 
 	public void layout() {
 		
-		if(nk_begin(context , "Choose Your Warrior" , characterChooserRect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
+		if(nk_begin(context , "Characters" , characterChooserRect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
 				
 			cdNode<CharacterCreatorData> iter = charactersToChooseFrom.get(0);
 			for(int i = 0 ; i < charactersToChooseFrom.size() ; i ++ , iter = iter.next) {
@@ -210,9 +220,12 @@ public class CharacterCreator implements NKUI {
 				if(nk_button_label(context , "Finish")) {
 					
 					Supplier<String> saveName = DialogUtils.newInputBox("Name This Save" , (1920/2) - 175, 540);					
-					TemporalExecutor.onTrue(() -> saveName.get() != null , () -> newPlayer = new PlayerCharacter(saveName.get() , selectedCharacter.entity));
+					TemporalExecutor.onTrue(() -> saveName.get() != null , () -> newPlayer = new PlayerCharacter(saveName.get() , selectedCharacter.entity , isForSingleplayer));
 					
 				}
+			
+				nk_layout_row_dynamic(context , 50 , 1);
+				if(nk_button_label(context , "Back")) GameRuntime.setState(GameState.MAIN_MENU);
 				
 			}
 			

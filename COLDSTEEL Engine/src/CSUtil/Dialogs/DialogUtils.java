@@ -11,7 +11,6 @@ import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkPluginFilter;
 import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.nuklear.Nuklear;
 import org.lwjgl.system.MemoryStack;
 
 import CSUtil.DataStructures.CSLinked;
@@ -21,9 +20,6 @@ import Core.NKUI;
 public abstract sealed class DialogUtils implements NKUI permits ColorChooser , FileExplorer , InputBox {
 
 	private static final CSLinked<DialogUtils> elements = new CSLinked<>();
-	
-	public static final NkPluginFilter DEFAULT_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_default);
-	public static final NkPluginFilter NUMBER_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_float);
 	
 	protected static final File DATA_FOLDER = new File(data);
 	protected static final File ASSETS_FOLDER = new File(assets);
