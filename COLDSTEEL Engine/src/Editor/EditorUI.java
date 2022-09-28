@@ -126,6 +126,7 @@ import Game.Levels.LevelLoadDoors;
 import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
 import Game.Levels.Triggers;
+import Networking.NetworkedInstance;
 import Physics.ColliderLists;
 import Physics.Colliders;
 import Physics.Joints;
@@ -174,7 +175,7 @@ public class EditorUI implements NKUI{
 		
 	}
 	
-	void buildModeLayoutElements(){
+	void buildModeLayoutElements(Engine engine){
 		
 		active = editor.activeQuad;
 		currentLevel = editor.currentLevel;
@@ -207,7 +208,7 @@ public class EditorUI implements NKUI{
 		layoutTileSetEditor();
 		layoutTilePlacer();
 		layoutSceneInfo();
-//		layoutTest();
+		layoutTest(engine);
 
 	}
 	
@@ -313,7 +314,7 @@ public class EditorUI implements NKUI{
 			if(nk_checkbox_label(context , "FPS Print" , printFPSCheck)) Engine.printFPS  = toBool(printFPSCheck) ;
 			
 			nk_layout_row_dynamic(context , 30 , 1);
-			if(nk_button_label(context , "Close Program")) editor.getGlfw().overrideCloseWindow();
+			if(nk_button_label(context , "Close Program")) editor.closeProgram.execute();
 						
 			nk_layout_row_dynamic(context , 30 , 1);
 			nk_text(context , "COLDSTEEL Engine!" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
@@ -342,7 +343,7 @@ public class EditorUI implements NKUI{
 	private boolean showDebug = true;
 	private boolean showCollisionsEditor = true;
 	boolean showSpriteSetEdit = true;
-	private NkRect editRect = NkRect.malloc(allocator).x(150).y(5).w(275).h(660);
+	private NkRect editRect = NkRect.malloc(allocator).x(150).y(5).w(275).h(680);
 	private ByteBuffer quadsAtCursorCheck = allocator.bytes(toByte(false));
 	
 	private ByteBuffer backgroundRadio = alloc1(allocator);
@@ -409,8 +410,13 @@ public class EditorUI implements NKUI{
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Camera Position" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_LEFT);
-			var cameraPos = editor.renderer().getCamera().cameraPosition;			
+			var cameraPos = editor.cam.cameraPosition;			
 			nk_text(context , cameraPos.x + ", " + cameraPos.y , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_RIGHT);
+			
+			nk_layout_row_dynamic(context , 20 , 2);
+			nk_text(context , "Cursor Position" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_LEFT);
+			float[] coords = editor.cursorWorldCoords.get();
+			nk_text(context , "X: " + coords[0] + ", Y: " + coords[1] , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Selection Area Dimensions" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_LEFT);
@@ -493,7 +499,7 @@ public class EditorUI implements NKUI{
 				Supplier<String> xInput = DialogUtils.newInputBox("Input X Coordinate" , 5 , 270);
 				Supplier<String> yInput = DialogUtils.newInputBox("Input X Coordinate" , 360 , 120);
 				TemporalExecutor.onTrue(() -> xInput != null && yInput != null , () -> 
-					editor.renderer().getCamera().lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get())));
+					editor.cam.lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get())));
 								
 			}
 			
@@ -1389,7 +1395,7 @@ public class EditorUI implements NKUI{
 				
 				nk_layout_row_dynamic(context , 20 , 2);				
 				nk_text(context , "Render Time (millis): " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-				nk_text(context , fpsFormat.format(editor.renderer().getRenderTime())  , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , fpsFormat.format(Renderer.getRenderTime())  , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 					
 				nk_layout_row_dynamic(context , 20 , 2);
 				nk_text(context , "Frames per Ticks: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
@@ -1413,7 +1419,7 @@ public class EditorUI implements NKUI{
 				
 				nk_layout_row_dynamic(context , 20 , 2);
 				nk_label(context , "Draws: " , NK_TEXT_ALIGN_LEFT);
-				nk_label(context ,  Integer.toString(editor.renderer().getNumberDrawCalls()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				nk_label(context ,  "" + Renderer.getNumberDrawCalls() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 				nk_layout_row_dynamic(context , 20 , 2);
 				nk_text(context , "Available kilos on JVM : " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
@@ -3966,6 +3972,12 @@ public class EditorUI implements NKUI{
      *
      */
 	
+	void dragHitBoxMarker(float[] coords) { 
+		
+		if(hitboxMarker.editingName != null && hitboxMarker.active != -1) hitboxMarker.drag(hitboxMarker.active, coords[0], coords[1]);
+		
+	}
+	
 	private NkRect hitboxEditorRect = NkRect.malloc(allocator).x(1185).y(85).w(400).h(1050);
 	boolean firstTimeOpeningHitBoxEditor = true;
 	private boolean showHitBoxEditor = true;
@@ -4002,11 +4014,8 @@ public class EditorUI implements NKUI{
 				Supplier<String> nameInput = DialogUtils.newInputBox("Input HitBoxSet Name", 5 , 270);
 				TemporalExecutor.onTrue(() -> nameInput.get() != null , () -> {
 					
-					ArrayList<float[]> arrays = hitboxMarker.hitboxes();
-					for(int i = 0 ; i < arrays.size() ; i ++) editor.renderer().removeFromRawData(arrays.get(i));
 					hitboxMarker.clear();
-					hitboxMarker.active = -1;
-				
+					hitboxMarker.active = -1;				
 					hitboxMarker.editingName = nameInput.get();
 					
 				});
@@ -4018,13 +4027,8 @@ public class EditorUI implements NKUI{
 				Supplier<String> filepath = DialogUtils.newFileExplorer("Select a HitBoxSet File" , 5 , 270 , false , false);
 				TemporalExecutor.onTrue(() -> filepath.get() != null , () -> {
 					
-					ArrayList<float[]> arrays = hitboxMarker.hitboxes();
-					for(int i = 0 ; i < arrays.size() ; i ++) editor.renderer().removeFromRawData(arrays.get(i));
 					hitboxMarker.clear();
 					hitboxMarker.active = -1;
-					
-					ArrayList<float[]> hitboxes = hitboxMarker.fromHitBoxSet(new HitBoxSets(filepath.get()) , active);
-					for(float[] y : hitboxes) editor.renderer().addToRawData(y);
 					
 				});
 				
@@ -4069,16 +4073,13 @@ public class EditorUI implements NKUI{
 				nk_text(context , "" + hitboxMarker.getSize() , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_RIGHT);
 				
 				nk_layout_row_dynamic(context , 30 , 2);						
-				if(nk_button_label(context , "Add Hit Box")) editor.addToRawData(hitboxMarker.addHitBox(active));
+				if(nk_button_label(context , "Add Hit Box")) hitboxMarker.addHitBox(active);
 				
-				if(nk_button_label(context , "Remove current Hit Box") && hitboxMarker.active != -1) 
-					editor.renderer().removeFromRawData(hitboxMarker.removeHitBox(hitboxMarker.active));
+				if(nk_button_label(context , "Remove current Hit Box") && hitboxMarker.active != -1) hitboxMarker.removeHitBox(hitboxMarker.active);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Remove All Hit Boxes")) {
 					
-					var hitboxes = hitboxMarker.hitboxes();
-					for(float [] x : hitboxes) editor.renderer().removeFromRawData(x);
 					hitboxMarker.clear();
 					hitboxMarker.active = -1;
 					
@@ -4115,13 +4116,6 @@ public class EditorUI implements NKUI{
 					translateArray(hitboxMarker.active() , sliders.get(0) , sliders.get(1));
 					
 					allocator.pop();
-					
-					if(editor.getGlfw().isLMousePressed()) {
-						
-						float[] cursorCoords = editor.getCursorWorldCoords();
-						hitboxMarker.drag(hitboxMarker.active, cursorCoords[0], cursorCoords[1]);
-						
-					}
 					
 					nk_layout_row_dynamic(context , 30 , 2);
 					put(hotBoxCheck , hitboxMarker.hotBoxes[hitboxMarker.active] != -1);
@@ -4244,16 +4238,12 @@ public class EditorUI implements NKUI{
 								
 								if(hitboxMarker.editingName != null) {
 									
-									ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-									for(float [] x : hitboxes) editor.renderer().removeFromRawData(x);
 									hitboxMarker.clear();
 									hitboxMarker.active = -1;
 									
 								}
 								
 								hitboxMarker.fromHitBoxSet(entityHitboxes.get((int)selectedSprite[selectedSprite.length - 1]), E);
-								ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-								for(float[] x : hitboxes) editor.renderer().addToRawData(x);
 								for(int j = 0 ; j < hitboxsetChecks.length ; j ++) if(j != i) hitboxsetChecks[j].put(0 , (byte) 0);
 								
 							}
@@ -4279,16 +4269,12 @@ public class EditorUI implements NKUI{
 										
 										if(hitboxMarker.editingName != null) {
 											
-											ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-											for(float [] x : hitboxes) editor.renderer().removeFromRawData(x);
 											hitboxMarker.clear();
 											hitboxMarker.active = -1;
 											
 										}
 										
 										hitboxMarker.fromHitBoxSet(entityHitboxes.get((int)selectedSprite[selectedSprite.length - 1]), E);
-										ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-										for(float[] x : hitboxes) editor.renderer().addToRawData(x);
 										for(int j = 0 ; j < hitboxsetChecks.length ; j ++) if(j != i) hitboxsetChecks[j].put(0 , (byte) 0);
 										
 									}
@@ -4369,16 +4355,12 @@ public class EditorUI implements NKUI{
 										
 										if(hitboxMarker.editingName != null) {
 											
-											ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-											for(float [] x : hitboxes) editor.renderer().removeFromRawData(x);
 											hitboxMarker.clear();
 											hitboxMarker.active = -1;
 											
 										}
 
 										hitboxMarker.fromHitBoxSet(entityHitboxes.get(i), E);
-										ArrayList<float[]> hitboxes = hitboxMarker.hitboxes();
-										for(float[] x : hitboxes) editor.renderer().addToRawData(x);
 										for(int j = 0 ; j < hitboxsetChecks.length ; j ++) if(j != i) hitboxsetChecks[j].put(0 , (byte) 0);
 
 									} 								
@@ -4466,13 +4448,7 @@ public class EditorUI implements NKUI{
 			if(nk_button_label(context , "Load")) {
 				
 				Supplier<String> loadPath = DialogUtils.newFileExplorer("Load an Item", 5 , 270 , false , false);
-				TemporalExecutor.onTrue(() -> loadPath.get() != null , () -> {
-					
-					Items newItem = scene.items().load((String) toNamePath(loadPath.get()));
-					float[] cursor = editor.getCursorWorldCoords(); 
-					newItem.moveTo(cursor[0] , cursor[1]);
-						
-				});
+				TemporalExecutor.onTrue(() -> loadPath.get() != null , () -> scene.items().load((String) toNamePath(loadPath.get())));
 				
 			}
 			
@@ -5248,7 +5224,7 @@ public class EditorUI implements NKUI{
 	
 	LootTables table;
 	
-	void layoutTest(){	
+	void layoutTest(Engine engine){	
 					
 		if(nk_begin(context , "T*st" , testRect , NK_WINDOW_BORDER|NK_WINDOW_MOVABLE| NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE|NK_WINDOW_SCALABLE)) {
 	
@@ -5279,7 +5255,31 @@ public class EditorUI implements NKUI{
 			nk_layout_row_dynamic(context , 30 , 1);
 			if(nk_button_label(context , "test")) {
 				
+				//bits 1-9 represent the keystroke, bit 10 represent its state 
+				// 0 0 0 0 0 0 0 0 0 [0] {0 0} ...0 0 0 0...
+				short key = org.lwjgl.glfw.GLFW.GLFW_KEY_W;
+				int keyState = engine.keyboardKeyState(key);				
+				if (keyState == org.lwjgl.glfw.GLFW.GLFW_PRESS) key |= NetworkedInstance.KEY_PRESSED_MASK;
+				key |= NetworkedInstance.KEYBOARD_KEY_MASK;
 				
+				short keycode = (short) (key & NetworkedInstance.KEYCODE_MASK);
+				short pressed = (short) (key & NetworkedInstance.KEY_PRESSED_MASK);
+				short peripheral = (short) (key & NetworkedInstance.KEYBOARD_KEY_MASK);
+				if(peripheral == 0) { 
+					
+					peripheral = (short) (key & NetworkedInstance.MOUSE_KEY_MASK);
+					if(peripheral == 0) peripheral = (short) (key & NetworkedInstance.GAMEPAD_KEY_MASK);
+					
+				}
+				
+				console.say("original key data");
+				console.say(keycode);
+				console.say(pressed == NetworkedInstance.KEY_PRESSED_MASK ? "Key Pressed" : "Key Not Pressed");
+				console.say(
+					peripheral == NetworkedInstance.KEYBOARD_KEY_MASK ? "Keyboard key" : 
+					peripheral == NetworkedInstance.MOUSE_KEY_MASK ? "Mouse key" : 
+					peripheral == NetworkedInstance.GAMEPAD_KEY_MASK ? "Gamepad key" : "nothing"
+				);
 				
 			}		
 			

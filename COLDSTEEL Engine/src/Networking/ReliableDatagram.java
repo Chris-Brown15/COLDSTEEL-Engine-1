@@ -339,6 +339,18 @@ public final class ReliableDatagram {
 		
 	}
 
+	/**
+	 * Given a hash, tests if a reliable datagram with the matching hash is awaiting an acknowledgement.
+	 * 
+	 * @param hash — a hash for a reliable datagram
+	 * @return true if a reliable datagram was sent with {@code hash} but has not yet been acknowledged.
+	 */
+	public static final boolean awaitingAcknowledgement(int hash) { 
+		
+		return DATAGRAMS.containsKey(hash);
+		
+	}
+	
 	static final double computeAverageRTT() {
 		
 		return rawRTT / numberAcksReceivedLastSecond;

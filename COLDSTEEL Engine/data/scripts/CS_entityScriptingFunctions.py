@@ -14,6 +14,12 @@ from Physics import Kinematics
 from Physics import ForceType
 from Core import TemporalExecutor
 
+from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_LEFT
+from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_RIGHT
+from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_MIDDLE
+from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_4
+from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_5
+
 from org.lwjgl.glfw.GLFW import GLFW_KEY_Q
 from org.lwjgl.glfw.GLFW import GLFW_KEY_W
 from org.lwjgl.glfw.GLFW import GLFW_KEY_E
@@ -43,19 +49,44 @@ from org.lwjgl.glfw.GLFW import GLFW_KEY_B
 from org.lwjgl.glfw.GLFW import GLFW_KEY_N
 from org.lwjgl.glfw.GLFW import GLFW_KEY_M
 
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_0
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_1
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_2
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_3
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_4
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_5
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_6
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_7
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_8
+from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_9
+
+from org.lwjgl.glfw.GLFW import GLFW_KEY_0
+from org.lwjgl.glfw.GLFW import GLFW_KEY_1
+from org.lwjgl.glfw.GLFW import GLFW_KEY_2
+from org.lwjgl.glfw.GLFW import GLFW_KEY_3
+from org.lwjgl.glfw.GLFW import GLFW_KEY_4
+from org.lwjgl.glfw.GLFW import GLFW_KEY_5
+from org.lwjgl.glfw.GLFW import GLFW_KEY_6
+from org.lwjgl.glfw.GLFW import GLFW_KEY_7
+from org.lwjgl.glfw.GLFW import GLFW_KEY_8
+from org.lwjgl.glfw.GLFW import GLFW_KEY_9
+
 from org.lwjgl.glfw.GLFW import GLFW_KEY_TAB
+from org.lwjgl.glfw.GLFW import GLFW_KEY_CAPS_LOCK
 from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_SHIFT
 from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_CONTROL
 from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_ALT
+from org.lwjgl.glfw.GLFW import GLFW_KEY_SPACE
+from org.lwjgl.glfw.GLFW import GLFW_KEY_BACKSPACE
 from org.lwjgl.glfw.GLFW import GLFW_KEY_ENTER
 from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_SHIFT
-from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_ALT
 from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_CONTROL
+from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_ALT
 
 from org.lwjgl.glfw.GLFW import GLFW_PRESS
 from org.lwjgl.glfw.GLFW import GLFW_RELEASE
+from org.lwjgl.glfw.GLFW import GLFW_REPEAT
 
-glfw = lib.getWindow()
 console = lib.getConsole() if lib.getState() == RuntimeState.EDITOR else None
 
 TRUE = 1
@@ -205,11 +236,23 @@ def currentHorizSpeed():
 def getKey(key):
     return lib.getKey(key)
 
-def pressed(key):
+def kbPressed(key):
     return lib.getKey(key) == GLFW_PRESS
 
-def released(key):
+def kbReleased(key):
     return lib.getKey(key) == GLFW_RELEASE    
+
+def mPressed(key):
+    return lib.getMouseKey(key) == GLFW_PRESS
+
+def mReleased(key):
+    return lib.getMouseKey(key) == GLFW_RELEASE
+
+def kbStruck(key):
+    return lib.keyboardStruck(key)
+
+def mStruck(key):
+    return lib.mouseStruck(key)
 
 def colliding():
     return components[CDOFF + 2]

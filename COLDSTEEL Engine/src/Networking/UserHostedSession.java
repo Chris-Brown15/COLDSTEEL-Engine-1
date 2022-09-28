@@ -19,6 +19,7 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkRect;
 import org.lwjgl.system.MemoryStack;
@@ -26,7 +27,9 @@ import org.lwjgl.system.MemoryStack;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSStack;
 import Core.NKUI;
+import Core.Scene;
 import Core.TemporalExecutor;
+import Game.Levels.Levels;
 import Game.Player.PlayerCharacter;
 import Networking.Utils.ByteArrayUtils;
 
@@ -41,33 +44,52 @@ public class UserHostedSession implements NetworkedInstance {
 
 	private static final int DEFAULT_PORT = 32900;
 
-	private record UserConnection(int port , InetAddress address , Timer timer) {
+	private class UserConnection {
+
+		static int computeHashCode(InetAddress addr , int port) { 
+			
+			return addr.hashCode() + port;
+			
+		}
 		
-		UserConnection(int port , InetAddress address , Timer timer){
+		final int port;
+		final InetAddress address;
+		final Timer timer;
+		final NetworkedEntities entity;		
+		
+		UserConnection(int port , InetAddress address , Timer timer , NetworkedEntities entity) {
 			
 			this.port = port;
 			this.address = address;
 			this.timer = timer;
+			this.entity = entity;
 			timer.start();
 			
 		}
 		
 		public int hashCode() {
 			
-			return port;
+			return computeHashCode(address , port);
+			
+		}
+		
+		public String toString() {
+			
+			return "Connection: " + address.toString() + ":" + port;
 			
 		}
 		
 	}	
 	
 	private PlayerCharacter player;
+	private Scene scene;
 	private final ConcurrentHashMap<Integer , UserConnection> liveConnections = new ConcurrentHashMap<>();
 	private MultiplayerChatUI chatUI;
 	private final UserHostedSessionUI UI = new UserHostedSessionUI();
 	private final DatagramSocket hostSocket;
 	private boolean serverStarted = false;	
-	private Thread sessionListeningThread; //daemon thread used by the host socket for listening.		
-	private Thread sessionReliableTick; //daemon thread used by the reliable datagram system for its operation
+	private Thread sessionListeningThread; //daemon thread used by the host socket for listening.
+	private final Supplier<Levels> level;
 	
 	{
 	
@@ -93,35 +115,15 @@ public class UserHostedSession implements NetworkedInstance {
 				
 		});
 		
-		sessionReliableTick = new Thread(new Runnable() {
-
-			@Override public void run() {
-
-				while(true) {
-						
-					try {
-							
-						ReliableDatagram.tickLiveDatagrams(hostSocket);
-							
-					} catch (IOException e) {
-							
-						e.printStackTrace();
-							
-					}
-						
-				}
-					
-			}
-				
-		});
-			
 		sessionListeningThread.setDaemon(true);
-		sessionReliableTick.setDaemon(true);
 		
 	}
 		
-	public UserHostedSession(int port) {
-				
+	public UserHostedSession(Scene scene , Supplier<Levels> getCurrentLevel , int port) {
+		
+		this.scene = scene;
+		this.level = getCurrentLevel;
+		
 		try {
 			
 			hostSocket = new DatagramSocket(port , InetAddress.getLocalHost());
@@ -135,7 +137,10 @@ public class UserHostedSession implements NetworkedInstance {
 		
 	}
 	
-	public UserHostedSession() {
+	public UserHostedSession(Scene scene , Supplier<Levels> getCurrentLevel) {
+		
+		this.scene = scene;
+		this.level = getCurrentLevel;
 		
 		try {
 			
@@ -155,11 +160,9 @@ public class UserHostedSession implements NetworkedInstance {
 		this.player = player;
 		
 		sessionListeningThread.start();
-		sessionReliableTick.start();
 		serverStarted = true;
 
 		chatUI = new MultiplayerChatUI(player.playerCharacterName() , this);
-
 		System.out.println("Successfully Started User Hosted Server.");
 		
 	}
@@ -180,7 +183,7 @@ public class UserHostedSession implements NetworkedInstance {
 		try { 
 
 			Collection<UserConnection> connections = liveConnections.values();
-			for(UserConnection x :  connections) hostSocket.send(new DatagramPacket(data , data.length , x.address() , x.port()));
+			for(UserConnection x :  connections) hostSocket.send(new DatagramPacket(data , data.length , x.address , x.port));
 			
 		} catch(IOException e) { 
 			
@@ -206,7 +209,7 @@ public class UserHostedSession implements NetworkedInstance {
 			int i = 0;
 			for(UserConnection x : connections) {
 				
-				ReliableDatagram.sendReliable(hostSocket, data, hash + i, cooldownMillis, x.address(), x.port());
+				ReliableDatagram.sendReliable(hostSocket, data, hash + i, cooldownMillis , x.address , x.port);
 				i++;
 				
 			}
@@ -230,32 +233,62 @@ public class UserHostedSession implements NetworkedInstance {
 		
 		switch(packet.getData()[offset]) { 
 			
-			/*
-			 * When receiving a message with this flag, add a new user connection and send a response back to the sender.
-			 * When the sender gets this message, they should begin play. 
-			 */
 			case CHANGE_CONNECTION -> {
 				
-				if(liveConnections.contains(packet.getPort())) liveConnections.remove(packet.getPort());
-				else { 
+				// this message was sent from someone who was already connected, so disconnect that user
+				if(liveConnections.contains(packet.getPort())) { 
 					
-					liveConnections.put(packet.getPort(), new UserConnection(packet.getPort() , packet.getAddress() , new Timer()));
+					UserConnection disconnected = liveConnections.remove(packet.getPort()); 
+					scene.entities().remove(disconnected.entity);
 					
-					try {
-						
-						ReliableDatagram.sendReliable(hostSocket, new byte[] {CHANGE_CONNECTION}, CHANGE_CONNECTION	+ liveConnections.size() , 1500 , packet.getAddress() , packet.getPort());
-						
-					} catch (IOException e) {
+				} else { //connect that user 
 
+					//parse the connecting users info (what entity they are and what macrolevel/level they are
+					String clientPacketData = new String(packet.getData() , offset + 1, packet.getLength() - (offset + 1));
+					String[] clientNamePositionAndLocation = clientPacketData.split("\\|");	clientNamePositionAndLocation[0] += ".CStf";			
+					
+					float[] midpoint = player.playersEntity().getMidpoint();
+					//this string represents other players connected to the server, their positions, and their locations
+					String otherPlayersEntityAndLocation = player.playersEntity().name() + "," + midpoint[0] + "," + midpoint[1] + "," + level.get().macroLevel() + "/" + level.get().gameName();
+					//send this to players who are already connected
+					byte[] messageToOtherPlayers = ByteArrayUtils.prepend(clientPacketData.getBytes() , CLIENT_CONNECTED);					
+					
+					try { 
+						
+						for(Entry<Integer , UserConnection> x : liveConnections.entrySet()) { 
+							
+							midpoint = x.getValue().entity.getMidpoint();							
+							//append this entry's information to be sent to the new client
+							otherPlayersEntityAndLocation += "|" + x.getValue().entity.name() + "," + midpoint[0] + "," + midpoint[1] + "," + x.getValue().entity.location();
+							//here we update all already-connected clients that a new one has connected using flag NEW_CLIENT_CONNECTED
+							sendReliable(messageToOtherPlayers , x.getKey() , 1500 , x.getValue().address , x.getValue().port);
+							
+						}
+
+						//create a new instance of a user connection.
+						NetworkedEntities newClientEntity = new NetworkedEntities(clientNamePositionAndLocation[0] , clientNamePositionAndLocation[2]);
+						//here we pull the position the client sent out of its packet and move the created entity to that position.
+						String[] connectingClientPosition = clientNamePositionAndLocation[1].split(",");								
+						newClientEntity.moveTo(Float.parseFloat(connectingClientPosition[0]) , Float.parseFloat(connectingClientPosition[1]));
+						//add the new entity to the scene and add this connection to our list of live connections
+						scene.entities().add(newClientEntity);
+						UserConnection newClient = new UserConnection(packet.getPort() , packet.getAddress() , new Timer() , newClientEntity);
+						liveConnections.put(newClient.hashCode() , newClient);
+						byte[] connectionMessage = ByteArrayUtils.prepend(otherPlayersEntityAndLocation.getBytes() , CHANGE_CONNECTION); 
+						sendReliable(connectionMessage , CHANGE_CONNECTION + liveConnections.size() , 1500 , packet.getAddress() , packet.getPort());
+						
+					} catch(IOException e) {
+						
 						e.printStackTrace();
 						
 					}
-					
+
 				}
 				
 			}
 			
-			case CONNECTION_STATE_CHANGED -> {}
+			case CLIENT_DISCONNECTED -> {}
+			case CLIENT_CONNECTED -> {}
 			case CHAT_MESSAGE -> {
 				
 				System.out.println("received chat message");
@@ -263,6 +296,9 @@ public class UserHostedSession implements NetworkedInstance {
 				chatUI.appendChatMessage(new String(ByteArrayUtils.fromOffset(packet.getData(), offset + 1)));//offset + 1 to avoid the actual flag byte
 				
 			}
+			
+			case LOCATION_CHANGE -> {}
+			case PLAYER_MANIFEST -> {}
 		
 		}
 		
@@ -276,7 +312,7 @@ public class UserHostedSession implements NetworkedInstance {
 		
 		var connections = liveConnections.values();
 		CSStack<Integer> timedOut = new CSStack<>();
-		for(UserConnection x : connections) if(x.timer().getElapsedTimeMillis() >= 30000) timedOut.push(x.port());
+		for(UserConnection x : connections) if(x.timer.getElapsedTimeMillis() >= 30000) timedOut.push(x.hashCode());
 		while(!timedOut.empty()) liveConnections.remove(timedOut.pop());		
 		
 	}
@@ -285,7 +321,17 @@ public class UserHostedSession implements NetworkedInstance {
 		
 		UI.layout();
 		chatUI.layout();
-		maintainConnections();
+//		maintainConnections();	
+		try {
+			
+			ReliableDatagram.tickLiveDatagrams(hostSocket);
+				
+		} catch (IOException e) {
+				
+//			e.printStackTrace();
+				
+		}
+			
 		
 	}
 	
@@ -317,7 +363,7 @@ public class UserHostedSession implements NetworkedInstance {
 		hostSocket.receive(received);
 		
 		UserConnection sender;
-		if((sender = liveConnections.get(received.getPort())) != null) sender.timer().start();
+		if((sender = liveConnections.get(UserConnection.computeHashCode(received.getAddress() , received.getPort()))) != null) sender.timer.start();
 		
 		if(ReliableDatagram.isReliableDatagramPacket(received)) {
 			
@@ -374,7 +420,6 @@ public class UserHostedSession implements NetworkedInstance {
 		try {
 		
 			sessionListeningThread.interrupt();
-			sessionReliableTick.interrupt();
 			hostSocket.setSoTimeout(1);
 			
 		} catch (SocketException e) {

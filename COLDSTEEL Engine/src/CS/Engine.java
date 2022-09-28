@@ -23,6 +23,9 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.nmemAlloc;
 import static org.lwjgl.system.MemoryUtil.nmemFree;
 
+import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -69,6 +72,7 @@ import Game.Levels.MacroLevels;
 import Game.Levels.TriggerScriptingInterface;
 import Game.Player.PlayerCharacter;
 import Game.Projectiles.ProjectileScriptingInterface;
+import Networking.NetworkedInstance;
 import Physics.ColliderLists;
 import Renderer.Camera;
 import Renderer.Renderer;
@@ -107,7 +111,6 @@ public class Engine {
 	private static final MemoryStack UI_ALLOCATOR = MemoryStack.ncreate(UI_ALLOCATOR_MEMORY , CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
 	//utilities
 	public static final PyType PYFUNCTION_PYTYPE = INTERNAL_ENGINE_PYTHON.get("functionForGettingType").getType();
-	public static Supplier<int[]> windowDims;
 		
 	public static final void addGameObjectList(AbstractGameObjectLists<? extends Quads> list) {
 		
@@ -176,7 +179,7 @@ public class Engine {
 			new ObjectLists(1) , 
 			new TileSets(3) , 
 			new StaticLists(2) , 
-			new EntityLists(4 , renderer.getCamera()) , 
+			new EntityLists(4 , renderer.getCamera() , (key) -> window.keyboardPressed(key)) , 
 			new UnownedItems(5) ,
 			new ObjectLists(6) ,
 			new TileSets(7) ,
@@ -184,7 +187,7 @@ public class Engine {
 			new ColliderLists()	
 		);
 		
-    	window.intialize(this , STATE);
+    	window.intialize(this);
     	
     	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
     	GL.createCapabilities();
@@ -211,22 +214,22 @@ public class Engine {
         // Make the window visible
 		glfwShowWindow(window.glfwWindow);
 		System.out.println("Window initialization complete.");
-		windowDims = () -> window.getWindowDimensions();
 		
 		switch(STATE) {
 			
 			case EDITOR:
 				
-	    		editor = new Editor(window);
-	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , (targetState) -> switchState(targetState));
-	    		
+	    		editor = new Editor();
+	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
+	    			(targetState) -> switchState(targetState) , 
+	    			() -> window.getCursorWorldCoords() , 
+	    			() -> window.overrideCloseWindow());	    		
 				break;
 				
 			case GAME:
 				
-				gameRuntime = new GameRuntime(scene);
-				gameRuntime.initialize();
-								
+				gameRuntime = new GameRuntime(() -> currentLevel() , scene);
+				gameRuntime.initialize();								
 				break;
 				
 			default:
@@ -237,11 +240,52 @@ public class Engine {
 	
 		}
 		
-		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(renderer, scene , window, engineConsole);
+		NetworkedInstance networkedInstance = gameRuntime != null ? gameRuntime.getMultiplayerSession() : null;
+		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(networkedInstance , renderer, scene , window, engineConsole);
 		UI_SCRIPTING_INTERFACE = new UIScriptingInterface(engineConsole);
 		ITEM_SCRIPTING_INTERFACE = new ItemScriptingInterface(engineConsole , window , renderer , scene.entities());
 		TRIGGER_SCRIPTING_INTERFACE = new TriggerScriptingInterface(scene , currentLevel);
 		PROJECTILE_SCRIPTING_INTERFACE = new ProjectileScriptingInterface(scene);
+		
+		//read controls
+		try(BufferedReader reader = Files.newBufferedReader(Paths.get(data + "engine/controls.CStf"))){ 
+			
+			CSTFParser cstf = new CSTFParser(reader);
+			cstf.rlist();
+			UserControls.set(
+			
+				cstf.rintLabel("up"),
+				cstf.rintLabel("left"),
+				cstf.rintLabel("down"),
+				cstf.rintLabel("right"),
+				cstf.rintLabel("jump"),
+				cstf.rintLabel("attackI"),
+				cstf.rintLabel("attackII"),
+				cstf.rintLabel("attackIII"),
+				cstf.rintLabel("attackIV"),
+				cstf.rintLabel("attackV"),
+				cstf.rintLabel("powerI"),
+				cstf.rintLabel("powerII"),
+				cstf.rintLabel("powerIII"),
+				cstf.rintLabel("powerIV"),
+				cstf.rintLabel("powerV"),
+				cstf.rintLabel("powerVI"),
+				cstf.rintLabel("powerVII"),
+				cstf.rintLabel("powerIIX"),
+				cstf.rintLabel("powerIX"),
+				cstf.rintLabel("powerX"),
+				cstf.rintLabel("toggleInventory"),
+				cstf.rintLabel("toggleCharacterSheet"),
+				cstf.rintLabel("activate"),
+				cstf.rintLabel("map")
+					
+			);			
+			
+		} catch (IOException e) {
+
+			e.printStackTrace();
+			
+		}
 		
 		System.gc();
 		
@@ -257,15 +301,18 @@ public class Engine {
 			
 			case EDITOR:
 
-	    		editor = new Editor(window);
-	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , (targetState) -> switchState(targetState));
+	    		editor = new Editor();
+	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
+	    			(targetState) -> switchState(targetState) , 
+	    			() -> window.getCursorWorldCoords() , 
+	    			() -> window.overrideCloseWindow());
 	    		
 				break;
 				
 			case GAME:
 				
 				scene.clear();
-				gameRuntime = new GameRuntime(scene);
+				gameRuntime = new GameRuntime(() -> currentLevel() , scene);
 				GameRuntime.setState(GameState.MAIN_MENU);
 				gameRuntime.initialize();
 				
@@ -328,8 +375,8 @@ public class Engine {
 
 	        	case EDITOR:
 	        		
-	        		editor.run();
-	        		if(!nk_window_is_any_hovered(NuklearContext) && window.isLMousePressed() && !window.isLShiftPressed()) {
+	        		editor.run(this);
+	        		if(!nk_window_is_any_hovered(NuklearContext) && window.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !window.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
 	        			
 	        			glfwGetCursorPos(window.glfwWindow , window.newX , window.newY);
 	        			int[] windowDims = window.getWindowDimensions();
@@ -344,11 +391,12 @@ public class Engine {
 	        	case GAME:
 	        		
 	        		gameRuntime.run(this);
-	        		renderer.run();
 	        		
 	        		break;
 
         	}
+        	
+        	renderer.run();
         	
             glfwSwapBuffers(window.glfwWindow);
             framesThisSecond++;
@@ -478,7 +526,49 @@ public class Engine {
 		window.releaseKeys();
 		
 	}
+	
+	public int keyboardKeyState(int key) { 
 		
+		return window.getKeyboardKey(key);
+		
+	}
+
+	public int mouseKeyState(int key) { 
+		
+		return window.getMouseKey(key);
+		
+	}
+	
+	public boolean keyboardPressed(int key) { 
+		
+		return window.keyboardPressed(key);
+		
+	}
+
+	public boolean keyboardReleased(int key) { 
+		
+		return window.keyboardReleased(key);
+		
+	}
+	
+	public boolean mousePressed(int key) { 
+		
+		return window.mousePressed(key);
+		
+	}
+
+	public boolean mouseReleased(int key) { 
+		
+		return window.mouseReleased(key);
+		
+	}
+	
+	public boolean keyboardStruck(int key) { 
+		
+		return window.keyboardStruck(key);
+		
+	}
+	
 	/*
      * ______________________________________________________
      * |													|
@@ -739,12 +829,17 @@ public class Engine {
 		
 	}
 	
-	public void g_toggleMultiplayerUI() {
+	public void mg_toggleMultiplayerUI() {
 		
 		if(STATE != RuntimeState.GAME) return;
 		gameRuntime.toggleMultiplayerUI();
 		
 	}
+	
+	public void mg_enterTextChat() {
+		
+	}
+
 	
     /*
      * ______________________________________________________

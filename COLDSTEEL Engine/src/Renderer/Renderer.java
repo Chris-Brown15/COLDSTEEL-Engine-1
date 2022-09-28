@@ -136,7 +136,7 @@ public class Renderer {
     
     private FloatBuffer vertexBuffer;
 	private IntBuffer elementBuffer;
-	private int drawCalls = 0;
+	private static int drawCalls = 0;
 
 	private boolean renderOthers = true;
 	private ArrayList<Particle> backgroundParticles = new ArrayList<Particle>();
@@ -145,7 +145,7 @@ public class Renderer {
 	private ArrayList<float[]> raw = new ArrayList<float[]>();
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
-    private double renderTime;
+    private static double renderTime;
     private double renderMilliCounter = 0;
     private Timer renderTimer = new Timer();
 
@@ -276,7 +276,7 @@ public class Renderer {
     	
     }
     
-	public int getNumberDrawCalls(){
+	public static int getNumberDrawCalls(){
 
 		return drawCalls + numberNuklearDrawCalls;
 
@@ -596,7 +596,7 @@ public class Renderer {
     	
     }
     
-    public double getRenderTime(){
+    public static double getRenderTime(){
 
     	return renderTime;
 
@@ -730,7 +730,7 @@ public class Renderer {
      
     }
 
-    int numberNuklearDrawCalls = 0;
+    private static int numberNuklearDrawCalls = 0;
        
     private FloatBuffer viewBuffer = BufferUtils.createFloatBuffer(16);
     private FloatBuffer projectionBuffer = BufferUtils.createFloatBuffer(16);

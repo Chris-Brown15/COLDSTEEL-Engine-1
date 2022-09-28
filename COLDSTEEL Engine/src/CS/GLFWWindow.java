@@ -30,7 +30,6 @@ import static CSUtil.BigMixin.getSCToWCForY;
 
 public class GLFWWindow {
 	
-	private RuntimeState state;
     private String title;
     long glfwWindow;
 	//window colors:
@@ -52,10 +51,9 @@ public class GLFWWindow {
 
     }
 	
-    void intialize(Engine engine , RuntimeState state){
+    void intialize(Engine engine){
 
     	this.engine = engine;
-    	this.state = state;
     	
     	System.out.println("Beginning window initialization...");
         // Sets GLFW errors to print to the Java system error output stream, default the standard output, a console
@@ -72,7 +70,7 @@ public class GLFWWindow {
         //for fullscreen
         glfwWindowHint(GLFW_DECORATED , GLFW_FALSE);
         glfwWindowHint(GLFW_MAXIMIZED , GLFW_TRUE);
-
+        
         if (Platform.get() == Platform.MACOSX) glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 
         glfwWindowHint(GLFW_SAMPLES, 8);
@@ -120,7 +118,7 @@ public class GLFWWindow {
 
 	}
 
-	public void overrideCloseWindow(){
+	void overrideCloseWindow(){
 
 		glfwSetWindowShouldClose(glfwWindow , true);
 
@@ -132,28 +130,71 @@ public class GLFWWindow {
 
 	}
 
-	public int getKey(int key) {
+	
+	public int[] getWindowDimensions(){
+	
+		try(MemoryStack stack = stackPush()){
 		
-		return glfwGetKey(glfwWindow , key);
+			IntBuffer dims = stack.mallocInt(2);
+			glfwGetWindowSize(glfwWindow , dims.slice(0, 1) , dims.slice(1, 1));
+			return new int [] {dims.get() , dims.get()};
 		
+		}
+	
+	}
+
+	/**
+	* 
+	* Gets cursor position x and y coordinates in screen space and returns them as an array.
+	* 
+	* @return double array where index 0 is cursor's x position and index 1 is cursor's y position
+	*/
+	public double[] getCursorPos(){
+	
+		try(MemoryStack stack = stackPush()){
+		
+			DoubleBuffer cursorX = stack.mallocDouble(1);
+			DoubleBuffer cursorY = stack.mallocDouble(1);
+			glfwGetCursorPos(glfwWindow, cursorX , cursorY);
+			double[] returnArray = {cursorX.get(0) , cursorY.get(0)};
+			return returnArray;
+		
+		}
+	
+	}
+
+	float[] getCursorWorldCoords() {
+	
+		double[] coords = getCursorPos();		
+		int[] winDims = getWindowDimensions();
+		return new float[] {(float) getSCToWCForX(coords[0] , winDims[0] , winDims[1] , engine.renderer.getCamera()) ,
+						(float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.renderer.getCamera())};
+	
 	}
 	
-	//struck
-	private static boolean isWStruck = false;
-	private static boolean isAStruck = false;
-	private static boolean isSStruck = false;
-	private static boolean isDStruck = false;
-            
+	//Nilhearth Echo Pact
+	//keyboard struck
+    
 	private static boolean isUpStruck = false;
 	private static boolean isLeftStruck = false;
 	private static boolean isDownStruck = false;
 	private static boolean isRightStruck = false;
 	         
-	private static boolean isSpaceStruck = false;
+	private static boolean isTabStruck = false;
+	private static boolean isCapsStruck = false;
 	private static boolean isLShiftStruck = false;
 	private static boolean isLControlStruck = false;
 	private static boolean isLAltStruck = false;
-	         
+	private static boolean isBackSpaceStruck = false;
+	private static boolean isEnterStruck = false;
+	private static boolean isRShiftStruck = false;
+	private static boolean isRAltStruck = false;
+	private static boolean isRControlStruck = false;
+	
+	private static boolean isSpaceStruck = false;
+   	
+	private static boolean isQStruck = false;
+	private static boolean isWStruck = false;
 	private static boolean isEStruck = false;
 	private static boolean isRStruck = false;
 	private static boolean isTStruck = false;
@@ -162,157 +203,202 @@ public class GLFWWindow {
 	private static boolean isIStruck = false;
 	private static boolean isOStruck = false;
 	private static boolean isPStruck = false;
-	        
+	
+	private static boolean isAStruck = false;
+	private static boolean isSStruck = false;
+	private static boolean isDStruck = false;
+	private static boolean isFStruck = false;
+	private static boolean isGStruck = false;
+	private static boolean isHStruck = false;
+	private static boolean isJStruck = false;
+	private static boolean isKStruck = false;
+	private static boolean isLStruck = false;
+
+	private static boolean isZStruck = false;
+	private static boolean isXStruck = false;
+	private static boolean isCStruck = false;
+	private static boolean isVStruck = false;
+	private static boolean isBStruck = false;
+	private static boolean isNStruck = false;
+	private static boolean isMStruck = false;
+          
+	private static boolean isKP1Struck = false;
 	private static boolean isKP2Struck = false;
+	private static boolean isKP3Struck = false;
 	private static boolean isKP4Struck = false;
+	private static boolean isKP5Struck = false;
 	private static boolean isKP6Struck = false;
+	private static boolean isKP7Struck = false;
 	private static boolean isKP8Struck = false;
-     
+	private static boolean isKP9Struck = false;
+	private static boolean isKP0Struck = false;
+    
+	private static boolean is1Struck = false;
+	private static boolean is2Struck = false;
+	private static boolean is3Struck = false;
+	private static boolean is4Struck = false;
+	private static boolean is5Struck = false;
+	private static boolean is6Struck = false;
+	private static boolean is7Struck = false;
+	private static boolean is8Struck = false;
+	private static boolean is9Struck = false;
+	private static boolean is0Struck = false;
+   	
+	//mouse states
+	
 	private static boolean isLMouseStruck = false;
 	private static boolean isRMouseStruck = false;
 	private static boolean isMMouseStruck = false;
 	private static boolean isM4Struck = false;
 	private static boolean isM5Struck = false;
-	private static boolean isTabStruck = false;
+
+	//gamepad states
+	//...	
 	
-	private static boolean isZStruck = false;
-	private static boolean isXStruck = false;
-	
-	//PRESSED
-	private static boolean isWPressed = false;
-	private static boolean isAPressed = false;
-	private static boolean isSPressed = false;
-	private static boolean isDPressed = false;
-            
-	private static boolean isUpPressed = false;
-	private static boolean isLeftPressed = false;
-	private static boolean isDownPressed = false;
-	private static boolean isRightPressed = false;
-	         
-	private static boolean isSpacePressed = false;
-	private static boolean isLShiftPressed = false;
-	private static boolean isLControlPressed = false;
-	private static boolean isLAltPressed = false;
-	         
-	private static boolean isEPressed = false;
-	private static boolean isRPressed = false;
-	private static boolean isTPressed = false;
-	private static boolean isYPressed = false;
-	private static boolean isUPressed = false;
-	private static boolean isIPressed = false;
-	private static boolean isOPressed = false;
-	private static boolean isPPressed = false;
-	        
-	private static boolean isKP2Pressed = false;
-	private static boolean isKP4Pressed = false;
-	private static boolean isKP6Pressed = false;
-	private static boolean isKP8Pressed = false;
-     
-	private static boolean isLMousePressed = false;
-	private static boolean isRMousePressed = false;
-	private static boolean isMMousePressed = false;
-	private static boolean isM4Pressed = false;
-	private static boolean isM5Pressed = false;
-	private static boolean isTabPressed = false;
-	
-	private static boolean isZPressed = false;
-	private static boolean isXPressed = false;
-	
-	//RELEASED
-	private static boolean isWReleased = false;
-	private static boolean isAReleased = false;
-	private static boolean isSReleased = false;
-	private static boolean isDReleased = false;
-     
-	private static boolean isUpReleased = false;
-	private static boolean isLeftReleased  = false;
-	private static boolean isDownReleased  = false;
-	private static boolean isRightReleased  = false;
-	 
-	private static boolean isSpaceReleased  = false;
-	private static boolean isLShiftReleased = false;
-	private static boolean isLControlReleased  = false;
-	private static boolean isLAltReleased  = false;
-	 
-	private static boolean isEReleased = false;
-	private static boolean isRReleased = false;
-	private static boolean isTReleased = false;
-	private static boolean isYReleased = false;
-	private static boolean isUReleased = false;
-	private static boolean isIReleased = false;
-	private static boolean isOReleased = false;
-	private static boolean isPReleased = false;
-	 
-	private static boolean isKP2Released = false;
-	private static boolean isKP4Released = false;
-	private static boolean isKP6Released = false;
-	private static boolean isKP8Released = false;
-     
-	private static boolean isLMouseReleased = false;
-	private static boolean isRMouseReleased = false;
-	private static boolean isMMouseReleased = false;
-	private static boolean isM4Released = false;
-	private static boolean isM5Released = false;
-	private static boolean isTabReleased = false;
-	
-	private static boolean isZReleased = false;
-	private static boolean isXReleased = false;
+	public int getKeyboardKey(int key) {
 		
+		return glfwGetKey(glfwWindow , key);
+		
+	}
+
+	public int getMouseKey(int key) { 
+		
+		return glfwGetMouseButton(glfwWindow , key);
+		
+	}
+	
+	boolean keyboardPressed(int key) {
+		
+		return glfwGetKey(glfwWindow , key) == GLFW_PRESS;
+		
+	}
+
+	boolean keyboardReleased(int key) { 
+		
+		return glfwGetKey(glfwWindow , key) == GLFW_RELEASE;
+		
+	}
+	
+	boolean mousePressed(int key) { 
+	
+		return glfwGetMouseButton(glfwWindow ,  key) == GLFW_PRESS;
+		
+	}
+
+	boolean mouseReleased(int key) { 
+	
+		return glfwGetMouseButton(glfwWindow ,  key) == GLFW_RELEASE;
+		
+	}
+	
+	public boolean keyboardStruck(int key) { 
+		
+		return switch(key) { 
+			
+			case GLFW_KEY_UP -> isUpStruck;
+			case GLFW_KEY_DOWN -> isDownStruck;
+			case GLFW_KEY_LEFT -> isLeftStruck;
+			case GLFW_KEY_RIGHT -> isRightStruck;
+			case GLFW_KEY_TAB -> isTabStruck;
+			case GLFW_KEY_CAPS_LOCK -> isCapsStruck;
+			case GLFW_KEY_LEFT_SHIFT -> isLShiftStruck;
+			case GLFW_KEY_LEFT_CONTROL -> isLControlStruck;
+			case GLFW_KEY_LEFT_ALT -> isLAltStruck;
+			case GLFW_KEY_BACKSPACE -> isBackSpaceStruck;
+			case GLFW_KEY_ENTER -> isEnterStruck;
+			case GLFW_KEY_RIGHT_SHIFT -> isRShiftStruck;
+			case GLFW_KEY_RIGHT_ALT -> isRAltStruck;
+			case GLFW_KEY_RIGHT_CONTROL -> isRControlStruck;
+			case GLFW_KEY_SPACE -> isSpaceStruck;
+			case GLFW_KEY_Q -> isQStruck;
+			case GLFW_KEY_W -> isWStruck;
+			case GLFW_KEY_E -> isEStruck;
+			case GLFW_KEY_R -> isRStruck;
+			case GLFW_KEY_T -> isTStruck;
+			case GLFW_KEY_Y -> isYStruck;
+			case GLFW_KEY_U -> isUStruck;
+			case GLFW_KEY_I -> isIStruck;
+			case GLFW_KEY_O -> isOStruck;
+			case GLFW_KEY_P -> isPStruck;
+			case GLFW_KEY_A -> isAStruck;
+			case GLFW_KEY_S -> isSStruck;
+			case GLFW_KEY_D -> isDStruck;
+			case GLFW_KEY_F -> isFStruck;
+			case GLFW_KEY_G -> isGStruck;
+			case GLFW_KEY_H -> isHStruck;
+			case GLFW_KEY_J -> isJStruck;
+			case GLFW_KEY_K -> isKStruck;
+			case GLFW_KEY_L -> isLStruck;
+			case GLFW_KEY_Z -> isZStruck;
+			case GLFW_KEY_X -> isXStruck;
+			case GLFW_KEY_C -> isCStruck;
+			case GLFW_KEY_V -> isVStruck;
+			case GLFW_KEY_B -> isBStruck;
+			case GLFW_KEY_N -> isNStruck;
+			case GLFW_KEY_M -> isMStruck;
+			case GLFW_KEY_KP_0 -> isKP0Struck;
+			case GLFW_KEY_KP_1 -> isKP1Struck;
+			case GLFW_KEY_KP_2 -> isKP2Struck;
+			case GLFW_KEY_KP_3 -> isKP3Struck;
+			case GLFW_KEY_KP_4 -> isKP4Struck;
+			case GLFW_KEY_KP_5 -> isKP5Struck;
+			case GLFW_KEY_KP_6 -> isKP6Struck;
+			case GLFW_KEY_KP_7 -> isKP7Struck;
+			case GLFW_KEY_KP_8 -> isKP8Struck;
+			case GLFW_KEY_KP_9 -> isKP9Struck;
+			case GLFW_KEY_0 -> is0Struck;
+			case GLFW_KEY_1 -> is1Struck;
+			case GLFW_KEY_2 -> is2Struck;
+			case GLFW_KEY_3 -> is3Struck;
+			case GLFW_KEY_4 -> is4Struck;
+			case GLFW_KEY_5 -> is5Struck;
+			case GLFW_KEY_6 -> is6Struck;
+			case GLFW_KEY_7 -> is7Struck;
+			case GLFW_KEY_8 -> is8Struck;
+			case GLFW_KEY_9 -> is9Struck;			
+			default -> throw new IllegalArgumentException(key + " is not a valid GLFW key code");
+			
+		};
+		
+	}
+	
+	public boolean mouseStruck(int key) { 
+		
+		return switch(key) {
+		
+			case GLFW_MOUSE_BUTTON_LEFT -> isLMouseStruck;
+			case GLFW_MOUSE_BUTTON_RIGHT -> isRMouseStruck;
+			case GLFW_MOUSE_BUTTON_MIDDLE -> isMMouseStruck;
+			case GLFW_MOUSE_BUTTON_4 -> isM4Struck;
+			case GLFW_MOUSE_BUTTON_5 -> isM5Struck;		
+			default -> throw new IllegalArgumentException(key + " is not a valid GLFW Mouse Key Code");
+		
+		};
+		
+	}
+	
 	public void releaseKeys() {
-		
-		isWReleased = false;
-		isAReleased = false;
-		isSReleased = false;
-		isDReleased = false;
-
-		isUpReleased = false;
-		isLeftReleased  = false;
-		isDownReleased  = false;
-		isRightReleased  = false;
-		
-		isSpaceReleased  = false;
-		isLShiftReleased = false;
-		isLControlReleased  = false;
-		
-		isEReleased = false;
-		isRReleased = false;
-		isTReleased = false;
-		isYReleased = false;
-		isUReleased = false;
-		isIReleased = false;
-		isOReleased = false;
-		isPReleased = false;
-		
-		isKP2Released = false;
-		isKP4Released = false;
-		isKP6Released = false;
-		isKP8Released = false;
-
-		isLMouseReleased = false;
-		isRMouseReleased = false;
-		isMMouseReleased = false;
-		isM4Released = false;
-		isM5Released = false;
-		isTabReleased = false;
-		
-		isZReleased = false;
-		isXReleased = false;
-		isLAltReleased = false;
-		
-		isWStruck = false;
-		isAStruck = false;
-		isSStruck = false;
-		isDStruck = false;
 
 		isUpStruck = false;
 		isLeftStruck = false;
 		isDownStruck = false;
 		isRightStruck = false;
 		
-		isSpaceStruck = false;
+		isTabStruck = false;
+		isCapsStruck = false;
 		isLShiftStruck = false;
 		isLControlStruck = false;
+		isLAltStruck = false;
+		isBackSpaceStruck = false;
+		isEnterStruck = false;
+		isRShiftStruck = false;
+		isRAltStruck = false;
+		isRControlStruck = false;
 		
+		isSpaceStruck = false;
+	   	
+		isQStruck = false;
+		isWStruck = false;
 		isEStruck = false;
 		isRStruck = false;
 		isTStruck = false;
@@ -322,551 +408,54 @@ public class GLFWWindow {
 		isOStruck = false;
 		isPStruck = false;
 		
-		isKP2Struck = false;
-		isKP4Struck = false;
-		isKP6Struck = false;
-		isKP8Struck = false;
+		isAStruck = false;
+		isSStruck = false;
+		isDStruck = false;
+		isFStruck = false;
+		isGStruck = false;
+		isHStruck = false;
+		isJStruck = false;
+		isKStruck = false;
+		isLStruck = false;
 
+		isZStruck = false;
+		isXStruck = false;
+		isCStruck = false;
+		isVStruck = false;
+		isBStruck = false;
+		isNStruck = false;
+		isMStruck = false;
+	    		
+		isKP1Struck = false;
+		isKP2Struck = false;
+		isKP3Struck = false;
+		isKP4Struck = false;
+		isKP5Struck = false;
+		isKP6Struck = false;
+		isKP7Struck = false;
+		isKP8Struck = false;
+		isKP9Struck = false;
+		isKP0Struck = false;
+		
+		is1Struck = false;
+		is2Struck = false;
+		is3Struck = false;
+		is4Struck = false;
+		is5Struck = false;
+		is6Struck = false;
+		is7Struck = false;
+		is8Struck = false;
+		is9Struck = false;
+		is0Struck = false;
+	    
 		isLMouseStruck = false;
 		isRMouseStruck = false;
 		isMMouseStruck = false;
 		isM4Struck = false;
 		isM5Struck = false;
-		isTabStruck = false;
-		isZStruck = false;
-		isXStruck = false;
-		isLAltStruck = false;
 		
-		
-	}
-	
-	public int[] getWindowDimensions(){
-
-		try(MemoryStack stack = stackPush()){
-
-			IntBuffer width = stack.mallocInt(1);
-			IntBuffer height = stack.mallocInt(1);
-			glfwGetWindowSize(glfwWindow , width , height);
-			return new int [] {width.get(0) , height.get(0)};
-
-		}
-
-	}
-	
-	/**
-	 * 
-	 * Gets cursor position x and y coordinates in screen space and returns them as an array.
-	 * 
-	 * @return double array where index 0 is cursor's x position and index 1 is cursor's y position
-	 */
-	public double[] getCursorPos(){
-
-		try(MemoryStack stack = stackPush()){
-
-			DoubleBuffer cursorX = stack.mallocDouble(1);
-			DoubleBuffer cursorY = stack.mallocDouble(1);
-			glfwGetCursorPos(glfwWindow, cursorX , cursorY);
-			double[] returnArray = {cursorX.get(0) , cursorY.get(0)};
-			return returnArray;
-
-		}
-
-	}
-	
-	public float[] getCursorWorldCoords() {
-		
-		double[] coords = getCursorPos();
-		int[] winDims = getWindowDimensions();
-		return new float[] {(float) getSCToWCForX(coords[0] , winDims[0] , winDims[1] , engine.renderer.getCamera()) ,
-							(float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.renderer.getCamera())};
-		
-	}
-	
-	public static boolean isWPressed() {
-
-		return isWPressed;
-
-	}
-
-	public static boolean isAPressed() {
-
-		return isAPressed;
-
-	}
-
-	public static boolean isSPressed() {
-
-		return isSPressed;
-
-	}
-
-	public static boolean isDPressed(){
-
-		return isDPressed;
-
-	}
-	
-	public boolean isAnyMoveKeyPressed() {
-		
-		if(isDPressed || isSPressed || isAPressed || isWPressed) return true;
-		else return false;
-		
-	}
-	
-	public boolean isAnyHorizontalMoveKeyPressed() {
-		
-		return isDPressed || isAPressed;
-		
-	}
-	
-	public static boolean isSpacePressed() {
-		
-		return isSpacePressed;
-		
-	}
-	
-	public boolean isLShiftPressed() {
-		
-		return isLShiftPressed;
-		
-	}
-
-	public boolean isUpPressed(){
-
-		return isUpPressed;
-
-	}
-
-	public boolean isLeftPressed(){
-
-		return isLeftPressed;
-
-	}
-
-	public boolean isDownPressed(){
-
-		return isDownPressed;
-
-	}
-
-	public boolean isRightPressed(){
-
-		return isRightPressed;
-
-	}
-
-	public boolean isLControlPressed() {
-		
-		return isLControlPressed;
-		
-	}
-		
-	public boolean isEPressed() {
-		
-		return isEPressed;
-		
-	}
-	
-	public boolean isRPressed() {
-		
-		return isRPressed;
-		
-	}
-	
-	public boolean isTPressed() {
-	
-		return isTPressed;
-	
-	}
-	
-	public boolean isYPressed() {
-		
-		return isYPressed;
-		
-	}
-	
-	public boolean isUPressed() {
-		
-		return isUPressed;
-		
-	}
-	
-	public boolean isKP2Pressed() {
-		
-		return isKP2Pressed; 
-		
-	}
-	
-	public boolean isKP4Pressed() {
-		
-		return isKP4Pressed; 
-		
-	}
-	
-	public boolean isKP6Pressed() {
-		
-		return isKP6Pressed; 
-		
-	}
-	
-	public boolean isKP8Pressed() {
-		
-		return isKP8Pressed; 
-		
-	}
-
-	public boolean isLMousePressed() {
-		
-		return isLMousePressed;
-		
-	}
-	
-	public boolean isRMousePressed() {
-		
-		return isRMousePressed;
-		
-	}
-	
-	public boolean isMMousePressed() {
-		
-		return isMMousePressed;
-		
-	}
-	
-	public boolean isM4Pressed() {
-		
-		return isM4Pressed;
-		
-	}
-	
-	public boolean isM5Pressed() {
-		
-		return isM5Pressed;
-		
-	}
-	
-	public boolean isHorizMoveKeyPressed() {
-		
-		return isAPressed || isDPressed;
-		
-	}
-	
-	public boolean isVertMoveKeyPressed() {
-		
-		return isWPressed || isSPressed || isSpacePressed;
-				
-	}
-	
-	public boolean isIPressed() {
-	
-		return isIPressed;
-				
-	}
-	
-	public boolean isOPressed() {
-		
-		return isOPressed;
-		
-	}
-	
-	public boolean isPPressed() {
-		
-		return isPPressed;
-		
-	}
-	
-	public boolean isTabPressed() {
-		
-		return isTabPressed;
-		
-	}
-	
-	public boolean isZPressed() {
-		
-		return isZPressed;
-		
-	}
-	
-	public boolean isXPressed() {
-		
-		return isXPressed;
-		
-	}
-	
-	public boolean isWReleased() {
-		return isWReleased;
-	}
-
-	public boolean isAReleased() {
-		return isAReleased;
-	}
-
-	public boolean isSReleased() {
-		return isSReleased;
-	}
-
-	public boolean isDReleased() {
-		return isDReleased;
-	}
-
-	public boolean isUpReleased() {
-		return isUpReleased;
-	}
-
-	public boolean isLeftReleased() {
-		return isLeftReleased;
-	}
-
-	public boolean isDownReleased() {
-		return isDownReleased;
-	}
-
-	public boolean isRightReleased() {
-		return isRightReleased;
-	}
-
-	public boolean isSpaceReleased() {
-		return isSpaceReleased;
-	}
-
-	public boolean isLShiftReleased() {
-		return isLShiftReleased;
-	}
-
-	public boolean isLControlReleased() {
-		return isLControlReleased;
-	}
-
-	public boolean isEReleased() {
-		return isEReleased;
-	}
-
-	public boolean isRReleased() {
-		return isRReleased;
-	}
-
-	public boolean isTReleased() {
-		return isTReleased;
-	}
-
-	public boolean isYReleased() {
-		return isYReleased;
-	}
-
-	public boolean isUReleased() {
-		return isUReleased;
-	}
-
-	public boolean isIReleased() {
-		return isIReleased;
-	}
-
-	public boolean isOReleased() {
-		return isOReleased;
-	}
-
-	public boolean isPReleased() {
-		return isPReleased;
-	}
-
-	public boolean isKP2Released() {
-		return isKP2Released;
-	}
-
-	public boolean isKP4Released() {
-		return isKP4Released;
-	}
-
-	public boolean isKP6Released() {
-		return isKP6Released;
-	}
-
-	public boolean isKP8Released() {
-		return isKP8Released;
-	}
-
-	public boolean isLMouseReleased() {
-		return isLMouseReleased;
-	}
-
-	public boolean isRMouseReleased() {
-		return isRMouseReleased;
-	}
-
-	public boolean isMMouseReleased() {
-		return isMMouseReleased;
-	}
-
-	public boolean isM4Released() {
-		return isM4Released;
-	}
-
-	public boolean isM5Released() {
-		return isM5Released;
-	}
-
-	public static boolean isTabReleased() {
-		
-		return isTabReleased;
-		
-	}
-
-	public static boolean isZReleased() {
-		
-		return isZReleased;
-		
-	}
-
-	public static boolean isXReleased() {
-		
-		return isXReleased;
-		
-	}
-	
-	public static boolean isAStruck() {
-
-		return isAStruck;
-		
-	}
-
-	public static boolean isWStruck() {
-		return isWStruck;
-	}
-
-	public static boolean isSStruck() {
-		return isSStruck;
 	}
 
-	public static boolean isDStruck() {
-		return isDStruck;
-	}
-
-	public static boolean isUpStruck() {
-		return isUpStruck;
-	}
-
-	public static boolean isLeftStruck() {
-		return isLeftStruck;
-	}
-
-	public static boolean isDownStruck() {
-		return isDownStruck;
-	}
-
-	public static boolean isRightStruck() {
-		return isRightStruck;
-	}
-
-	public static boolean isSpaceStruck() {
-		return isSpaceStruck;
-	}
-
-	public static boolean isLShiftStruck() {
-		return isLShiftStruck;
-	}
-
-	public static boolean isLControlStruck() {
-		return isLControlStruck;
-	}
-
-	public static boolean isEStruck() {
-		return isEStruck;
-	}
-
-	public static boolean isRStruck() {
-		return isRStruck;
-	}
-
-	public static boolean isTStruck() {
-		return isTStruck;
-	}
-
-	public static boolean isYStruck() {
-		return isYStruck;
-	}
-
-	public static boolean isUStruck() {
-		return isUStruck;
-	}
-
-	public static boolean isIStruck() {
-		return isIStruck;
-	}
-
-	public static boolean isOStruck() {
-		return isOStruck;
-	}
-
-	public static boolean isPStruck() {
-		return isPStruck;
-	}
-
-	public static boolean isKP2Struck() {
-		return isKP2Struck;
-	}
-
-	public static boolean isKP4Struck() {
-		return isKP4Struck;
-	}
-
-	public static boolean isKP6Struck() {
-		return isKP6Struck;
-	}
-	
-	public static boolean isKP8Struck() {
-		return isKP8Struck;
-	}
-
-	public static boolean isLMouseStruck() {
-		return isLMouseStruck;
-	}
-
-	public static boolean isRMouseStruck() {
-		return isRMouseStruck;
-	}
-
-	public static boolean isMMouseStruck() {
-		return isMMouseStruck;
-	}
-
-	public static boolean isM4Struck() {
-		return isM4Struck;
-	}
-
-	public static boolean isM5Struck() {
-		return isM5Struck;
-	}
-	
-	public static boolean isTabStruck() {
-		
-		return isTabStruck;
-		
-	}
-
-	public static boolean isZStruck() {
-		
-		return isZStruck;
-		
-	}
-
-	public static boolean isXStruck() {
-		
-		return isXStruck;
-		
-	}
-	
-	public static boolean isLAltStruck(){
-		
-		return isLAltStruck;
-		
-	}
-
-	public static boolean isLAltReleased(){
-		
-		return isLAltReleased;
-		
-	}
-	
 	DoubleBuffer startingX = memAllocDouble(1).put(0 , 0);
 	DoubleBuffer startingY = memAllocDouble(1).put(0 , 0);
 	DoubleBuffer newX = memAllocDouble(1).put(0 , 0);
@@ -897,16 +486,10 @@ public class GLFWWindow {
 
     							System.out.println("Escape key pressed.");
     							glfwSetWindowShouldClose(window, true); 
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -927,8 +510,8 @@ public class GLFWWindow {
 
     							}
 
-    							if(isLShiftPressed) glPolygonMode(GL_FRONT_AND_BACK , GL_FILL);
-    							else if (isLControlPressed) {
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) glPolygonMode(GL_FRONT_AND_BACK , GL_FILL);
+    							else if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
     								
     								MemoryAllocationReport report = (address , memory , threadID , threadName , element) ->{
     								    
@@ -940,16 +523,10 @@ public class GLFWWindow {
     							    
     							}
 
-    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -959,19 +536,14 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
+    						case GLFW_PRESS:break;
 
     						case GLFW_RELEASE:
 
-    							if(isLShiftPressed) glPolygonMode(GL_FRONT_AND_BACK , GL_LINE);
-    							
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) glPolygonMode(GL_FRONT_AND_BACK , GL_LINE);    							
     							break;
 
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -981,18 +553,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1002,17 +565,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1100,7 +655,7 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							engine.g_toggleMultiplayerUI();
+    							engine.mg_toggleMultiplayerUI();
     							break;
 
     						case GLFW_RELEASE:break;
@@ -1198,17 +753,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1218,17 +765,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1238,17 +777,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1258,17 +789,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1278,17 +801,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1298,17 +813,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1318,17 +825,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1338,17 +837,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1359,19 +850,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-//    							engine.e_previewFadeOut();
     							
+    							is1Struck = true;
     							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1382,19 +866,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
+    							is2Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-//    							engine.e_previewFadeIn();
     							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1405,17 +882,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-
-    		    				break;
-
-    						case GLFW_RELEASE:
-
+    							
+    							is3Struck = true;
     							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1426,17 +898,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-
+    							
+    							is4Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1447,23 +914,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-    							if(isLControlPressed){
-
-
-
-    							}
-
-
+    							
+    							is5Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1474,22 +930,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-    							if(isLControlPressed){
-
-
-
-    							}
-
+    							
+    							is6Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1500,18 +946,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-
-
+    							
+    							is7Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1522,22 +962,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-    							if(isLControlPressed){
-
-
-
-    							}
-
+    							
+    							is8Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1548,22 +978,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-    							if(isLControlPressed){
-
-
-    							}
-
-
+    							
+    							is9Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1574,16 +994,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
+    							
+    							is0Struck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1593,20 +1009,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							if(isLControlPressed){}
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-        	    				if(isLControlPressed){}
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1616,21 +1021,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							if(isLControlPressed){}
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-        	    				if(isLControlPressed){}
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1641,14 +1034,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
+    							
+    							isBackSpaceStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_BACKSPACE, press);
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
+    						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:
 
     			    			nk_input_key(NuklearContext, NK_KEY_BACKSPACE, press);
@@ -1661,18 +1052,10 @@ public class GLFWWindow {
     				case GLFW_KEY_INSERT:
 
     					switch(action){
-
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    					
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1686,16 +1069,10 @@ public class GLFWWindow {
 
     			    			nk_input_key(NuklearContext, NK_KEY_TEXT_START, press);
     			    			nk_input_key(NuklearContext, NK_KEY_SCROLL_START, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1708,16 +1085,10 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							nk_input_key(NuklearContext, NK_KEY_SCROLL_UP, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1727,17 +1098,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1762,19 +1125,11 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							nk_input_key(NuklearContext, NK_KEY_TAB, press);
-    							isTabPressed = true;
-    							isTabStruck = true;
-    							
+    							isTabStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-    							
-    							isTabReleased =  true;
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1785,21 +1140,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
-
+    							isQStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-
-    							break;
-
-    						case GLFW_REPEAT:
-    							
-    							
-    							
-    							break;
+    							    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1812,23 +1158,14 @@ public class GLFWWindow {
     						case GLFW_PRESS:
     							
     							isWStruck = true;
-    							isWPressed = true;
-
-    							if (isLShiftPressed)engine.e_attemptTransform(0 , 1);
-
+    							if (keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(0 , 1);
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isWPressed = false;
-    							isWReleased = true;
-
-    							break;
+    						case GLFW_RELEASE:break;
 
     						case GLFW_REPEAT:
-
-    							if(isLShiftPressed) engine.e_attemptTransform(0 , 1);
     							
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(0 , 1);    							
     							break;
 
     					}
@@ -1842,26 +1179,10 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							isEStruck = true;
-    							if(isLControlPressed) {
-    								
-    								
-    								
-    							}
-    							
-    							isEPressed = true;
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isEPressed = false;
-    							isEReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1873,31 +1194,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							isRStruck = true;
-    							if(isLControlPressed){
-
-    								
-
-    							} else if (isLShiftPressed) {
-    								
-    								
-    								
-    							}
-
-    							isRPressed = true;
-    							
+    							isRStruck = true;	
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isRPressed = false;
-    							isRReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1910,25 +1211,11 @@ public class GLFWWindow {
     						case GLFW_PRESS:
     							
     							isTStruck = true;
-    							if(isLControlPressed){
-    								
-    								engine.e_textureActiveObject();
-    							}
-    							
-    							isTPressed = true;
-
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_textureActiveObject();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isTPressed = false;
-    							isTReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1940,21 +1227,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							isYStruck = true;
-    							isYPressed = true;
-    							
+    							isYStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isYPressed = false;
-    							isYReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1966,21 +1243,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							isUStruck = true;
-    							isUPressed = true;
-    							
+    							isUStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isUPressed = false;
-    							isUReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -1992,24 +1259,13 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isIStruck = true;
-    							isIPressed = true;
-    							
-    							if(isLShiftPressed && isLControlPressed) engine.e_loadItem();
-    							else if (isLControlPressed) engine.e_newItem();
-    							
+    							isIStruck = true;    							
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT) && keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_loadItem();
+    							else if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_newItem();    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isIPressed = false;
-    							isIReleased = true;    							
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2021,21 +1277,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isOStruck = true;
-    							isOPressed = true;
-    							
+    							isOStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isOPressed = false;
-    							isOReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2048,20 +1294,10 @@ public class GLFWWindow {
     						case GLFW_PRESS:
     							
     							isPStruck = true;
-    							isPPressed = true;
-    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isPPressed = false;
-    							isPReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2071,17 +1307,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2091,17 +1319,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2111,17 +1331,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2133,23 +1345,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed){
-
-    								engine.e_removeActiveQuad();
-    								
-    							}
-
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_removeActiveQuad();
     			    			nk_input_key(NuklearContext, NK_KEY_DEL, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2163,16 +1364,10 @@ public class GLFWWindow {
 
     			    			nk_input_key(NuklearContext, NK_KEY_TEXT_END, press);
     			    			nk_input_key(NuklearContext, NK_KEY_SCROLL_END, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2184,48 +1379,48 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed) engine.e_deleteScene();
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_deleteScene();
     							nk_input_key(NuklearContext, NK_KEY_SCROLL_DOWN, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
     					break;
 
     				//XXX
+
+    				case GLFW_KEY_CAPS_LOCK:
+
+    					switch(action){
+
+    						case GLFW_PRESS:
+    							
+    							isCapsStruck = true;
+    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
+
+    					}
+
+    					break;
     				case GLFW_KEY_A:
 
     					switch(action){
 
     						case GLFW_PRESS:
 
-    							isAStruck = true;
-    							isAPressed = true;
-    							
-    							if (isLShiftPressed) engine.e_attemptTransform(-1 , 0);
-
+    							isAStruck = true;    							
+    							if (keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(-1 , 0);
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isAPressed = false;
-    							isAReleased = true;
-    							
-    							break;
-
+    						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:
 
-    							if (isLShiftPressed) engine.e_attemptTransform(-1 , 0);
-
+    							if (keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(-1 , 0);
     							break;
 
     					}
@@ -2238,24 +1433,15 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							isSStruck = true;
-    							isSPressed = true;
-    							
-    							if(isLShiftPressed && isLAltPressed) engine.e_snapSelectionArea();
-    							if(isLShiftPressed) engine.e_attemptTransform(0 , -1);
+    							isSStruck = true;    							
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT) && keyboardPressed(GLFW_KEY_LEFT_ALT)) engine.e_snapSelectionArea();
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(0 , -1);
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isSPressed = false;
-    							isSReleased = true;
-
-    							break;
-
+    						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:
 
-    							if(isLShiftPressed) engine.e_attemptTransform(0 , -1);
-								
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(0 , -1);								
     							break;
 
     					}
@@ -2269,22 +1455,11 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							isDStruck = true;
-    							isDPressed = true;
-    							if(isLShiftPressed) engine.e_attemptTransform(1 , 0);
-								
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_attemptTransform(1 , 0);								
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isDPressed = false;
-    							isDReleased = true;
-
-    							break;
-
-    						case GLFW_REPEAT:
-					
-    							if(isLShiftPressed) engine.e_attemptTransform(1 , 0);
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2296,18 +1471,13 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							if(isLShiftPressed && isLControlPressed) engine.e_loadEntity();
-    							else if(isLControlPressed) engine.e_newEntity();    							
-
+    							isFStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_SHIFT) && keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_loadEntity();
+    							else if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_newEntity();   							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2319,21 +1489,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed){
-
-    								engine.e_addQuad();
-
-    							}
-
+    							isGStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_addQuad();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2345,18 +1506,13 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							if(isLControlPressed && isLShiftPressed) engine.e_loadStatic();
-    							else if(isLControlPressed) engine.e_addStatic();
-
+    							isHStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL) && keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_loadStatic();
+    							else if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_addStatic();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2368,21 +1524,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed){
-
-    								engine.e_addCollider();
-    								
-    							}
-
+    							isJStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_addCollider();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2393,22 +1540,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-    							if(isLControlPressed){
-
-    								
-
-    							}
-
+    							
+    							isKStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2420,17 +1557,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed) engine.e_loadLevel();
-
+    							isLStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_loadLevel();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2440,17 +1572,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2460,17 +1584,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2481,46 +1597,21 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
+    							
+    							isEnterStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_ENTER, press);
     			    			engine.e_returnConsole();
+    			    			engine.mg_enterTextChat();
     			    			DialogUtils.acceptLast();
-    			    			
-    			    			if(isLControlPressed){} else {}
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
     					break;
 
-    				case GLFW_KEY_CAPS_LOCK:
-
-    					switch(action){
-
-    						case GLFW_PRESS:
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
-
-    					}
-
-    					break;
     				//XXX
     				case GLFW_KEY_LEFT_SHIFT:
 
@@ -2529,27 +1620,15 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							nk_input_key(NuklearContext, NK_KEY_SHIFT, press);
-    							isLShiftStruck = true;
-    							isLShiftPressed = true;
-    							
+    							isLShiftStruck = true;    							
     							break;
 
     						case GLFW_RELEASE:
-
-    							isLShiftPressed = false;
-    							isLShiftReleased = true;
     							
-    							if(isLAltPressed) {
-    								
-    								DialogUtils.acceptLast();
-    								
-    							}
-    							
+    							if(keyboardPressed(GLFW_KEY_LEFT_ALT)) DialogUtils.acceptLast();    							
     							break;
 
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2561,21 +1640,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isZPressed = true;
-    							isZStruck = true;
-    							
+    							isZStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isZPressed = false;
-    							isZReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2587,24 +1656,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isXPressed = true;
     							isXStruck = true;
-    							
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isXReleased = true;
-    							isXPressed = false;
-    							
-    							
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2616,30 +1672,16 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed && isLShiftPressed){
-
-    								engine.e_setActiveQuadColor();
-
-    							} else if (isLControlPressed) {
-    								
-    								engine.e_copyActiveObject();
-    								
-    							}
-
+    							isCStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL) && keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_setActiveQuadColor();
+    							else if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_copyActiveObject();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
-    					
-    					
     					break;
 
     				case GLFW_KEY_V:
@@ -2648,25 +1690,13 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if(isLControlPressed && isLShiftPressed){
-    								
-    								engine.e_filterActiveObjectColor();
-
-    							} else if (isLControlPressed) {
-    								
-    								engine.e_pasteCopyAtCursor();
-    								
-    							}
-
+    							isVStruck = true;
+    							if(keyboardPressed(GLFW_KEY_LEFT_CONTROL) && keyboardPressed(GLFW_KEY_LEFT_SHIFT)) engine.e_filterActiveObjectColor();
+    							else if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_pasteCopyAtCursor();
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2677,18 +1707,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
-
+    							isBStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2699,18 +1723,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
-
+    							isNStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2721,18 +1739,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
     							
-
+    							isMStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2754,19 +1766,9 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:
-
-    							if(isLControlPressed){}
-
-    							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_PRESS:break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2777,18 +1779,13 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
+    							
+    							isRShiftStruck = true;
     							nk_input_key(NuklearContext, NK_KEY_SHIFT, press);
-
     							break;
 
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2800,20 +1797,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isUpPressed = true;
     							isUpStruck = true;
-    			    			nk_input_key(NuklearContext, NK_KEY_UP, press);
-    			    			
-    			    			if (isLControlPressed) engine.e_getEditor().moveSelectionAreaUpperFace(1);
-
+    			    			nk_input_key(NuklearContext, NK_KEY_UP, press);    			    			
+    			    			if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaUpperFace(1);
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isUpPressed = false;
-    							isUpReleased = true;
-
-    							break;
+    						case GLFW_RELEASE:break;
 
     						case GLFW_REPEAT:
 
@@ -2829,22 +1818,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isLeftPressed = true;
-
-    							if (isLControlPressed) engine.e_getEditor().moveSelectionAreaLeftFace(1);
-    							
+    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLeftFace(1);							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isLeftPressed = false;
-    							isLeftReleased = true;
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2856,24 +1834,14 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isDownPressed = true;
     							isDownStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_DOWN, press);
 
-    			    			if (isLControlPressed) engine.e_getEditor().moveSelectionAreaLowerFace(1);
-    			    			
+    			    			if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLowerFace(1);    			    			
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isDownPressed = false;
-    							isDownReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2885,23 +1853,12 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isRightPressed = true;
     							isRightStruck = true;
-
-    							if (isLControlPressed) engine.e_getEditor().moveSelectionAreaRightFace(1);
-    							
+    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaRightFace(1);    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isRightPressed = false;
-    							isRightReleased = true;
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2913,9 +1870,7 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    		    				isLControlPressed = true;
-    		    				isLControlStruck = true;
-    		    				
+    		    				isLControlStruck = true;    		    				
     		    				nk_input_key(NuklearContext, NK_KEY_COPY, glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_PASTE, glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_CUT, glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS);
@@ -2925,27 +1880,19 @@ public class GLFWWindow {
     		    				nk_input_key(NuklearContext, NK_KEY_TEXT_WORD_RIGHT, glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_TEXT_LINE_START, glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_TEXT_LINE_END, glfwGetKey(window, GLFW_KEY_ENTER) == GLFW_PRESS);
-
     							break;
 
     						case GLFW_RELEASE:
-
-    		    				isLControlPressed = false;
-    		    				isLControlReleased = true;
 
     		    				nk_input_key(NuklearContext, NK_KEY_LEFT, glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_RIGHT, glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS);
     		    				nk_input_key(NuklearContext, NK_KEY_COPY, false);
     		    				nk_input_key(NuklearContext, NK_KEY_PASTE, false);
     		    				nk_input_key(NuklearContext, NK_KEY_CUT, false);
-
     		    				nk_input_key(NuklearContext, NK_KEY_SHIFT, false);
-
        							break;
 
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2957,21 +1904,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isLAltPressed = true;
-    							isLAltStruck = true;
-    							
+    							isLAltStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isLAltPressed = false;
-    							isLAltReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -2983,37 +1920,11 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isSpacePressed = true;
-    							isSpaceStruck = true;
-    							
-    		    				switch(state){
-
-        		    				case EDITOR:
-        		    					
-        		    					break;
-
-    								case GAME:
-
-    									break;
-    									
-    								default:
-
-    									break;
-
-    		    				}
-
+    							isSpaceStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-
-    							isSpacePressed = false;
-    							isSpaceReleased = true;
-    							
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -3024,16 +1935,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
+    							
+    							isRAltStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -3044,17 +1951,12 @@ public class GLFWWindow {
     					switch(action){
 
     						case GLFW_PRESS:
-
-
+    							
+    							isRControlStruck = true;
     							break;
-
-    						case GLFW_RELEASE:
-
-    							break;
-
-    						case GLFW_REPEAT:
-
-    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
 
     					}
 
@@ -3067,18 +1969,12 @@ public class GLFWWindow {
         					switch(action){
 
         						case GLFW_PRESS:
-
         							
+        							isKP0Struck = true;
+        							break;
         							
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3089,16 +1985,12 @@ public class GLFWWindow {
         					switch(action){
 
         						case GLFW_PRESS:
-
+        							
+        							isKP1Struck = true;
         							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        							
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3110,21 +2002,11 @@ public class GLFWWindow {
 
         						case GLFW_PRESS:
 
-        							isKP2Pressed = true;
         							isKP2Struck = true;
-
         							break;
 
-        						case GLFW_RELEASE:
-
-        							isKP2Pressed = false;
-        							isKP2Released = true;
-        							
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3135,17 +2017,12 @@ public class GLFWWindow {
         					switch(action){
 
         						case GLFW_PRESS:
-
-
+        							
+        							isKP3Struck = true;
         							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        							
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3157,21 +2034,11 @@ public class GLFWWindow {
 
         						case GLFW_PRESS:
 
-        							isKP4Pressed = true;
-        							isKP4Struck = true;
-        							
+        							isKP4Struck = true;        							
         							break;
 
-        						case GLFW_RELEASE:
-
-        							isKP4Pressed = false;
-        							isKP4Released = true;
-        							
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3182,18 +2049,12 @@ public class GLFWWindow {
         					switch(action){
 
         						case GLFW_PRESS:
-
-
-
+        							
+        							isKP5Struck = true;
         							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        							
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3205,21 +2066,11 @@ public class GLFWWindow {
 
         						case GLFW_PRESS:
 
-        							isKP6Pressed = true;
-        							isKP6Struck = true;
-        							
+        							isKP6Struck = true;        							
         							break;
 
-        						case GLFW_RELEASE:
-
-        							isKP6Pressed = false;
-        							isKP6Released = true;
-        							
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3231,15 +2082,11 @@ public class GLFWWindow {
 
         						case GLFW_PRESS:
 
+        							isKP7Struck = true;
         							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        							
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3251,21 +2098,11 @@ public class GLFWWindow {
 
         						case GLFW_PRESS:
 
-        							isKP8Pressed = true;
-        							isKP8Struck = true;
-        							
+        							isKP8Struck = true;        							
         							break;
 
-        						case GLFW_RELEASE:
-
-        							isKP8Pressed = false;
-        							isKP8Released = true;
-        							
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3276,16 +2113,12 @@ public class GLFWWindow {
         					switch(action){
 
         						case GLFW_PRESS:
-
+        							
+        							isKP9Struck = true;
         							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        							
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3295,17 +2128,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3315,17 +2140,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3335,17 +2152,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3355,17 +2164,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3375,17 +2176,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-        							
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3395,17 +2188,9 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:
-
-        							break;
-
-        						case GLFW_RELEASE:
-
-        							break;
-
-        						case GLFW_REPEAT:
-
-        							break;
+        						case GLFW_PRESS:break;
+        						case GLFW_RELEASE:break;
+        						case GLFW_REPEAT:break;
 
         					}
 
@@ -3437,8 +2222,7 @@ public class GLFWWindow {
 	    					switch(action) {
 	    					
 		    					case GLFW_PRESS:
-		    						
-		    						isRMousePressed = true;         
+		    						        
 		    						isRMouseStruck = true;
 		    						glfwGetCursorPos(glfwWindow, startingX , startingY);
 		    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
@@ -3448,8 +2232,6 @@ public class GLFWWindow {
 		    						
 		    					case GLFW_RELEASE:
 
-		    						isRMousePressed = false;
-		    						isRMouseReleased = true;
 		    						glfwGetCursorPos(glfwWindow , newX , newY);
 		            				
 		    						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
@@ -3466,11 +2248,7 @@ public class GLFWWindow {
 		            				
 		    						break;		    						
 		    						
-		    					case GLFW_REPEAT:
-		    						
-		    						
-		    						
-		    						break;
+		    					case GLFW_REPEAT:break;
 		    					
 	    					}
 	    					
@@ -3488,17 +2266,11 @@ public class GLFWWindow {
 		    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
 		    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());		    			
 
-		    						if(isLControlPressed){
-		    							
-		    							isLMousePressed = true;
-		    							isLMouseStruck = true;
-		    							
-		            				} else {
+	            					isLMouseStruck = true;
+		    						if(!keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
 
 		            					if(nk_window_is_any_hovered(NuklearContext)) break;
 
-		            					isLMousePressed = true;		         
-		            					isLMouseStruck = true;
 		            					boolean selectedSame = engine.e_select((float)pressWorldX , (float) pressWorldY);
 		            					if(selectedSame && engine.e_cursorState() == CursorState.DRAGGING) engine.e_setCursorState(CursorState.SELECTABLE);
 		            					else if (selectedSame) engine.e_setCursorState(CursorState.DRAGGING);
@@ -3509,8 +2281,6 @@ public class GLFWWindow {
 		    						
 		    					case GLFW_RELEASE:
 		    						
-		    						isLMousePressed = false;
-		    						isLMouseReleased = true;
 		    						glfwGetCursorPos(glfwWindow , newX , newY);
 		            				
 		    						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
@@ -3519,7 +2289,7 @@ public class GLFWWindow {
 		    						if(nk_window_is_any_hovered(NuklearContext)) break;
 		    						
 		            				//click-drag selection box        				
-		            				if(isLShiftPressed) {
+		            				if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
 		            					        					
 		            					float xDim = (float) releaseWorldX - pressWorldX;
 		            					float yDim = (float) releaseWorldY - pressWorldY;
@@ -3529,7 +2299,7 @@ public class GLFWWindow {
 		            							            					
 		            				} 
 	            				
-		            				if(Engine.STATE == RuntimeState.EDITOR && isLShiftPressed && isLControlPressed) {
+		            				if(Engine.STATE == RuntimeState.EDITOR && keyboardPressed(GLFW_KEY_LEFT_SHIFT) && keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
 		            					
 		            					engine.editor.say("Cursor X: " + releaseWorldX);
 		            					engine.editor.say("Cursor Y: " + releaseWorldY);
@@ -3539,11 +2309,7 @@ public class GLFWWindow {
 		    						break;
 		    						
 		    						
-		    					case GLFW_REPEAT:
-		    						
-		    						
-		    						
-		    						break;
+		    					case GLFW_REPEAT:break;
 	    					
 	    					}			
 	    					
@@ -3557,24 +2323,11 @@ public class GLFWWindow {
 		    					
 		    					case GLFW_PRESS:
 		    						
-		    						isMMousePressed = true;
-		    						isMMouseStruck = true;
-		    						
+		    						isMMouseStruck = true;		    						
 		    						break;
 		    						
-		    					case GLFW_RELEASE:
-		    						
-		    						isMMousePressed = false;
-		    						isMMouseReleased = true;
-		    						
-		    						break;
-		    						
-		    						
-		    					case GLFW_REPEAT:
-		    						
-		    						
-		    						
-		    						break;
+		    					case GLFW_RELEASE:break;	
+		    					case GLFW_REPEAT:break;
 		    					
 	    					}
 	    					
@@ -3586,24 +2339,11 @@ public class GLFWWindow {
 	    					
 		    					case GLFW_PRESS:
 		    						
-		    						isM4Pressed = true;
-		    						isM4Struck = true;
-		    						
+		    						isM4Struck = true;		    						
 		    						break;
 		    						
-		    					case GLFW_RELEASE:
-		    						
-		    						isM4Pressed = false;
-		    						isM4Released = true;
-		    						
-		    						break;
-		    						
-		    						
-		    					case GLFW_REPEAT:
-		    						
-		    						
-		    						
-		    						break;
+		    					case GLFW_RELEASE:break;  
+		    					case GLFW_REPEAT:break;
 		    					
 	    					}
 	    					
@@ -3615,24 +2355,11 @@ public class GLFWWindow {
 	    					
 		    					case GLFW_PRESS:
 		    						
-		    						isM5Pressed = true;
-		    						isM5Struck = true;
-		    						
+		    						isM5Struck = true;		    						
 		    						break;
 		    						
-		    					case GLFW_RELEASE:
-		    						
-		    						isM5Pressed = false;
-		    						isM5Released = true;
-		    						
-		    						break;
-		    						
-		    						
-		    					case GLFW_REPEAT:
-		    						
-		    						
-		    						
-		    						break;
+		    					case GLFW_RELEASE:break;
+		    					case GLFW_REPEAT:break;
 		    					
 	    					}
 	    					
@@ -3650,8 +2377,7 @@ public class GLFWWindow {
 
     			try (MemoryStack stack = stackPush()) {
     				
-    				NkVec2 scroll = NkVec2.malloc(stack).x((float)xoffset).y((float)yoffset);
-    				
+    				NkVec2 scroll = NkVec2.malloc(stack).x((float)xoffset).y((float)yoffset);    				
     				nk_input_scroll(NuklearContext, scroll);
     				
     			}
@@ -3662,8 +2388,8 @@ public class GLFWWindow {
 
     				if(Engine.STATE == RuntimeState.EDITOR && engine.e_getEditor().getState() == EditorMode.BUILD_MODE) {
     					
-    					if(isLControlPressed)engine.getCamera().scaleCamera(6 * (-(float) yoffset));
-    					else if (!isLControlPressed)engine.getCamera().scaleCamera(-(float) yoffset);
+    					if(keyboardPressed(GLFW_KEY_LEFT_CONTROL))engine.getCamera().scaleCamera(6 * (-(float) yoffset));
+    					else engine.getCamera().scaleCamera(-(float) yoffset);
     					
     				}
 
@@ -3671,8 +2397,8 @@ public class GLFWWindow {
 
     				if(Engine.STATE == RuntimeState.EDITOR && engine.e_getEditor().getState() == EditorMode.BUILD_MODE) {
     					
-    					if (isLControlPressed) engine.getCamera().scaleCamera(6 * (-(float) yoffset)); 
-    					else if (!isLControlPressed) engine.getCamera().scaleCamera(-(float) yoffset);
+    					if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.getCamera().scaleCamera(6 * (-(float) yoffset)); 
+    					else engine.getCamera().scaleCamera(-(float) yoffset);
     					
     				}
 
@@ -3680,15 +2406,7 @@ public class GLFWWindow {
 
     		});
     		
-    		glfwSetCursorEnterCallback(glfwWindow , (window , entered) -> {
-
-    			if (entered == true) {
-
-    			} else {
-
-    			}
-
-    		});
+    		glfwSetCursorEnterCallback(glfwWindow , (window , entered) -> {});
     		
    		glfwSetCursorPosCallback(glfwWindow , (window, xpos, ypos) -> nk_input_motion(NuklearContext, (int)xpos, (int)ypos));   		
    		glfwSetInputMode (glfwWindow , GLFW_CURSOR ,GLFW_CURSOR_NORMAL);

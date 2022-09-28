@@ -5,6 +5,7 @@ import static CS.Engine.INTERNAL_ENGINE_PYTHON;
 import org.joml.Random;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
+import org.python.core.adapter.ClassicPyObjectAdapter;
 import org.python.util.PythonInterpreter;
 
 import CS.Engine;
@@ -20,7 +21,11 @@ import Core.Console;
 import Core.Direction;
 import Game.Core.DamageType;
 import Game.Core.EntityHurtData;
+import Game.Core.GameRuntime;
+import Game.Core.GameState;
 import Game.Items.LootTables;
+import Networking.NetworkedInstance;
+import Networking.UserHostedSessionClient;
 import Physics.MExpression;
 import Renderer.ParticleEmitter;
 import Renderer.Renderer;
@@ -50,13 +55,15 @@ public class EntityScriptingInterface {
 	private Random RNG = new Random();
 	private Renderer renderer;
 	private Console console;
+	private NetworkedInstance networkInstance;
 	
-	public EntityScriptingInterface(Renderer renderer , Scene scene , GLFWWindow window , Console console) {
+	public EntityScriptingInterface(NetworkedInstance networkInstance , Renderer renderer , Scene scene , GLFWWindow window , Console console) {
 	
 		this.scene = scene;
 		glfw = window;		
 		this.renderer = renderer;
 		this.console = console;
+		this.networkInstance = networkInstance;
 		
 	}
 
@@ -241,17 +248,6 @@ public class EntityScriptingInterface {
 	}
 	
 	/**
-	 * Used in the {@code entityScriptingFunctions} script to define a variable called glfw which is a reference to the window object, GLFWWindow.
-	 * 
-	 * @return — program's window, which includes user input
-	 */
-	public GLFWWindow getWindow() {
-		
-		return glfw;
-		
-	}
-	
-	/**
 	 * Drops the specified item from E's inventory. <br><br>
 	 * More specifically, removes the item from E's inventory if it exists, and begins to render it, after moving it in front of E.
 	 * 
@@ -324,16 +320,7 @@ public class EntityScriptingInterface {
 	public EntityScanResult findEntityAnd(Entities caller , float radius , PyObject callback) {
 		
 		EntityScanResult  r = scene.entities().nearestEntity(caller, radius);
-		if(r.result != null) {
-			
-			//I wish i could find a way to represent a java object as a PyObject which was cleaner than this, but the set method
-			//sets a variable by the name of FEAE (the name of this method + E for entity) to the entity found by scanning, and uses
-			//get method to get that variable. Get returns a PyObject, so we convert as we wanted to, in a roundabout way
-			internalInterpreter.set("FEAE", r);
-			callback.__call__(internalInterpreter.get("FEAE"));
-			 	
-		}
-		
+		if(r.result != null) callback.__call__(new ClassicPyObjectAdapter().adapt(r));		
 		return new EntityScanResult (r.result , r.xDistance , r.yDistance);
 						
 	}
@@ -546,15 +533,63 @@ public class EntityScriptingInterface {
 	}
 	
 	/**
-	 * Queries GLFW on the most recent state of {@code key}
+	 * Queries GLFW on the most recent state of {@code key}. 
+	 * <br> <b> IMPORTANT: </b> This method should only be used for keyboard keys.
+	 * If a keycode for mouse or gamepad is given an error will be thrown. Use {@code getMouseKey} instead.
 	 * 
-	 * @param key — a glfw key enum
-	 * @return — the most recent state of they key, one of {@code GLWF_KEY_PRESS} or {@code GLFW_KEY_RELEASE} 
+	 * @param key — a glfw keyboard key constant
+	 * @return the most recent state of they key, one of {@code GLWF_KEY_PRESS} or {@code GLFW_KEY_RELEASE} 
 	 */
-	public int getKey(PyObject key) {
+	public int getKey(int key) {
 		
-		return glfw.getKey((int)key.__tojava__(Integer.TYPE));
+		return glfw.getKeyboardKey(key);
 		
+	}
+	
+	/**
+	 * Queries GLFW on the most recent state of {@code key}.
+	 * <br> <b> IMPORTANT: </b> This method should only be used for mouse keys.
+	 * if a keycode for keyboard or gamepad is given, an error will be thrown. Use {@code getKey} instead for keyboard.
+	 * 
+	 * @param key — a glfw mouse button key constant
+	 * @return the most recent state of they key, one of {@code GLWF_KEY_PRESS} or {@code GLFW_KEY_RELEASE} 
+	 */
+	public int getMouseKey(int key) { 
+		
+		return glfw.getMouseKey(key);
+		
+	}
+	
+	/**
+	 * Gets the struck state of the given key. 
+	 * <br>
+	 * Let {@code n} be the current game tick. If {@code key} was pressed at {@code n-1}, then on {@code n} this will return true.
+	 * However at {@code n + 1} if {@code key} was not pressed at {@code n}, this will return false.
+	 *
+	 * 
+	 * @param key — a glfw keyboard key constant
+	 * @return true if {@code key} was struck
+	 */
+	public boolean keyboardStruck(int key) { 
+		
+		return glfw.keyboardStruck(key);
+		
+	}
+
+	/**
+	 * Gets the struck state of the given key. 
+	 * <br>
+	 * Let {@code n} be the current game tick. If {@code key} was pressed at {@code n-1}, then on {@code n} this will return true.
+	 * However at {@code n + 1} if {@code key} was not pressed at {@code n}, this will return false.
+	 *
+	 * 
+	 * @param key — a glfw mouse key constant
+	 * @return true if {@code key} was struck
+	 */
+	public boolean mouseStruck(int key) {
+		
+		return glfw.mouseStruck(key);
+				
 	}
 	
 	/**
@@ -657,6 +692,20 @@ public class EntityScriptingInterface {
 	public LootTables newLootTable() {
 		
 		return new LootTables(scene);
+		
+	}
+	
+	/**
+	 * Networked Key Strokes are keys whose state is transmitted to servers so servers can propperly simulate script behavior. 
+	 * Only keys needed for game logic should be sent. Keys that do things that don't directly impact gameplay should not be sent, such as
+	 * keys that open the inventory.
+	 * 
+	 * @param keyCodes — list of key codes to send; should be either user settings or GLFW codes
+	 */
+	public void setNetworkedKeyStrokes(int...keyCodes) { 
+		
+		if(Engine.STATE != RuntimeState.GAME || GameRuntime.getState() != GameState.GAME_RUNTIME_MULTIPLAYER) return;
+		if(networkInstance instanceof UserHostedSessionClient) ((UserHostedSessionClient)networkInstance).setNetworkedKeys(keyCodes);
 		
 	}
 	

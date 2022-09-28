@@ -1,7 +1,5 @@
 package Networking.Utils;
 
-import Networking.NetworkedInstance;
-
 /**
  * 
  * Provides easy construction of marshalled byte arrays for sending over UDP. 

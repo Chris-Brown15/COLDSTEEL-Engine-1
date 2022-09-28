@@ -3,6 +3,7 @@ package Game.Core;
 import static CS.COLDSTEEL.data;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import CS.Engine;
 import Core.Direction;
@@ -14,6 +15,7 @@ import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
 import Game.Items.Inventories;
 import Game.Items.ItemComponents;
+import Game.Levels.Levels;
 import Game.Player.CharacterCreator;
 import Game.Player.PlayerCharacter;
 import Game.Player.PlayerLoader;
@@ -57,10 +59,12 @@ public class GameRuntime {
 	private NetworkedInstance multiplayerSession;
 	private boolean showPyUI = true;
 	private boolean renderDebug = false;
+	private final Supplier<Levels> getCurrentLevel;
 	
-	public GameRuntime(Scene scene) {
+	public GameRuntime(Supplier<Levels> getCurrentLevel , Scene scene) {
 	
 		this.scene = scene;
+		this.getCurrentLevel = getCurrentLevel;
 		
 	}	
 	
@@ -150,7 +154,7 @@ public class GameRuntime {
 					TemporalExecutor.onTrue(() -> player != null , () -> {
 
 						//construct the server which will be null if we are hosting from the main menu
-						if(multiplayerSession == null) multiplayerSession = new UserHostedSession();
+						if(multiplayerSession == null) multiplayerSession = new UserHostedSession(scene , getCurrentLevel);
 						((UserHostedSession) multiplayerSession).startServer(player);
 												
 					});					
@@ -173,7 +177,7 @@ public class GameRuntime {
 						//multiplayer here
 						try {
 						
-							multiplayerSession = new UserHostedSessionClient(mainMenu.getServerConnectionInfo());
+							multiplayerSession = new UserHostedSessionClient(scene , getCurrentLevel , mainMenu.getServerConnectionInfo());
 							((UserHostedSessionClient) multiplayerSession).connectAndStart(player);
 							engine.fadeIn(1000);
 							
@@ -242,7 +246,7 @@ public class GameRuntime {
 						setState(GameState.GAME_RUNTIME_MULTIPLAYER);
 						engine.fadeIn(250d);
 
-						multiplayerSession = new UserHostedSession();
+						multiplayerSession = new UserHostedSession(scene , getCurrentLevel);
 						((UserHostedSession) multiplayerSession).startServer(player);
 						
 					});
@@ -276,7 +280,7 @@ public class GameRuntime {
 						//multiplayer here
 						try {
 						
-							multiplayerSession = new UserHostedSessionClient(mainMenu.getServerConnectionInfo());							
+							multiplayerSession = new UserHostedSessionClient(scene , getCurrentLevel , mainMenu.getServerConnectionInfo());
 							((UserHostedSessionClient) multiplayerSession).connectAndStart(player);
 							engine.fadeIn(1000);
 							STATE = GameState.GAME_RUNTIME_MULTIPLAYER;
@@ -315,6 +319,12 @@ public class GameRuntime {
 	public <SessionType extends NetworkedInstance> void setMultiplayerSession(SessionType session) {
 		
 		multiplayerSession = session;
+		
+	}
+	
+	public NetworkedInstance getMultiplayerSession() {
+		
+		return multiplayerSession;
 		
 	}
 	

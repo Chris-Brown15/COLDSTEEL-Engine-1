@@ -66,17 +66,17 @@ if not initialized:
 
 	def getPositionState():
 		global positionState
-		positionState = AIRBORN if distanceToFloor() > 5 else DUCKING if glfw.isSPressed() else GROUNDED
+		positionState = AIRBORN if distanceToFloor() > 5 else DUCKING if kbPressed(GLFW_KEY_S) else GROUNDED
 
 	def getActionState():
 		global actionState
 		if actionState == HURT:
 			actionState = HURT
 
-		elif glfw.isLMousePressed():
+		elif mPressed(GLFW_MOUSE_BUTTON_LEFT):
 			actionState = ATTACKING
 
-		elif glfw.isEPressed():
+		elif kbPressed(GLFW_KEY_E):
 			actionState = SUB_WEAPON
 		else:
 			actionState = IDLE
@@ -130,8 +130,6 @@ if not initialized:
 			elif actionState == SUB_WEAPON:
 				useSubWeapon(e_TrevorItemUse)
 			
-				
-			
 			elif horizDisplacement() != 0:
 				activateAnim(e_TrevorWalk)
 
@@ -141,7 +139,7 @@ if not initialized:
 		elif positionState == DUCKING:
 			setHorizontalControl(FALSE)
 			if previousPositionState != positionState:
-				TemporalExecutor.onTrue(lambda: not glfw.isSPressed() , lambda: setHorizontalControl(TRUE))
+				TemporalExecutor.onTrue(lambda: not kbPressed(GLFW_KEY_S) , lambda: setHorizontalControl(TRUE))
 			
 			if actionState == ATTACKING:
 				attack(e_TrevorDuckingAttack)				

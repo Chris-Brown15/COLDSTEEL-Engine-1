@@ -8,6 +8,12 @@ import static CSUtil.BigMixin.getTrianglePointArea;
 import static CSUtil.BigMixin.getArrayMidpoint;
 import static CSUtil.BigMixin.toggle;
 
+import static CS.Engine.currentFrame;
+import static CS.Engine.secondPassed;
+import static CS.Engine.framesLastSecond;
+
+import CS.UserControls;
+
 import CSUtil.QuadIndices;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
@@ -26,13 +32,12 @@ import Game.Items.Items;
 import Game.Items.UnownedItems;
 
 import java.util.ArrayList;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.joml.Math;
 import org.joml.Vector3f;
 
-import CS.Engine;
-import CS.GLFWWindow;
 import Physics.ColliderLists;
 import Physics.Colliders;
 import Renderer.Camera;
@@ -44,11 +49,13 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	private static boolean playAnimations = true;
 	private final Camera camera;
-		
-	public EntityLists(int renderOrder , Camera camera) {
+	private Function<Integer , Boolean> pressed;	
+	
+	public EntityLists(int renderOrder , Camera camera , Function<Integer , Boolean> keyPressCallback) {
 		
 		super(renderOrder , CSType.ENTITY);
 		this.camera = camera;
+		this.pressed = keyPressCallback;
 		
 	}
 	
@@ -2015,7 +2022,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			}
 			
 		}
-		
 	
 		return didCollide;
 		
@@ -2883,18 +2889,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public void editorRunSystems(Executor start , Executor inbetween , Executor after) {
 		
-		if(Engine.secondPassed()) {
+		if(secondPassed()) {
 			
 			startNumberTicks();
-			framesPerTick = ((float)(Engine.framesLastSecond())  / 60f);//frames between a tick		
+			framesPerTick = ((float)(framesLastSecond())  / 60f);//frames between a tick		
 			
 		}
 		
 		float addativeTick = (1f / framesPerTick) % 1; //if the currentFrame is a multiple of this, subtract one from the frameStep
 		float frameStep = numberTicks * framesPerTick;				
-		if(Engine.currentFrame() % addativeTick == 0) frameStep -= 1;
+		if(currentFrame() % addativeTick == 0) frameStep -= 1;
 		
-		if(numberTicks == 0 || ((frameStep - Engine.currentFrame() <= 1) && numberTicks < 70) ) {
+		if(numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < 70) ) {
 			
 			start.execute();
 			Object[] comps;
@@ -3010,19 +3016,9 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 		if((boolean) comps[Entities.HCOFF + 1] == false) return;//if the entity has control
 		Entities E = ((Entities)comps[0]);
-					
-		if(E.has(ECS.COLLISION_DETECTION)) {
-			
-			if(GLFWWindow.isAPressed()) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
-			if(GLFWWindow.isDPressed()) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
-							
-		} else {
-		
-			if(GLFWWindow.isAPressed()) E.translate(-(float) comps[Entities.HCOFF], 0f);
-			if(GLFWWindow.isDPressed()) E.translate((float)comps[Entities.HCOFF], 0f);
-			
-		}			
-		
+		if(pressed.apply(UserControls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
+		if(pressed.apply(UserControls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
+				
 	}
 
 	/**
@@ -3044,16 +3040,9 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			if(!(gravityTimer < -2 * (float)comps[maxTimerIndex])) comps[timerIndex] = gravityTimer -1;
 			if(collided) comps[timerIndex] = 0f;
 							
-		} else if (E.has(ECS.COLLISION_DETECTION)) {
-			
-			moveVertChecked(E , -(float)comps[gravityIndex]);
-							
-		} else {
-			
-			E.translate(0f, -(float)comps[gravityIndex]);
-							
-		}
-		
+		} else if (E.has(ECS.COLLISION_DETECTION)) moveVertChecked(E , -(float)comps[gravityIndex]);
+		else E.translate(0f, -(float)comps[gravityIndex]);
+				
 	}
 	
 	/**
@@ -3070,7 +3059,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		if(E.has(ECS.COLLISION_DETECTION , ECS.GRAVITY_CONSTANT , ECS.VERTICAL_DISPLACEMENT)) {				
 			
 			//fall through a platform
-			if(GLFWWindow.isSPressed() && GLFWWindow.isSpacePressed()) {
+			if(pressed.apply(UserControls.DOWN) && pressed.apply(UserControls.JUMP)) {
 				
 				Tuple2<Colliders , Float> floorData = getFloorCollider(E);
 				if(floorData.getSecond() < 2.0f && floorData.getFirst().isPlatform()) {
@@ -3079,7 +3068,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}				
 				
-			} else if(GLFWWindow.isSpacePressed() && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
+			} else if(pressed.apply(UserControls.JUMP) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
 				
 				comps[Entities.VCOFF] = comps[Entities.VCOFF + 1];
 				comps[Entities.VCOFF + 3] = true;
@@ -3111,13 +3100,11 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 		} else if (E.has(ECS.COLLISION_DETECTION)) {
 
-			if(GLFWWindow.isWPressed()) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
-			if(GLFWWindow.isSPressed()) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
 
 		} else {
 
-			if(GLFWWindow.isWPressed()) E.translate(0f , (float) comps[Entities.VCOFF + 2]);
-			if(GLFWWindow.isSPressed()) E.translate(0f , -(float)comps[Entities.VCOFF + 2]);
+			if(pressed.apply(UserControls.UP)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
+			if(pressed.apply(UserControls.DOWN)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
 
 		}
 	

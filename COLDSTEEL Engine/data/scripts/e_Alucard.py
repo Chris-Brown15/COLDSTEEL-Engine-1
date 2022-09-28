@@ -4,7 +4,6 @@ entities have an RPGStats component which has two Executors called onHurt and on
 These will be called automatically when an entity is hit or killed by another entity.
 The implementation of these two functions is given by an entity's script component.
 
-
 '''
 # init
 if not initialized:
@@ -49,8 +48,7 @@ if not initialized:
         actionState = val
 
     # shuts down the script. This gets called from java when the entity is being removed. This is mainly for
-    # closing UI elements this entity had running. Script memory gets freed elsewhere, if you free it here, 
-    # a crash will occur later when LWJGL tries to free memory that it isnt tracking
+    # closing UI elements this entity had running. 
     def shutDown():
         hurtBloodEmitter.shutDown()        
 
@@ -101,7 +99,6 @@ if not initialized:
     def grounded():
         
         setControl(TRUE)
-
         if isRunning:
             activateAnim(e_AlucardRun)
             endHangup()
@@ -119,7 +116,7 @@ if not initialized:
         if isJumping:
 
             setAutoOrient(TRUE)                       
-            if(glfw.isDPressed() or glfw.isAPressed()):
+            if(kbPressed(GLFW_KEY_D) or kbPressed(GLFW_KEY_A)):
                 activateAnim(e_AlucardJumpingHoriz)
             else:
                 activateAnim(e_AlucardJumpStraight)
@@ -158,7 +155,7 @@ if not initialized:
             actionState = 1
 
     def unarmed():
-        if glfw.isRMousePressed():
+        if mPressed(GLFW_MOUSE_BUTTON_RIGHT):
             global actionState            
             if isHungup():
                 endHangup()
@@ -177,7 +174,7 @@ if not initialized:
 
             elif actionState == 3: #punching while in the air
 
-                if glfw.isSPressed():
+                if kbPressed(GLFW_KEY_S):
                     activateAnim(e_AlucardJumpingPunchDown)
                 else:
                     activateAnim(e_AlucardJumpingPunchStraigt)
@@ -203,7 +200,7 @@ if not initialized:
         global isRunning
         global nearFloor
         isJumping = components[VCOFF + 3]
-        isRunning = glfw.isHorizMoveKeyPressed()
+        isRunning = kbPressed(GLFW_KEY_A) or kbPressed(GLFW_KEY_D)
         nearFloor = distanceToFloor() < 5
 
     def getActionState():
@@ -218,13 +215,13 @@ if not initialized:
         elif actionState == 6:
             actionState = 6
 
-        elif not nearFloor or glfw.isSpacePressed(): #in the air
+        elif not nearFloor or kbPressed(GLFW_KEY_SPACE): #in the air
             actionState = 3
 
-        elif nearFloor and glfw.isSPressed():#crouching
+        elif nearFloor and  kbPressed(GLFW_KEY_S):#crouching
             actionState = 2
 
-        elif nearFloor and (glfw.isLShiftPressed() or actionState == 4):#back dashing
+        elif nearFloor and (kbPressed(GLFW_KEY_LEFT_SHIFT) or actionState == 4):#back dashing
             actionState = 4
 
         elif nearFloor:
@@ -264,10 +261,10 @@ findItems()
 #first set the action state, then call the correct bahavior
 getActionState()
 
-if glfw.isTabStruck():
+if kbStruck(GLFW_KEY_TAB):
     HUD.toggle()
 
-if actionState <= 3 and glfw.isLMousePressed():
+if actionState <= 3 and mPressed(GLFW_MOUSE_BUTTON_LEFT):
     useSword()
     useItem(0)
 

@@ -4,6 +4,13 @@ if not initialized:
 	from Renderer import ParticleEmitter
 	from Core import UIScript
 
+	GROUNDED = 0
+	AIRBORN = 1
+	DUCKING = 2
+
+	actionState = 0
+	positionState = 0
+
 	mariaHud = UIScript("ui_MariaHud.py")
 
 	hurtBloodExpr = MExpression("srand ( 125 / x )" , TRUE)
@@ -17,14 +24,19 @@ if not initialized:
 	2 -> jumping
 	3 -> falling
 	'''
-
 	state = 0
+
+	def setPositionState():
+		global positionState
+
+		
+		
 
 	def getState():
 		global state
 		vertVel = vertDisplacement()
 
-		if glfw.isLShiftStruck():
+		if kbStruck(GLFW_KEY_LEFT_SHIFT):
 			state = -1
 			activateAnim(e_MariaSlide)
 			startHangup(1)
@@ -39,12 +51,11 @@ if not initialized:
 		elif vertVel < 0:
 			state = 3
 
-		elif glfw.isHorizMoveKeyPressed() != 0:
+		elif kbPressed(GLFW_KEY_A) or kbPressed(GLFW_KEY_D):
 			state = 1
 
 		else:
 			state = 0
-
 
 	def setState(val):
 		global state
@@ -73,7 +84,7 @@ if not initialized:
 getState()
 
 
-if glfw.isTabStruck():
+if kbStruck(GLFW_KEY_TAB):
 	mariaHud.toggle()
 
 if state == 0:

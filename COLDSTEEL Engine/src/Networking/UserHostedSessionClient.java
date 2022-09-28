@@ -6,11 +6,15 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import CSUtil.Timer;
+import Core.Scene;
 import Core.TemporalExecutor;
 import Game.Core.GameRuntime;
 import Game.Core.GameState;
+import Game.Levels.Levels;
 import Game.Player.PlayerCharacter;
 import Networking.Utils.ByteArrayUtils;
 
@@ -25,18 +29,25 @@ import Networking.Utils.ByteArrayUtils;
  */
 public class UserHostedSessionClient implements NetworkedInstance {
 
+	/**
+	 * list of key codes to query from GLFW and send to servers. 
+	 * 
+	 */	
+	private final CopyOnWriteArrayList<NetworkedEntities> otherPlayers = new CopyOnWriteArrayList<>(); 
+	private int[] networkedKeys;
 	private MultiplayerChatUI chatUI;
-	private final DatagramSocket clientSocket;
-	//thread responsible for recieving messages
-	private final Thread clientListeningThread;
-	//thread responsible for resending messages 
-	private final Thread reliableTickingThread;
+	private Scene scene;
+	private final DatagramSocket clientSocket;	
+	private final Thread clientListeningThread; //thread responsible for recieving messages
 	private volatile boolean connected = false;	
 	private PlayerCharacter player;
 	private Timer timeoutTimer = new Timer();
+	private final Supplier<Levels> currentLevel;
 	
-	public UserHostedSessionClient(String connectionInfo) throws IOException {
-	
+	public UserHostedSessionClient(Scene scene , Supplier<Levels> getCurrentLevel , String connectionInfo) throws IOException {
+		
+		this.currentLevel = getCurrentLevel;
+		this.scene = scene;
 		String[] split = connectionInfo.split(":");
 				
 		clientSocket = new DatagramSocket();
@@ -66,30 +77,6 @@ public class UserHostedSessionClient implements NetworkedInstance {
 		
 		clientListeningThread.setDaemon(true);
 		
-		reliableTickingThread = new Thread(new Runnable() {
-
-			@Override public void run() {
-
-				while(true) {
-					
-					try {
-						
-						ReliableDatagram.tickLiveDatagrams(clientSocket);
-						
-					} catch (IOException e) {
-						
-						e.printStackTrace();
-						
-					}
-					
-				}
-				
-			}
-			
-		});		
-		
-		reliableTickingThread.setDaemon(true);
-				
 	}
 	
 	/**
@@ -105,35 +92,37 @@ public class UserHostedSessionClient implements NetworkedInstance {
 		try { 
 			
 			clientSocket.setSoTimeout(30000);//try to connect for 30 seconds, returning to the main menu otherwise.
-			//establish connection here		
-			ReliableDatagram.sendReliable(clientSocket , new byte [] {CHANGE_CONNECTION} , CHANGE_CONNECTION , 1200);
+
+			Levels level = currentLevel.get();
+			String levelAsString = level.macroLevel() + "/" + level.gameName() + ".CStf";
+			float[] mid = player.playersEntity().getMidpoint();
+			String messageString = player.playersEntity().name() + "|"  + mid[0] + "," + mid[1]  + "|" + levelAsString;	
+						
+			sendReliable(ByteArrayUtils.prepend(messageString.getBytes() , CHANGE_CONNECTION) , CHANGE_CONNECTION , 1200);
 			
 			/*
 			 * Here, we start listening for a response from the server. If 30 seconds elapse and we recieve no message return to the main menu
 			 * and TODO: display an error message. 
-			 */			
-			reliableTickingThread.start();			
+			 */				
 			clientListeningThread.start();
 			timeoutTimer.start();
 			
 			//block and wait for a connection message
-			while(timeoutTimer.getElapsedTimeMillis() < 30000 && !connected) {}
+			while(timeoutTimer.getElapsedTimeSecs() < 30 && !connected);
 			
-			if(timeoutTimer.getElapsedTimeMillis() >= 30000) throw new SocketTimeoutException();//failed to connect
+			if(timeoutTimer.getElapsedTimeSecs() >= 30) throw new SocketTimeoutException();//failed to connect
 			else if (connected) { //connected
 				
-				System.out.println("connected!");
-				//state gets set out of this method
+				System.out.println("Connected!");
 				chatUI = new MultiplayerChatUI(player.playerCharacterName() , this);
-				timeoutTimer.start();
+				timeoutTimer.start();				
 				
 			}
 			
-		} catch(IOException e) { 
+		} catch(IOException e) {
 			
 			System.err.println("Failed to connect to server.\n");
 			e.printStackTrace();
-			reliableTickingThread.interrupt();
 			clientListeningThread.interrupt();
 			GameRuntime.setState(GameState.MAIN_MENU);
 			
@@ -141,28 +130,79 @@ public class UserHostedSessionClient implements NetworkedInstance {
 		
 	}
 	
-	private void handleFlags(byte[] data , int offset) {
+	private void handleFlags(DatagramPacket packet , int offset) {
 		
-		switch(data[offset]) { 
+		switch(packet.getData()[offset]) { 
 		
 			case CHANGE_CONNECTION -> { 
-				
+
 				connected = connected ? false:true;
-				System.out.println("changing connection state to: " + connected);
+				
+				//we have to offload this code to the main thread because OpenGL is only available there. what this means is that for frame
+				//0 of the connection we still won't know about other players and on frame 1 we will drop frames as we load them all.
+				TemporalExecutor.onTrue(() -> true, () -> {
+
+					//this string is laid out as entityname,posX,posY,macrolevel/level|entityname,posX,posY,macrolevel/level...
+					String otherClientsNameAndLocation = new String(packet.getData() , offset + 1 , packet.getLength() - (offset + 1));
+					String[] otherClientsSplit = otherClientsNameAndLocation.split("\\|") , namePositionAndLocation;
+					for(String x : otherClientsSplit) {
+						
+						namePositionAndLocation = x.split(",");
+						NetworkedEntities newNetworkedEntity = new NetworkedEntities(namePositionAndLocation[0] + ".CStf" , namePositionAndLocation[3]);
+						newNetworkedEntity.moveTo(Float.parseFloat(namePositionAndLocation[1]) , Float.parseFloat(namePositionAndLocation[2]));
+						otherPlayers.add(newNetworkedEntity);
+						scene.entities().add(newNetworkedEntity);
+						
+					}
+						
+				});
 				
 			}
 			
-			case CONNECTION_STATE_CHANGED -> {}
-			case CHAT_MESSAGE -> chatUI.appendChatMessage(new String(ByteArrayUtils.fromOffset(data, offset + 1)));//offset + 1 to avoid the flag byte
-		
+			case CLIENT_CONNECTED -> {
+			
+				//notifies that a new player has connected to the server
+				//entity name, position, and location separated by "|"
+				String newClient = new String(packet.getData() , offset  + 1 , packet.getLength() - (offset + 1));
+				String[] split = newClient.split("\\|");
+				NetworkedEntities newClientEntity = new NetworkedEntities(split[0] + ".CStf" , split[2]);
+				String[] position = split[1].split(",");
+				newClientEntity.moveTo(Float.parseFloat(position[0]) , Float.parseFloat(position[1]));
+				otherPlayers.add(newClientEntity);
+				scene.entities().add(newClientEntity);				
+				
+			}
+			
+			case CLIENT_DISCONNECTED -> {}
+			case CHAT_MESSAGE -> chatUI.appendChatMessage(new String(packet.getData() , offset + 1 , packet.getLength() - (offset + 1)));//offset + 1 to avoid the flag byte
+			case LOCATION_CHANGE -> {}
+			case PLAYER_MANIFEST -> {}
+			
+			
 		}
 		
 	}
 
+	public void setNetworkedKeys(int...keycodes) { 
+		
+		this.networkedKeys = keycodes;
+		
+	}
+	
 	@Override public void update() {
 		
 		chatUI.layout();
-		if(timeoutTimer.getElapsedTimeSecs() > 30) System.err.println("TIMED OUT");
+//		if(timeoutTimer.getElapsedTimeSecs() > 30) System.err.println("TIMED OUT");
+
+		try {
+			
+			ReliableDatagram.tickLiveDatagrams(clientSocket);
+			
+		} catch (IOException e) {
+			
+//			e.printStackTrace();
+			
+		}
 		
 	}
 	
@@ -197,8 +237,8 @@ public class UserHostedSessionClient implements NetworkedInstance {
 			if(NetworkedInstance.isFlaggedMessage(received.getData() , 8)) { 
 				// Offload handling of flags to another thread if possible, but if we are not connected yet, handle them in this thread
 				// because TemporalExecutor is not running at that time.
-				if (connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received.getData() , 8));
-				else handleFlags(received.getData() , 8);
+				if (connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received , 8));
+				else handleFlags(received , 8);
 				
 			}
 			
@@ -206,8 +246,8 @@ public class UserHostedSessionClient implements NetworkedInstance {
 			
 			if(NetworkedInstance.isFlaggedMessage(received.getData() , 0)) { 
 				
-				if(connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received.getData() , 0));
-				else handleFlags(received.getData() , 0);
+				if(connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received , 0));
+				else handleFlags(received , 0);
 				 				
 			}
 			

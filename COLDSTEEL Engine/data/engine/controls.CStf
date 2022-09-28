@@ -1,0 +1,26 @@
+game:
+	up -> 87
+	left -> 65
+	down -> 83
+	right -> 68
+	jump -> 32
+	attackI -> 0
+	attackII -> 1
+	attackIII -> 2
+	attackIV -> 3
+	attackV -> 4
+	powerI -> 49
+	powerII -> 50
+	powerIII -> 51
+	powerIV -> 52
+	powerV -> 53
+	powerVI -> 54
+	powerVII -> 55
+	powerIIX -> 56
+	powerIX -> 57
+	powerX -> 48
+	toggleInventory -> 258
+	toggleCharacterSheet -> 85
+	activate -> 69
+	map -> 77
+	

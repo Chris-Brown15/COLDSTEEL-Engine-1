@@ -57,7 +57,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 	
 	private final Object[] comps = new Object[numberComponents + 1];
 	private BitSet componentsBits = new BitSet(512); //used to know what components an entitiy has. 	
-	private String name;
+	protected String name;
 	boolean freeze = false;
 	private int LID = -1;
 	private float[] defaultSprite = new float[6]; 
@@ -892,6 +892,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		} catch (IOException e) {
 
 			e.printStackTrace();
+			System.exit(-1);
 
 		}
 		

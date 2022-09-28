@@ -42,7 +42,6 @@ public class EditorConsole {
 	ArrayList<String> printLines = new ArrayList<String>(25);
 	
 	private static final NkContext context = Engine.NuklearContext();
-	private Editor editor;	
 	private String consoleName = "Console";
 	boolean firstTimeOpeningConsole = true;
 	private boolean showConsole = true;
@@ -51,9 +50,8 @@ public class EditorConsole {
 	private IntBuffer consoleInLength = Engine.UIAllocator().callocInt(1);
 	final NkRect consoleRect;
 	
-	public EditorConsole(Editor editor){
+	public EditorConsole(){
 		
-		this.editor = editor;
 		consoleIn.mark();
 		for(int i = 0 ; i < printLines.size() ; i ++) say("");
 		consoleRect = NkRect.malloc(Engine.UIAllocator()).x(1535).y(5).w(380).h(1070);
@@ -157,7 +155,6 @@ public class EditorConsole {
 		say(input);
 
 		if(input.contains(",")) for(String x : input.split(",")) command(x);
-		else if (input.equals("end")) editor.overrideShutDown();
 		else if (input.contains("-")) execPython(input.substring(input.indexOf("-")));
 		else if (input.equals("gc")) System.gc();
 		else if (input.equals("newConsole")) printLines = new ArrayList<String>();
@@ -169,8 +166,7 @@ public class EditorConsole {
 	
 	void command(String input){
 
-		if(input.equals("end")) editor.overrideShutDown();
-		else if (input.equals("gc")) System.gc();
+		if (input.equals("gc")) System.gc();
 		else if (input.equals("newConsole")) printLines = new ArrayList<String>();		
 		else if (input.equals("fps")) say(Engine.framesLastSecond());
 				

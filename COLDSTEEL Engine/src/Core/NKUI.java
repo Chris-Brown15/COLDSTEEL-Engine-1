@@ -17,7 +17,6 @@ import static org.lwjgl.stb.STBImage.stbi_set_flip_vertically_on_load;
 import static org.lwjgl.nuklear.Nuklear.nk_subimage_id;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.nuklear.NkImage;
@@ -38,7 +37,6 @@ public interface NKUI {
 	
 	NkContext context = Engine.NuklearContext();
 	MemoryStack allocator = Engine.UIAllocator();
-	Supplier<int[]> windowDims = Engine.windowDims;
 	
 
 	/**

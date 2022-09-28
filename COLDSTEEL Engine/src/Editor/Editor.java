@@ -3,12 +3,18 @@ package Editor;
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
 import static CSUtil.BigMixin.getJoints;
-import static CSUtil.BigMixin.getSCToWCForX;
-import static CSUtil.BigMixin.getSCToWCForY;
 import static CSUtil.BigMixin.toBool;
 import static CSUtil.BigMixin.toNamePath;
 import static Renderer.Renderer.loadTexture;
 import static org.lwjgl.Version.getVersion;
+
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_UP;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
+import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -20,7 +26,6 @@ import org.lwjgl.nuklear.NkImage;
 import org.lwjgl.nuklear.NkRect;
 
 import CS.Engine;
-import CS.GLFWWindow;
 import CS.RuntimeState;
 import CSUtil.DataStructures.CSArray;
 import CSUtil.DataStructures.CSLinked;
@@ -53,6 +58,7 @@ import Game.Levels.MacroLevels;
 import Physics.Colliders;
 import Physics.Joints;
 import Physics.Kinematics;
+import Renderer.Camera;
 import Renderer.Renderer;
 
 public class Editor {
@@ -61,10 +67,9 @@ public class Editor {
 	private EditorState editorState = EditorState.GENERIC;
 	private CursorState cursorState = CursorState.SELECTABLE;
 
-	private Renderer renderer;
-	private GLFWWindow glfw;
 	private EditorUI editorUI;
 
+	Camera cam;
 	Scene scene;
 
 	private EditorConsole console;
@@ -78,34 +83,28 @@ public class Editor {
 	// reference to any instance of quads that was selected
 	Quads activeQuad = null;
 	boolean background = true;
-	// whether the active object should follow the cursor or not, toggled each left
-	// click
+	// whether the active object should follow the cursor or not, toggled each left click
 	boolean spawnAtCursor = false;
 
 	CSArray<Joints> jointMarkers = new CSArray<Joints>(50);
 	Joints activeJoint;
 	boolean renderJoints = true;
 
-	// Object used to mark up hitboxes with a quad. The active quad will be the quad
-	// referenced for the math relating to the hitboxset
+	// Object used to mark up hitboxes with a quad. The active quad will be the quad referenced for the math relating to the hitboxset
 	Levels currentLevel;
 	Consumer<RuntimeState> switchStateCallback;
 
-	public Editor(GLFWWindow glfw) {
-
-		this.glfw = glfw;
-
-	}
-
 	private Consumer<Levels> onLevelLoadEngine;
 	private Consumer<Levels> onLevelLoadNuklear;
-
+	Supplier<float[]> cursorWorldCoords;
+	Executor closeProgram;
+	
 	public void initialize(Renderer renderer, Scene scene, Levels currentLevel, Consumer<Levels> onLevelLoadEngine,
-			Consumer<RuntimeState> switchStateCallback) {
+			Consumer<RuntimeState> switchStateCallback , Supplier<float[]> cursorWorldCoords , Executor closeProgram) {
 
 		System.out.println("Beginning Editor initialization...");
-		console = new EditorConsole(this);
-		this.renderer = renderer;
+		console = new EditorConsole();
+		this.cam = renderer.getCamera();
 
 		this.selection = new SelectionArea();
 		this.scene = scene;
@@ -117,7 +116,10 @@ public class Editor {
 		onLevelLoadNuklear = editorUI.onLevelLoad;
 		this.switchStateCallback = switchStateCallback;
 		backupLevel.associate(data + "macrolevels/Editor/");
-
+		
+		this.cursorWorldCoords = cursorWorldCoords;
+		this.closeProgram = closeProgram;
+		
 		console.say("Welcome to the 1STEEL5 editor alpha undef, running LWJGL" + getVersion());
 		System.out.println("Editor initialization complete.");
 
@@ -139,7 +141,7 @@ public class Editor {
 			scene.entities().forOnly(x -> x.has(ECS.SCRIPT), x -> {
 
 				EntityScripts script = (EntityScripts) x.components()[Entities.SOFF];
-				if (script != null) script.recompile();
+				if(script != null) script.recompile();
 
 			});
 
@@ -148,8 +150,8 @@ public class Editor {
 				Inventories inv = (Inventories) x.components()[Entities.IOFF];
 				inv.getItems().forEachVal(tuple -> {
 
-					if (tuple.getFirst().has(ItemComponents.USABLE)) tuple.getFirst().componentData().recompileUseScript();
-					if (tuple.getFirst().has(ItemComponents.EQUIPPABLE)) tuple.getFirst().componentData().recompileOnEquipAndOnUnequipScripts();
+					if(tuple.getFirst().has(ItemComponents.USABLE)) tuple.getFirst().componentData().recompileUseScript();
+					if(tuple.getFirst().has(ItemComponents.EQUIPPABLE)) tuple.getFirst().componentData().recompileOnEquipAndOnUnequipScripts();
 
 				});
 
@@ -166,17 +168,20 @@ public class Editor {
 
 	}
 
-	public void run() {
+	public void run(Engine engine) {
 
 		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on		 
 		if (toBool(editorUI.renderDebugCheck)) renderDebug();
 
 		if (toBool(editorUI.renderTileSheet)) {
 
-			if (scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
-			if (scene.tiles2().getTileSheet() != null) Renderer.draw_background(scene.tiles2().getTileSheet());
+			if(scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
+			if(scene.tiles2().getTileSheet() != null) Renderer.draw_background(scene.tiles2().getTileSheet());
 
 		}
+		
+		jointMarkers.forEach(Renderer::draw_foreground);
+		editorUI.hitboxMarker.hitboxes().forEach(Renderer::draw_foreground);
 		
 		NuklearUIElement.layoutElements();
 		
@@ -184,15 +189,15 @@ public class Editor {
 
 		case BUILD_MODE:
 
-			editorUI.buildModeLayoutElements();
+			editorUI.buildModeLayoutElements(engine);
 			scene.entities().resetScriptCount();
 
-			if (!(glfw.isLShiftPressed() || glfw.isLControlPressed())) {
+			if (!(engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if (glfw.isUpPressed()) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
-				if (glfw.isLeftPressed()) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
-				if (glfw.isRightPressed()) renderer.getCamera().moveCamera(scene, moveSpeed, 0);
-				if (glfw.isDownPressed()) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
+				if(engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
+				if(engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -200,8 +205,8 @@ public class Editor {
 			TemporalExecutor.process();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			renderer.run();
-			glfw.releaseKeys();
+			if(editorState == EditorState.EDITING_HITBOX && engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT)) editorUI.dragHitBoxMarker(cursorWorldCoords.get());
+			engine.releaseKeys();
 			dragQuad();
 
 			break;
@@ -239,7 +244,7 @@ public class Editor {
 
 			}, () -> {
 
-				glfw.releaseKeys();
+				engine.releaseKeys();
 
 			});
 
@@ -249,20 +254,18 @@ public class Editor {
 				
 			}
 
-			renderer.run();
-
 			break;
 
 		case HYBRID_MODE:
 
-			editorUI.buildModeLayoutElements();
+			editorUI.buildModeLayoutElements(engine);
 
-			if (!(glfw.isLShiftPressed() || glfw.isLControlPressed())) {
+			if (!(engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if (glfw.isUpPressed()) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
-				if (glfw.isLeftPressed()) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
-				if (glfw.isRightPressed()) renderer.getCamera().moveCamera(scene, moveSpeed, 0);
-				if (glfw.isDownPressed()) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
+				if(engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
+				if(engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -281,13 +284,11 @@ public class Editor {
 			}, () -> {
 
 				// handle input
-				glfw.releaseKeys();
+				engine.releaseKeys();
 
 			});
 
 			if (currentLevel != null) currentLevel.runScripts();
-			renderer.run();
-
 			break;
 
 		}
@@ -389,11 +390,12 @@ public class Editor {
 	 */
 	private void dragQuad() {
 
-		float[] cursor = getCursorWorldCoords();
+		float[] cursor = cursorWorldCoords.get();
 		if(cursorState == CursorState.DRAGGING && activeQuad != null) {
 			
-			if (editorState == EditorState.EDITING_JOINT) activeJoint.moveTo(cursor[0], cursor[1]);
-			else activeQuad.moveTo(cursor[0], cursor[1]);			
+//			System.out.println("cursorCoords: ");
+			if (editorState == EditorState.EDITING_JOINT) activeJoint.moveTo(cursor[0] , cursor[1]);
+			else activeQuad.moveTo(cursor[0] , cursor[1]);			
 			
 		}
 			
@@ -601,7 +603,6 @@ public class Editor {
 
 	public void removeAllJoints() {
 
-		jointMarkers.forEach(x -> renderer.removeFromOthers(x));
 		jointMarkers.clear();
 		activeJoint = null;
 
@@ -614,12 +615,10 @@ public class Editor {
 
 		Entities E = (Entities) activeQuad;
 		EntityAnimations anims = (EntityAnimations) E.components()[Entities.AOFF];
-		if (!anims.hasSpriteSet(editorUI.activeSet))
-			return;
+		if (!anims.hasSpriteSet(editorUI.activeSet)) return;
 
 		float[] selectedSprite = editorUI.activeSet.getSprite(editorUI.activeSpriteID);
-		if (selectedSprite.length < 6)
-			return;
+		if (selectedSprite.length < 6) return;
 		removeAllJoints();
 		float[] activeData = E.getData();
 		int iterations = selectedSprite.length % 3 == 0 ? selectedSprite.length : selectedSprite.length - 1;
@@ -629,9 +628,7 @@ public class Editor {
 			newJoint.setID((int) selectedSprite[i]);
 			newJoint.moveTo(selectedSprite[i + 1] - activeData[9], selectedSprite[i + 2] - activeData[10]);
 			jointMarkers.add(newJoint);
-			renderer.addToOthers(newJoint);
-			System.out.println("Added Joint " + newJoint.getID() + " at x: " + newJoint.getMidpoint()[0] + ", y: "
-					+ newJoint.getMidpoint()[1]);
+			System.out.println("Added Joint " + newJoint.getID() + " at x: " + newJoint.getMidpoint()[0] + ", y: " + newJoint.getMidpoint()[1]);
 
 		}
 
@@ -701,14 +698,12 @@ public class Editor {
 	public Quads addQuad() {
 
 		Quads added;
-		if (background)
-			added = scene.quads1().add();
-		else
-			added = scene.quads2().add();
+		if (background) added = scene.quads1().add();
+		else added = scene.quads2().add();
 
 		if (spawnAtCursor) {
 
-			float[] cursor = getCursorWorldCoords();
+			float[] cursor = cursorWorldCoords.get();
 			added.moveTo(cursor[0], cursor[1]);
 
 		}
@@ -754,26 +749,21 @@ public class Editor {
 
 	}
 
-	@SuppressWarnings("rawtypes")
-	public void deleteActive() {
+	@SuppressWarnings("rawtypes") public void deleteActive() {
 
-		if (activeQuad == null || !(activeQuad instanceof GameFiles))
-			return;
+		if (activeQuad == null || !(activeQuad instanceof GameFiles)) return;
 		((GameFiles) removeActive()).delete();
 
 	}
 
 	public void textureActive() {
 
-		if (activeQuad == null)
-			return;
-		Supplier<String> filepath = DialogUtils.newFileExplorer("Select Texture", 5, 270, false, false,
-				assets + "entities/");
+		if (activeQuad == null) return;
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select Texture" , 5 , 270 , false , false , assets + "entities/");
 		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
 
 			activeQuad.setTexture(loadTexture(filepath.get()));
-			if (activeQuad instanceof Statics)
-				activeQuad.fitQuadToTexture();
+			if (activeQuad instanceof Statics) activeQuad.fitQuadToTexture();
 
 		});
 
@@ -787,42 +777,19 @@ public class Editor {
 
 	public void removeActiveColor(float r, float g, float b) {
 
-		if (activeQuad != null)
-			activeQuad.removeColor(r, g, b);
+		if (activeQuad != null) activeQuad.removeColor(r, g, b);
 
 	}
 
 	public void filterActiveColor(float r, float g, float b) {
 
-		if (activeQuad != null)
-			activeQuad.setFilter(r, g, b);
+		if (activeQuad != null) activeQuad.setFilter(r, g, b);
 
 	}
 
 	public void toggleSpawnAtCursor() {
 
 		spawnAtCursor = spawnAtCursor ? false : true;
-
-	}
-
-	void overrideShutDown() {
-
-		glfw.overrideCloseWindow();
-
-	}
-
-	double[] getCursorCoords() {
-
-		return glfw.getCursorPos();
-
-	}
-
-	float[] getCursorWorldCoords() {
-
-		double[] coords = glfw.getCursorPos();
-		int[] winDims = glfw.getWindowDimensions();
-		return new float[] { (float) getSCToWCForX(coords[0], winDims[0], winDims[1], renderer.getCamera()),
-				(float) getSCToWCForY(coords[1], winDims[0], winDims[1], renderer.getCamera()) };
 
 	}
 
@@ -843,17 +810,13 @@ public class Editor {
 
 		if (activeQuad.getClass() == Quads.class) {
 
-			if (scene.quads1().has(activeQuad))
-				scene.quads1().forward(activeQuad.getID());
-			else if (scene.quads2().has(activeQuad))
-				scene.quads2().forward(activeQuad.getID());
+			if (scene.quads1().has(activeQuad)) scene.quads1().forward(activeQuad.getID());
+			else if (scene.quads2().has(activeQuad)) scene.quads2().forward(activeQuad.getID());
 
 		} else if (activeQuad.getClass() == Statics.class) {
 
-			if (scene.statics1().has((Statics) activeQuad))
-				scene.statics1().forward(activeQuad.getID());
-			else if (scene.statics2().has((Statics) activeQuad))
-				scene.statics2().forward(activeQuad.getID());
+			if (scene.statics1().has((Statics) activeQuad)) scene.statics1().forward(activeQuad.getID());
+			else if (scene.statics2().has((Statics) activeQuad)) scene.statics2().forward(activeQuad.getID());
 
 		}
 
@@ -861,22 +824,17 @@ public class Editor {
 
 	void moveActiveToFront() {
 
-		if (activeQuad == null)
-			return;
+		if (activeQuad == null) return;
 
 		if (activeQuad.getClass() == Quads.class) {
 
-			if (scene.quads1().has(activeQuad))
-				scene.quads1().toFront(activeQuad.getID());
-			else if (scene.quads2().has(activeQuad))
-				scene.quads2().toFront(activeQuad.getID());
+			if (scene.quads1().has(activeQuad)) scene.quads1().toFront(activeQuad.getID());
+			else if (scene.quads2().has(activeQuad)) scene.quads2().toFront(activeQuad.getID());
 
 		} else if (activeQuad.getClass() == Statics.class) {
 
-			if (scene.statics1().has((Statics) activeQuad))
-				scene.statics1().toFront(activeQuad.getID());
-			else if (scene.statics2().has((Statics) activeQuad))
-				scene.statics2().toFront(activeQuad.getID());
+			if (scene.statics1().has((Statics) activeQuad)) scene.statics1().toFront(activeQuad.getID());
+			else if (scene.statics2().has((Statics) activeQuad)) scene.statics2().toFront(activeQuad.getID());
 
 		}
 
@@ -884,22 +842,17 @@ public class Editor {
 
 	void moveActiveBackward() {
 
-		if (activeQuad == null)
-			return;
+		if (activeQuad == null) return;
 
 		if (activeQuad.getClass() == Quads.class) {
 
-			if (scene.quads1().has(activeQuad))
-				scene.quads1().backward(activeQuad.getID());
-			else if (scene.quads2().has(activeQuad))
-				scene.quads2().backward(activeQuad.getID());
+			if (scene.quads1().has(activeQuad)) scene.quads1().backward(activeQuad.getID());
+			else if (scene.quads2().has(activeQuad)) scene.quads2().backward(activeQuad.getID());
 
 		} else if (activeQuad.getClass() == Statics.class) {
 
-			if (scene.statics1().has((Statics) activeQuad))
-				scene.statics1().backward(activeQuad.getID());
-			else if (scene.statics2().has((Statics) activeQuad))
-				scene.statics2().backward(activeQuad.getID());
+			if (scene.statics1().has((Statics) activeQuad)) scene.statics1().backward(activeQuad.getID());
+			else if (scene.statics2().has((Statics) activeQuad)) scene.statics2().backward(activeQuad.getID());
 
 		}
 
@@ -907,22 +860,17 @@ public class Editor {
 
 	void moveActiveToBack() {
 
-		if (activeQuad == null)
-			return;
+		if (activeQuad == null) return;
 
 		if (activeQuad.getClass() == Quads.class) {
 
-			if (scene.quads1().has(activeQuad))
-				scene.quads1().toBack(activeQuad.getID());
-			else if (scene.quads2().has(activeQuad))
-				scene.quads2().toBack(activeQuad.getID());
+			if (scene.quads1().has(activeQuad)) scene.quads1().toBack(activeQuad.getID());
+			else if (scene.quads2().has(activeQuad)) scene.quads2().toBack(activeQuad.getID());
 
 		} else if (activeQuad.getClass() == Statics.class) {
 
-			if (scene.statics1().has((Statics) activeQuad))
-				scene.statics1().toBack(activeQuad.getID());
-			else if (scene.statics2().has((Statics) activeQuad))
-				scene.statics2().toBack(activeQuad.getID());
+			if (scene.statics1().has((Statics) activeQuad)) scene.statics1().toBack(activeQuad.getID());
+			else if (scene.statics2().has((Statics) activeQuad)) scene.statics2().toBack(activeQuad.getID());
 
 		}
 
@@ -931,12 +879,6 @@ public class Editor {
 	public void deleteScene() {
 
 		scene.clear();
-
-	}
-
-	int[] getWindowDimensions() {
-
-		return glfw.getWindowDimensions();
 
 	}
 
@@ -963,8 +905,8 @@ public class Editor {
 		Colliders newCollider = scene.colliders().add();
 		if (spawnAtCursor) {
 
-			float[] cursor = getCursorWorldCoords();
-			newCollider.moveTo(cursor[0], cursor[1]);
+			float[] cursor = cursorWorldCoords.get();
+			newCollider.moveTo(cursor[0] , cursor[1]);
 
 		}
 
@@ -982,10 +924,9 @@ public class Editor {
 		Supplier<String> input = DialogUtils.newInputBox("Input Static Name", 5, 270);
 		TemporalExecutor.onTrue(() -> input.get() != null, () -> {
 
-			Statics newStatic = background ? scene.statics1().newStatic(input.get())
-					: scene.statics2().newStatic(input.get());
-			float[] cursor = getCursorWorldCoords();
-			newStatic.moveTo(cursor[0], cursor[1]);
+			Statics newStatic = background ? scene.statics1().newStatic(input.get()) : scene.statics2().newStatic(input.get());
+			float[] cursor = cursorWorldCoords.get();
+			newStatic.moveTo(cursor[0] , cursor[1]);
 
 		});
 
@@ -998,15 +939,12 @@ public class Editor {
 
 			String[] split = filepath.get().split("\\|");
 			Statics newStatic;
-			float[] cursor = getCursorWorldCoords();
+			float[] cursor = cursorWorldCoords.get();
 			for (String y : split) {
 
-				if (background)
-					newStatic = scene.statics1().loadStatic((String) toNamePath(y));
-				else
-					newStatic = scene.statics1().loadStatic(((String) toNamePath(y)));
-				if (spawnAtCursor)
-					newStatic.moveTo(cursor[0], cursor[1]);
+				if (background) newStatic = scene.statics1().loadStatic((String) toNamePath(y));
+				else newStatic = scene.statics1().loadStatic(((String) toNamePath(y)));
+				if (spawnAtCursor) newStatic.moveTo(cursor[0] , cursor[1]);
 			}
 
 		});
@@ -1021,8 +959,8 @@ public class Editor {
 
 			TemporalExecutor.onTrue(() -> size < scene.entities().size(), () -> {
 
-				float[] cursor = getCursorWorldCoords();
-				scene.entities().get(scene.entities().size() - 1).moveTo(cursor[0], cursor[1]);
+				float[] cursor = cursorWorldCoords.get();
+				scene.entities().get(scene.entities().size() - 1).moveTo( cursor[0] , cursor[1]);
 
 			});
 
@@ -1043,8 +981,8 @@ public class Editor {
 				loaded = scene.entities().loadEntity(toNamePath(y));
 				if (spawnAtCursor) {
 
-					float[] cursor = getCursorWorldCoords();
-					loaded.moveTo(cursor[0], cursor[1]);
+					float[] cursor = cursorWorldCoords.get();
+					loaded.moveTo(cursor[0] , cursor[1]);
 
 				}
 
@@ -1067,8 +1005,8 @@ public class Editor {
 				newItem = scene.items().load(toNamePath(y));
 				if (spawnAtCursor) {
 
-					float[] cursor = getCursorWorldCoords();
-					newItem.moveTo(cursor[0], cursor[1]);
+					float[] cursor = cursorWorldCoords.get();
+					newItem.moveTo(cursor[0] , cursor[1]);
 
 				}
 
@@ -1085,21 +1023,9 @@ public class Editor {
 
 	}
 
-	public Renderer renderer() {
-
-		return renderer;
-
-	}
-
 	public EditorConsole getConsole() {
 
 		return console;
-
-	}
-
-	public GLFWWindow getGlfw() {
-
-		return glfw;
 
 	}
 
@@ -1108,19 +1034,14 @@ public class Editor {
 		Joints newJoint = new Joints();
 		newJoint.setID(jointMarkers.size());
 		jointMarkers.add(newJoint);
-		renderer.addToOthers(newJoint);
 		return newJoint;
 
 	}
 
 	public void removeActiveJoint() {
 
-		if (activeJoint == null)
-			return;
-
+		if (activeJoint == null) return;
 		jointMarkers.remove(activeJoint.getID());
-		renderer.removeFromOthers(activeJoint);
-
 		activeJoint = null;
 
 	}
@@ -1139,12 +1060,6 @@ public class Editor {
 				activeJoint.translate(x, y);
 
 		}
-
-	}
-
-	public void addToRawData(float[] quad) {
-
-		renderer.addToRawData(quad);
 
 	}
 
@@ -1298,8 +1213,8 @@ public class Editor {
 	public Tiles copyTile(Tiles copy) {
 
 		Tiles copied = (background ? scene.tiles1() : scene.tiles2()).copy(copy);
-		float[] cursorPos = getCursorWorldCoords();
-		copied.moveTo(cursorPos[0], cursorPos[1]);
+		float[] cursorPos = cursorWorldCoords.get();
+		copied.moveTo(cursorPos[0] , cursorPos[1]);
 		return copied;
 
 	}
@@ -1347,18 +1262,6 @@ public class Editor {
 
 	}
 
-	public void onLevelLeaveFadeOut() {
-
-		TemporalExecutor.withElapseOf(1000, x -> renderer.screenQuad.makeTranslucent((float) (x / 1000)));
-
-	}
-
-	public void onLevelEnterFadeIn() {
-
-		TemporalExecutor.withElapseOf(1000, x -> renderer.screenQuad.makeTranslucent((float) (-x / 1000) + 1));
-
-	}
-
 	public Consumer<Levels> onLevelLoad = newLevel -> currentLevel = newLevel;
 
 	public void leaveEditor() {
@@ -1391,12 +1294,11 @@ public class Editor {
 	}
 
 	public void setState(EditorState state) {
+
 		// freeze the cursor if necessary or unfreeze it if it previously was frozen
 		if (!state.allowsSelecting) cursorState = CursorState.FROZEN;
 		else if (!editorState.allowsSelecting && state.allowsSelecting) cursorState = CursorState.SELECTABLE;
 
-//		if(state != editorState) activeQuad = null;
-		
 		editorState = state;
 
 	}
