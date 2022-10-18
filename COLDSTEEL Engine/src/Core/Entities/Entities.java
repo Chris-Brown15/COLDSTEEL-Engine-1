@@ -132,7 +132,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			
 	}
 	
-	protected void removeComponents(ECS...components) {
+	public void removeComponents(ECS...components) {
 	
 		for(ECS x : components) componentsBits.clear(x.index);
 		
@@ -815,8 +815,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			CSTFParser cstf = new CSTFParser(writer);
 			
 			cstf.wname(name);
-			ImageInfo textureImageInfo = texture.imageInfo; 
-			if(textureImageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(textureImageInfo.path()));
+			if(texture != null && texture.imageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(texture.imageInfo.path()));
 			else cstf.wnullLabel("texture");
 			cstf.wlabelValue("removed", removedColor.x , removedColor.y , removedColor.z);
 			cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);
@@ -847,7 +846,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			name = cstf.rname();
 			String textureLocalDirectory = cstf.rlabel("texture");
 			
-			if(!textureLocalDirectory.equals("null")) setTexture(loadTexture(assets + textureLocalDirectory));			
+			if(!textureLocalDirectory.equals("null")) loadTexture(texture , assets + textureLocalDirectory);			
 			float[] array = new float[6];
 			cstf.rlabel("removed" , array);
 			removedColor.x = array[0]; removedColor.y = array[1]; removedColor.z = array[2];
@@ -929,7 +928,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			name = cstf.rname();
 			String textureLocalDirectory = cstf.rlabel("texture");
 			
-			if(!textureLocalDirectory.equals("null")) setTexture(loadTexture(assets + textureLocalDirectory));			
+			if(!textureLocalDirectory.equals("null")) loadTexture(texture , assets + textureLocalDirectory);			
 			float[] array = new float[6];
 			cstf.rlabel("removed" , array);
 			removedColor.x = array[0]; removedColor.y = array[1]; removedColor.z = array[2];

@@ -98,7 +98,7 @@ public class Statics extends Quads implements GameFiles<Statics> {
 
 	void texture(String filepath){
 		
-		setTexture(loadTexture(filepath));
+		loadTexture(texture , filepath);
 		fitQuadToTexture();
 
 	}

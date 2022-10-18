@@ -14,79 +14,6 @@ from Physics import Kinematics
 from Physics import ForceType
 from Core import TemporalExecutor
 
-from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_LEFT
-from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_RIGHT
-from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_MIDDLE
-from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_4
-from org.lwjgl.glfw.GLFW import GLFW_MOUSE_BUTTON_5
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_Q
-from org.lwjgl.glfw.GLFW import GLFW_KEY_W
-from org.lwjgl.glfw.GLFW import GLFW_KEY_E
-from org.lwjgl.glfw.GLFW import GLFW_KEY_R
-from org.lwjgl.glfw.GLFW import GLFW_KEY_T
-from org.lwjgl.glfw.GLFW import GLFW_KEY_Y
-from org.lwjgl.glfw.GLFW import GLFW_KEY_U
-from org.lwjgl.glfw.GLFW import GLFW_KEY_I
-from org.lwjgl.glfw.GLFW import GLFW_KEY_O
-from org.lwjgl.glfw.GLFW import GLFW_KEY_P
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_A
-from org.lwjgl.glfw.GLFW import GLFW_KEY_S
-from org.lwjgl.glfw.GLFW import GLFW_KEY_D
-from org.lwjgl.glfw.GLFW import GLFW_KEY_F
-from org.lwjgl.glfw.GLFW import GLFW_KEY_G
-from org.lwjgl.glfw.GLFW import GLFW_KEY_H
-from org.lwjgl.glfw.GLFW import GLFW_KEY_J
-from org.lwjgl.glfw.GLFW import GLFW_KEY_K
-from org.lwjgl.glfw.GLFW import GLFW_KEY_L
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_Z
-from org.lwjgl.glfw.GLFW import GLFW_KEY_X
-from org.lwjgl.glfw.GLFW import GLFW_KEY_C
-from org.lwjgl.glfw.GLFW import GLFW_KEY_V
-from org.lwjgl.glfw.GLFW import GLFW_KEY_B
-from org.lwjgl.glfw.GLFW import GLFW_KEY_N
-from org.lwjgl.glfw.GLFW import GLFW_KEY_M
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_0
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_1
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_2
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_3
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_4
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_5
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_6
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_7
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_8
-from org.lwjgl.glfw.GLFW import GLFW_KEY_KP_9
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_0
-from org.lwjgl.glfw.GLFW import GLFW_KEY_1
-from org.lwjgl.glfw.GLFW import GLFW_KEY_2
-from org.lwjgl.glfw.GLFW import GLFW_KEY_3
-from org.lwjgl.glfw.GLFW import GLFW_KEY_4
-from org.lwjgl.glfw.GLFW import GLFW_KEY_5
-from org.lwjgl.glfw.GLFW import GLFW_KEY_6
-from org.lwjgl.glfw.GLFW import GLFW_KEY_7
-from org.lwjgl.glfw.GLFW import GLFW_KEY_8
-from org.lwjgl.glfw.GLFW import GLFW_KEY_9
-
-from org.lwjgl.glfw.GLFW import GLFW_KEY_TAB
-from org.lwjgl.glfw.GLFW import GLFW_KEY_CAPS_LOCK
-from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_SHIFT
-from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_CONTROL
-from org.lwjgl.glfw.GLFW import GLFW_KEY_LEFT_ALT
-from org.lwjgl.glfw.GLFW import GLFW_KEY_SPACE
-from org.lwjgl.glfw.GLFW import GLFW_KEY_BACKSPACE
-from org.lwjgl.glfw.GLFW import GLFW_KEY_ENTER
-from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_SHIFT
-from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_CONTROL
-from org.lwjgl.glfw.GLFW import GLFW_KEY_RIGHT_ALT
-
-from org.lwjgl.glfw.GLFW import GLFW_PRESS
-from org.lwjgl.glfw.GLFW import GLFW_RELEASE
-from org.lwjgl.glfw.GLFW import GLFW_REPEAT
-
 console = lib.getConsole() if lib.getState() == RuntimeState.EDITOR else None
 
 TRUE = 1
@@ -233,27 +160,6 @@ def isHungup():
 def currentHorizSpeed():
     return lib.currentSpeedX(E)
 
-def getKey(key):
-    return lib.getKey(key)
-
-def kbPressed(key):
-    return lib.getKey(key) == GLFW_PRESS
-
-def kbReleased(key):
-    return lib.getKey(key) == GLFW_RELEASE    
-
-def mPressed(key):
-    return lib.getMouseKey(key) == GLFW_PRESS
-
-def mReleased(key):
-    return lib.getMouseKey(key) == GLFW_RELEASE
-
-def kbStruck(key):
-    return lib.keyboardStruck(key)
-
-def mStruck(key):
-    return lib.mouseStruck(key)
-
 def colliding():
     return components[CDOFF + 2]
 
@@ -318,3 +224,71 @@ def stopOnInitialization(state):
 
 def newLootTable():
     return lib.newLootTable()
+
+#returns the state of some given control
+def state(control):
+    return lib.state(E , control)
+
+def pressed(control):
+    return lib.pressed(E , control)
+
+def allPressed(controls):
+    return lib.allPressed(E , controls)
+
+def allStruck(controls):
+    return lib.allStruck(E , controls)
+
+def anyPressed(controls):
+    return lib.anyPressed(E , controls)
+
+def anyStruck(controls):
+    return lib.anyStruck(E , controls)
+
+def struck(control):
+    return lib.struck(E , control)
+
+#peripheral state accessors
+def kb_state(key):
+    return lib.kb_state(E , key)
+
+#perihperal press checks
+def kb_pressed(key):
+    return lib.kb_pressed(E , key)
+
+#peripheral strike checks
+def kb_struck(key):
+    return lib.kb_struck(E , key)
+
+#peripheral state accessors
+def mb_state(key):
+    return lib.mb_state(E , key)
+
+#perihperal press checks
+def mb_pressed(key):
+    return lib.mb_pressed(E , key)
+
+#peripheral strike checks
+def mb_struck(key):
+    return lib.mb_struck(E , key)
+
+def syncControls(controls):
+    print("syncing controls in facade")
+    lib.setNetworkedControls(E , controls)
+
+def syncKBKeys(keys):
+    lib.setNetworkedKeyboardKeys(E , keys)
+
+def syncedKBKeys():
+    return lib.getNetworkedKeyboardKeys(E)
+
+def syncMKeys(keys):
+    lib.setNetworkedMouseButtons(E , keys)
+
+def syncedMKeys():
+    return lib.getNetworkedMouseButtons(E)
+
+def syncGPKeys(keys):
+    lib.setNetworkedGamepadButtons(E , keys)
+
+def syncedGPKeys():
+    return lib.getNetworkedGamepadButtons(E)

@@ -2,6 +2,7 @@ if not initialized:
 
 	from Core import UIScript
 	from Game.Items import ItemComponents
+	from CS import Controls
 
 	#position state constants
 	GROUNDED = 1	
@@ -66,17 +67,17 @@ if not initialized:
 
 	def getPositionState():
 		global positionState
-		positionState = AIRBORN if distanceToFloor() > 5 else DUCKING if kbPressed(GLFW_KEY_S) else GROUNDED
+		positionState = AIRBORN if distanceToFloor() > 5 else DUCKING if pressed(Controls.DOWN) else GROUNDED
 
 	def getActionState():
 		global actionState
 		if actionState == HURT:
 			actionState = HURT
 
-		elif mPressed(GLFW_MOUSE_BUTTON_LEFT):
+		elif pressed(Controls.ATTACKI):
 			actionState = ATTACKING
 
-		elif kbPressed(GLFW_KEY_E):
+		elif pressed(Controls.ATTACKII):
 			actionState = SUB_WEAPON
 		else:
 			actionState = IDLE
@@ -139,7 +140,7 @@ if not initialized:
 		elif positionState == DUCKING:
 			setHorizontalControl(FALSE)
 			if previousPositionState != positionState:
-				TemporalExecutor.onTrue(lambda: not kbPressed(GLFW_KEY_S) , lambda: setHorizontalControl(TRUE))
+				TemporalExecutor.onTrue(lambda: not pressed(Controls.DOWN) , lambda: setHorizontalControl(TRUE))
 			
 			if actionState == ATTACKING:
 				attack(e_TrevorDuckingAttack)				

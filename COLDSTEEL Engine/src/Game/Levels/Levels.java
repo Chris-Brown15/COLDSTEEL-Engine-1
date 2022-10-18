@@ -106,31 +106,32 @@ public class Levels implements GameFiles<Levels>{
 		
 	}
 	
-	/**
-	 * This method will copy all entites, statics, and items into the scene.
-	 */
-	public void deploy(Scene scene) {
-		
-		scene.clear();
+	private void deployTileSet(String tileSetName , boolean background , Scene deployingTo) {
+	
+		if(!tileSetName.equals("null")) {
 			
-		entities.forEachVal(tuple -> scene.entities().loadEntity(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));		
-		statics1.forEachVal(tuple -> scene.statics1().loadStatic(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
-		statics2.forEachVal(tuple -> scene.statics2().loadStatic(tuple.getFirst()).moveTo(tuple.getSecond()));
-		items.forEachVal(tuple -> scene.items().load(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
-		if(!tileSet1.equals("null")) {
+			//if the tileset of this level is not the one already present in the scene, load this level's one into the scene
+			if(!tileSetName.equals(deployingTo.tiles1().name())) deployingTo.tiles1().load(tileSetName + ".CStf");
 			
-			if(!tileSet1.equals(scene.tiles1().name())) scene.tiles1().load(tileSet1 + ".CStf");
+			/*
+			 * This array is used to map an instance of Tiles to its ID, which represents when it should render
+			 * the index into the array also is its ID.
+			 */
+			Tiles[] tiles = background ? new Tiles[backgroundTiles.size()] : new Tiles[foregroundTiles.size()];
+			//get the right list of tiles
+			CSLinked<Tuple3<String , float[] , Integer>> sourceTiles = background ? backgroundTiles : foregroundTiles;
 			
-			Tiles[] tiles = new Tiles[backgroundTiles.size()];
-			cdNode<Tuple3<String , float[] , Integer>> iter = backgroundTiles.get(0);
-			for(int i = 0 ; i < backgroundTiles.size() ; i ++ , iter = iter.next) {
+			cdNode<Tuple3<String , float[] , Integer>> iter = sourceTiles.get(0);
+			for(int i = 0 ; i < sourceTiles.size() ; i ++ , iter = iter.next) {
 				
 				try {
 										
-					Tiles added = scene.tiles1().copyInstanceTile(iter.val.getFirst());
+					Tiles added = deployingTo.tiles1().copyInstanceTile(iter.val.getFirst());
+					//this fixes issues regarding the first time something is animated it gets warped
 					if(added.getAnimation() != null) added.animateFast();					
 					added.moveTo(iter.val.getSecond());
 					added.setID(iter.val.getThird());
+					//this is the important line that ensures tiles get placed in the right order
 					tiles[added.getID()] = added;
 								
 				} catch(NullPointerException e) {
@@ -143,45 +144,38 @@ public class Levels implements GameFiles<Levels>{
 			
 			for(int i = 0 ; i < tiles.length ; i ++) { 
 				
-				if(tiles[i] != null) scene.tiles1().addInstanceTile(tiles[i]);
-				else System.err.println("Error: Possible level corruption. Background tile at index " + i + " null.");
+				if(tiles[i] != null) {
+					
+					if(background) deployingTo.tiles1().addInstanceTile(tiles[i]);
+					else if(tiles[i] != null) deployingTo.tiles2().addInstanceTile(tiles[i]);
+					
+				} else {
 				
-			}
-			
-		}
-		
-		if(!tileSet2.equals("null")) {
-			
-			if(!tileSet2.equals(scene.tiles2().name())) scene.tiles2().load(tileSet2 + ".CStf");
-			Tiles[] tiles = new Tiles[foregroundTiles.size()];
-			
-			foregroundTiles.forEachVal(tuple -> {
-
-				try {
-					
-					Tiles added = scene.tiles2().copyInstanceTile(tuple.getFirst());
-					if(added.getAnimation() != null) added.animateFast();
-					added.moveTo(tuple.getSecond());
-					added.setID(tuple.getThird());
-					tiles[added.getID()] = added;
-										
-				} catch(NullPointerException e) {
-					
-					System.err.println("ERROR occurred loading tile: " + tuple.getFirst() + ". Is this tile still available in Tile Set: " + tileSet1);
+					if(background) System.err.println("Error: Possible level corruption. Background tile at index " + i + " null.");
+					else System.err.println("Error: Possible level corruption. Foreground tile at index " + i + " null.");
 					
 				}
-							
-			});
-
-			for(int i = 0 ; i < tiles.length ; i ++) { 
-				
-				if(tiles[i] != null) scene.tiles2().addInstanceTile(tiles[i]);
-				else System.err.println("Error: Possible level corruption. Foreground tile at index " + i + " null.");
 				
 			}
 			
 		}
 		
+	}
+	
+	/**
+	 * This method will copy all entites, statics, and items into the scene.
+	 */
+	public void deploy(Scene scene) {
+		
+		scene.clear();
+			
+		entities.forEachVal(tuple -> scene.entities().loadEntity(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));		
+		statics1.forEachVal(tuple -> scene.statics1().loadStatic(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
+		statics2.forEachVal(tuple -> scene.statics2().loadStatic(tuple.getFirst()).moveTo(tuple.getSecond()));
+		items.forEachVal(tuple -> scene.items().load(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
+		deployTileSet(tileSet1 , true , scene);
+		deployTileSet(tileSet2 , false , scene);
+	
 		colliders.forEachVal(colliderArray -> scene.colliders().add(colliderArray));
 		quads1.forEachVal(quad -> {
 			

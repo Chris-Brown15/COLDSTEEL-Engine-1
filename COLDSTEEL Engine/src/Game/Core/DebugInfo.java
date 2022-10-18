@@ -134,7 +134,7 @@ public class DebugInfo implements NKUI {
 				int symbol = seeAllLoadDoors ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
 				nk_layout_row_dynamic(context , 20 , 1);				
 				if(nk_selectable_symbol_text(context , symbol , "Load Doors" , NK_TEXT_ALIGN_CENTERED , toByte(allocator , seeAllLoadDoors)))
-					seeAllLoadDoors = toggle(seeAllLoadDoors);
+					seeAllLoadDoors = seeAllLoadDoors ? false : true;
 				
 				if(seeAllLoadDoors) {
 					
@@ -176,7 +176,7 @@ public class DebugInfo implements NKUI {
 			symbol = showAllSounds ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
 			nk_layout_row_dynamic(context , 20 , 1);
 			if(nk_selectable_symbol_text(context , symbol , "Sound Files" , NK_TEXT_ALIGN_CENTERED , toByte(allocator , showAllSounds))) 
-				showAllSounds = toggle(showAllSounds);
+				showAllSounds = showAllSounds ? false : true;
 			
 			if(showAllSounds) {
 				

@@ -12,8 +12,8 @@ import static CS.Engine.currentFrame;
 import static CS.Engine.secondPassed;
 import static CS.Engine.framesLastSecond;
 
-import CS.UserControls;
-
+import CS.Controls;
+import CS.Engine;
 import CSUtil.QuadIndices;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
@@ -32,7 +32,6 @@ import Game.Items.Items;
 import Game.Items.UnownedItems;
 
 import java.util.ArrayList;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.joml.Math;
@@ -48,14 +47,12 @@ import Game.Projectiles.Projectiles;
 public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	private static boolean playAnimations = true;
-	private final Camera camera;
-	private Function<Integer , Boolean> pressed;	
+	private final Camera camera;	
 	
-	public EntityLists(int renderOrder , Camera camera , Function<Integer , Boolean> keyPressCallback) {
+	public EntityLists(int renderOrder , Camera camera) {
 		
 		super(renderOrder , CSType.ENTITY);
 		this.camera = camera;
-		this.pressed = keyPressCallback;
 		
 	}
 	
@@ -77,6 +74,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	public void addStraightIn(Entities E) {
 		
 		list.add(E);
+		
+	}
+	
+	public void removeStraight(Entities E) {
+		
+		cdNode<Entities> iter = list.get(0);
+		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) if(iter.val.equals(E)) {
+		
+			list.safeRemove(iter);
+			return;
+			
+		}
 		
 	}
 	
@@ -193,13 +202,13 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 	public void textureEntity(int index , String filePath) {
 		
-		list.getVal(index).setTexture(loadTexture(filePath));
+		loadTexture(list.getVal(index).getTexture() , filePath);
 		
 	}
 	
 	public void textureEntity(Entities E , String filepath) {
 		
-		E.setTexture(loadTexture(filepath));
+		loadTexture(E.getTexture() ,  filepath);
 		
 	}
 	
@@ -287,6 +296,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public static final boolean moveHorizChecked(Entities E , float speed) {
 	
+		if (speed == 0) return false;
+
 		boolean didCollide = false;
 		Object[] comps = E.components();			
 		
@@ -302,7 +313,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			float[] startingMid;
 			float[] targetData;
 
-			float scanningDistance = (float) E.components()[ECS.COLLISION_DETECTION.offset + 1];
+			float scanningDistance = (float) comps[ECS.COLLISION_DETECTION.offset + 1];
 			Direction moveDirection = speed > 0f ? Direction.RIGHT : Direction.LEFT;
 
 			if(E.type == CSType.ENTITY) {
@@ -354,15 +365,14 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				xData = x.getData();
 				
 				float[] xMid = x.getMidpoint(); //if the collider is out of range skip it.
-				if((Math.abs(startingMid[0] - xMid[0]) >= scanningDistance || Math.abs(startingMid[1] - xMid[1]) >= scanningDistance)
- 				 ||(Math.abs(xMid[0] - startingMid[0]) >= scanningDistance || Math.abs(xMid[1] - startingMid[1]) >= scanningDistance)) continue;
+				if((Math.abs(startingMid[0] - xMid[0]) >= scanningDistance || Math.abs(startingMid[1] - xMid[1]) >= scanningDistance)) continue;
 				
 				if(!x.isTriangle()) {				
 					
 					if(x.isPlatform() && targetData[TY] > xData[BY]) continue;
 					
-					if((moveDirection == Direction.LEFT && x.getMidpoint()[0] > startingMid[0])//if its behind the subject 
-					 ||(moveDirection == Direction.RIGHT&& x.getMidpoint()[0] < startingMid[0])
+					if((moveDirection == Direction.LEFT && xMid[0] > startingMid[0])//if its behind the subject 
+					 ||(moveDirection == Direction.RIGHT&& xMid[0] < startingMid[0])
  					 // if its above or below target
 					 ||(targetData[BRY] >= xData[19] || xData[1] >= targetData[TRY]))continue;
 					
@@ -371,7 +381,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				} else if(x.isTriangle()) {
 
 					//if the triangle is below or above the subject, ignore it					
-					if((x.isLowerLeftTriangle() || x.isUpperLeftTriangle()) && (xData[1] >= targetData[TRY] || targetData[BRY] >= xData[19])) continue;					
+					if((x.isLowerLeftTriangle() || x.isUpperLeftTriangle()) && (xData[1] >= targetData[TRY] || targetData[BRY] >= xData[19])) continue;
 					if ((x.isLowerRightTriangle() || x.isUpperRightTriangle()) && (xData[28] > targetData[TY] || xData[10] < targetData[BY])) continue;
 					//if the triangle is behind the subject, ignore it
 					if(x.isUpperRightTriangle() || x.isUpperLeftTriangle()) {
@@ -392,10 +402,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 			}
 			
-//			System.out.println("Number valid triangles: " + validTriangles.size());
-			
 			E.translate(speed, 0f);
-			
 			
 			for(Colliders b : validBoxes) {
 				
@@ -460,9 +467,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				float distance;
 				
 				if(moveDirection == Direction.LEFT) {
-					
-					//treat as triangles
-					
+										
 					if(t.isUpperRightTriangle()) {
 						
 						float colliderArea = getTriangleArea(xData);
@@ -541,53 +546,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				    	}
 						
 					}
-					
-					//treat as boxes 
-					
-//					else if(x.isUpperLeftTriangle()) {
-//					
-//						int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , xData[1]); 
-//						int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , targetData[TLX] , xData[1]);
-//						isColliding = xArea >= testArea;
-//												
-//						if(isColliding) {
-//							 
-//							distance = xData[0] - targetData[BLX];
-//							E.translate(-distance, 0f);
-//							didCollide = true;
-//							
-//						} else if (xData[0] >= targetData[BRX]) {	
-//							
-//							distance = xData[0] - targetData[BLX];
-//							E.translate(distance, 0f);
-//							didCollide = true;
-//							
-//						} 
-//						
-//					}
-//					
-//					else if (x.isLowerLeftTriangle()) {
-//						
-//						int xArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , xData[19] , xData[0] , xData[1]);
-//						int testArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , targetData[BLX] , xData[19] ,  xData[0] , xData[1]);
-//						isColliding = xArea >= testArea;
-//						
-//						if(isColliding) {
-//							
-//							distance = xData[0] - targetData[BLX];
-//							E.translate(-distance, 0f);
-//							didCollide = true;
-//							
-//						} else if (xData[9] > targetData[BRX]) {
-//							
-//							distance = xData[0] - targetData[BLX];
-//							E.translate(distance, 0f);
-//							didCollide = true;
-//							
-//						} 
-//						
-//					}
-						
+											
 				} else if (moveDirection == Direction.RIGHT) {
 					
 					//treat as triangles
@@ -670,42 +629,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				    	
 					}
 					
-					//treat as boxes
-					
-//					else if(x.isUpperRightTriangle() && xData[27] > targetData[BRX]) {
-//					
-//						int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[0] , xData[1]); 
-//						int testArea = (int) getCoordianteRectangleArea(targetData[BRX] , xData[28] , xData[9] , xData[10] , xData[0] , xData[1]);
-//						
-//						isColliding = xArea > testArea;
-//						
-//						if(isColliding) {
-//																			
-//							distance = targetData[BRX] - xData[27];
-//							E.translate(distance, 0f);
-//							didCollide = true;
-//							
-//						}						
-//						
-//					}
-//					
-//					else if (x.isLowerRightTriangle()) {
-//						
-//						int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[18] , xData[19]);
-//						int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , targetData[BRX] , xData[10] , xData[18] , xData[19]);
-//						
-//						isColliding = xArea > testArea;
-//						
-//						if(isColliding) {
-//							
-//							distance = targetData[BRX] - xData[27];
-//							E.translate(distance, 0f);
-//							didCollide = true;
-//							
-//						} 		
-//						
-//					}
-					
 				}
 				
 			}
@@ -731,6 +654,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public static final boolean moveVertChecked(Entities E , float speed) {
 		
+		if(speed == 0) return false;
+		
 		boolean didCollide = false;
 		Object[] comps = E.components();
 		
@@ -745,7 +670,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			float[] startingMid;
 			float[] targetData;
 
-			float scanningDistance = (float) E.components()[ECS.COLLISION_DETECTION.offset + 1];
+			float scanningDistance = (float) comps[ECS.COLLISION_DETECTION.offset + 1];
 			Direction moveDirection = speed > 0f ? Direction.UP : Direction.DOWN;
 
 			if(E.type == CSType.ENTITY) {
@@ -791,8 +716,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				x = iter.val;
 				float[] xMid = x.getMidpoint();
 				//if the collider is too far, ignore it
-				if((Math.abs(startingMid[0] - xMid[0]) >= scanningDistance || Math.abs(startingMid[1] - xMid[1]) >= scanningDistance)
-		  		 ||(Math.abs(xMid[0] - startingMid[0]) >= scanningDistance || Math.abs(xMid[1] - startingMid[1]) >= scanningDistance)) continue;
+				if((Math.abs(startingMid[0] - xMid[0]) >= scanningDistance || Math.abs(startingMid[1] - xMid[1]) >= scanningDistance)) continue;
 				
 				//boxes that are to the left or right of the E 
 				xData = x.getData();//collider is to the left or right of E
@@ -1002,59 +926,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				    	}
 						
 					}
-					
-//					//treat as boxes
-//					
-//					else if(x.isUpperRightTriangle() ) {
-//						
-//						int XArea = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[19] , xData[0] , xData[1]);
-//						int areaTest = (int)getCoordianteRectangleArea(xData[27] , targetData[TRY] , xData[9] , xData[10] , xData[0] , xData[1]);
-//						isColliding = XArea > areaTest ? true:false;
-//						
-//						if(isColliding) {
-//							
-//							didCollide = true;
-//							distance = targetData[TRY] - xData[1];
-//							E.translate(0f, -distance);							
-//
-//						} else { //check if E moved past this
-//							
-//							if(targetData[BLY] >= xData[10]) {
-//								
-//								didCollide = true;
-//								distance = targetData[TLY] - xData[1];
-//								E.translate(0f, -distance);							
-//																
-//							}
-//							
-//						}
-//						
-//					} else if (x.isUpperLeftTriangle()) {
-//						
-//						int XArea = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , xData[1]);
-//						int areaTest = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , targetData[TRY]);
-//						isColliding = XArea > areaTest ? true:false;
-//						
-//						if(isColliding) {
-//							
-//							didCollide = true;
-//							distance = targetData[TRY] - xData[1];
-//							E.translate(0f, -distance);							
-//								
-//						} else {  //check if E moved past this
-//
-//							if(targetData[BLY] >= xData[19]) {
-//								
-//								didCollide = true;
-//								distance = targetData[TLY] - xData[1];
-//								E.translate(0f, -distance);		
-//								
-//							}
-//							
-//						}
-						
-//					}
-						
+	
 				} else if (moveDirection == Direction.DOWN) {
 					
 					//treat as triangles
@@ -1121,58 +993,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 						
 					}
 				
-					//treat as boxes
-					
-//					else if(x.isLowerLeftTriangle()) {
-//						
-//						int xArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , xData[19] , xData[0] , xData[1]);
-//						int testArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , targetData[BRY] , xData[0] , xData[1]);
-//						isColliding = xArea > testArea ? true:false;
-//						
-//						if(isColliding) {
-//							
-//							didCollide = true;
-//							distance = xData[10] - targetData[BRY];
-//							E.translate(0f, distance);							
-//								
-//						} else {  //check if E moved past this
-//							
-//							if(xData[1] > targetData[TRY]) {
-//								
-//								didCollide = true;
-//								distance = xData[10] - targetData[BRY];
-//								E.translate(0f, distance);
-//								
-//							}
-//							
-//						}
-//						
-//					} else if(x.isLowerRightTriangle()) {
-//						
-//						int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[18] , xData[19]);
-//						int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , targetData[BLY] , xData[18] , xData[19]);
-//						isColliding = xArea > testArea ? true:false;
-//						
-//						if(isColliding) {
-//							
-//							didCollide = true;
-//							distance = xData[10] - targetData[BRY];
-//							E.translate(0f, distance);							
-//								
-//						} else {  //check if E moved past this
-//							
-//							if(xData[28] > targetData[TLY]) {
-//								
-//								distance = xData[10] - targetData[BLY];
-//								E.translate(0f , distance);
-//								didCollide = true;
-//								
-//							}
-//							
-//						}
-//						
-//					}
-					
 				}
 				
 			}
@@ -1195,25 +1015,20 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public static final boolean moveHorizChecked(Quads Q , float speed) {
 	
+		if(speed == 0) return false;
+		
 		boolean didCollide = false;			
 			
-		final int 
-		TLX , TLY ,
-		TRX , TRY ,
-		BLX , BLY , 
-		BRX , BRY ,
-		BY , TY ;
-
-		
-		TLX = QuadIndices.TLX;
-		TLY = QuadIndices.TLY;
-		TRX = QuadIndices.TRX;
-		TRY = QuadIndices.TRY;
-		BLX = QuadIndices.BLX;
-		BLY = QuadIndices.BLY;
-		BRX = QuadIndices.BRX;
-		BRY = QuadIndices.BRY;
-		BY = QuadIndices.BY;
+		final int
+		TLX = QuadIndices.TLX,
+		TLY = QuadIndices.TLY,
+		TRX = QuadIndices.TRX,
+		TRY = QuadIndices.TRY,
+		BLX = QuadIndices.BLX,
+		BLY = QuadIndices.BLY,
+		BRX = QuadIndices.BRX,
+		BRY = QuadIndices.BRY,
+		BY = QuadIndices.BY,
 		TY = QuadIndices.TY;
 		
 		float[] targetData = Q.getData();
@@ -1243,8 +1058,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			if(!x.isTriangle()) {				
 				
 				
-				if((moveDirection == Direction.LEFT && x.getMidpoint()[0] > startingMid[0])//if its behind the subject 
-				 ||(moveDirection == Direction.RIGHT&& x.getMidpoint()[0] < startingMid[0])
+				if((moveDirection == Direction.LEFT && xMid[0] > startingMid[0])//if its behind the subject 
+				 ||(moveDirection == Direction.RIGHT&& xMid[0] < startingMid[0])
 					 // if its above or below target
 				 ||(targetData[BRY] >= xData[19] || xData[1] >= targetData[TRY]))continue;
 				
@@ -1424,52 +1239,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}
 				
-				//treat as boxes 
-				
-//				else if(x.isUpperLeftTriangle()) {
-//				
-//					int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , xData[1]); 
-//					int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , targetData[TLX] , xData[1]);
-//					isColliding = xArea >= testArea;
-//											
-//					if(isColliding) {
-//						 
-//						distance = xData[0] - targetData[BLX];
-//						E.translate(-distance, 0f);
-//						didCollide = true;
-//						
-//					} else if (xData[0] >= targetData[BRX]) {	
-//						
-//						distance = xData[0] - targetData[BLX];
-//						E.translate(distance, 0f);
-//						didCollide = true;
-//						
-//					} 
-//					
-//				}
-//				
-//				else if (x.isLowerLeftTriangle()) {
-//					
-//					int xArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , xData[19] , xData[0] , xData[1]);
-//					int testArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , targetData[BLX] , xData[19] ,  xData[0] , xData[1]);
-//					isColliding = xArea >= testArea;
-//					
-//					if(isColliding) {
-//						
-//						distance = xData[0] - targetData[BLX];
-//						E.translate(-distance, 0f);
-//						didCollide = true;
-//						
-//					} else if (xData[9] > targetData[BRX]) {
-//						
-//						distance = xData[0] - targetData[BLX];
-//						E.translate(distance, 0f);
-//						didCollide = true;
-//						
-//					} 
-//					
-//				}
-					
 			} else if (moveDirection == Direction.RIGHT) {
 				
 				//treat as triangles
@@ -1552,42 +1321,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    	
 				}
 				
-				//treat as boxes
-				
-//				else if(x.isUpperRightTriangle() && xData[27] > targetData[BRX]) {
-//				
-//					int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[0] , xData[1]); 
-//					int testArea = (int) getCoordianteRectangleArea(targetData[BRX] , xData[28] , xData[9] , xData[10] , xData[0] , xData[1]);
-//					
-//					isColliding = xArea > testArea;
-//					
-//					if(isColliding) {
-//																		
-//						distance = targetData[BRX] - xData[27];
-//						E.translate(distance, 0f);
-//						didCollide = true;
-//						
-//					}						
-//					
-//				}
-//				
-//				else if (x.isLowerRightTriangle()) {
-//					
-//					int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[18] , xData[19]);
-//					int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , targetData[BRX] , xData[10] , xData[18] , xData[19]);
-//					
-//					isColliding = xArea > testArea;
-//					
-//					if(isColliding) {
-//						
-//						distance = targetData[BRX] - xData[27];
-//						E.translate(distance, 0f);
-//						didCollide = true;
-//						
-//					} 		
-//					
-//				}
-				
 			}
 			
 		}
@@ -1609,21 +1342,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public static final boolean moveVertChecked(Quads Q , float speed) {
 		
+		if(speed == 0) return false;
+		
 		boolean didCollide = false;
 
 		final int 
-		TLX , TLY ,
-		TRX , TRY ,
-		BLX , BLY , 
-		BRX , BRY ;
-
-		TLX = QuadIndices.TLX;
-		TLY = QuadIndices.TLY;
-		TRX = QuadIndices.TRX;
-		TRY = QuadIndices.TRY;
-		BLX = QuadIndices.BLX;
-		BLY = QuadIndices.BLY;
-		BRX = QuadIndices.BRX;
+		TLX = QuadIndices.TLX,
+		TLY = QuadIndices.TLY,
+		TRX = QuadIndices.TRX,
+		TRY = QuadIndices.TRY,
+		BLX = QuadIndices.BLX,
+		BLY = QuadIndices.BLY,
+		BRX = QuadIndices.BRX,
 		BRY = QuadIndices.BRY;
 		
 		float[] targetData = Q.getData();
@@ -1848,59 +1578,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    	}
 					
 				}
-				
-//				//treat as boxes
-//				
-//				else if(x.isUpperRightTriangle() ) {
-//					
-//					int XArea = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[19] , xData[0] , xData[1]);
-//					int areaTest = (int)getCoordianteRectangleArea(xData[27] , targetData[TRY] , xData[9] , xData[10] , xData[0] , xData[1]);
-//					isColliding = XArea > areaTest ? true:false;
-//					
-//					if(isColliding) {
-//						
-//						didCollide = true;
-//						distance = targetData[TRY] - xData[1];
-//						E.translate(0f, -distance);							
-//
-//					} else { //check if E moved past this
-//						
-//						if(targetData[BLY] >= xData[10]) {
-//							
-//							didCollide = true;
-//							distance = targetData[TLY] - xData[1];
-//							E.translate(0f, -distance);							
-//															
-//						}
-//						
-//					}
-//					
-//				} else if (x.isUpperLeftTriangle()) {
-//					
-//					int XArea = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , xData[1]);
-//					int areaTest = (int)getCoordianteRectangleArea(xData[27] , xData[28] , xData[18] , xData[19] , xData[0] , targetData[TRY]);
-//					isColliding = XArea > areaTest ? true:false;
-//					
-//					if(isColliding) {
-//						
-//						didCollide = true;
-//						distance = targetData[TRY] - xData[1];
-//						E.translate(0f, -distance);							
-//							
-//					} else {  //check if E moved past this
-//
-//						if(targetData[BLY] >= xData[19]) {
-//							
-//							didCollide = true;
-//							distance = targetData[TLY] - xData[1];
-//							E.translate(0f, -distance);		
-//							
-//						}
-//						
-//					}
-					
-//				}
-					
+		
 			} else if (moveDirection == Direction.DOWN) {
 				
 				//treat as triangles
@@ -1967,58 +1645,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}
 			
-				//treat as boxes
-				
-//				else if(x.isLowerLeftTriangle()) {
-//					
-//					int xArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , xData[19] , xData[0] , xData[1]);
-//					int testArea = (int) getCoordianteRectangleArea(xData[9] , xData[10] , xData[18] , targetData[BRY] , xData[0] , xData[1]);
-//					isColliding = xArea > testArea ? true:false;
-//					
-//					if(isColliding) {
-//						
-//						didCollide = true;
-//						distance = xData[10] - targetData[BRY];
-//						E.translate(0f, distance);							
-//							
-//					} else {  //check if E moved past this
-//						
-//						if(xData[1] > targetData[TRY]) {
-//							
-//							didCollide = true;
-//							distance = xData[10] - targetData[BRY];
-//							E.translate(0f, distance);
-//							
-//						}
-//						
-//					}
-//					
-//				} else if(x.isLowerRightTriangle()) {
-//					
-//					int xArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , xData[10] , xData[18] , xData[19]);
-//					int testArea = (int) getCoordianteRectangleArea(xData[27] , xData[28] , xData[9] , targetData[BLY] , xData[18] , xData[19]);
-//					isColliding = xArea > testArea ? true:false;
-//					
-//					if(isColliding) {
-//						
-//						didCollide = true;
-//						distance = xData[10] - targetData[BRY];
-//						E.translate(0f, distance);							
-//							
-//					} else {  //check if E moved past this
-//						
-//						if(xData[28] > targetData[TLY]) {
-//							
-//							distance = xData[10] - targetData[BLY];
-//							E.translate(0f , distance);
-//							didCollide = true;
-//							
-//						}
-//						
-//					}
-//					
-//				}
-				
 			}
 			
 		}
@@ -2027,7 +1653,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
-	public boolean getPlayAnimations() {
+	public static boolean getPlayAnimations() {
 		
 		return playAnimations;
 		
@@ -2855,6 +2481,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	}
 	
 	float framesPerTick;
+	int targetTicks = 60;
+	private float frameStep;
 	
 	public float frameInterval() {
 		
@@ -2871,6 +2499,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	public int ticksLastSecond() {
 		
 		return ticksLastSecond;
+		
+	}
+	
+	public void setTargetTicksPerSecond(int numberPerSecond) {
+		
+		targetTicks = numberPerSecond;
+		
+	}
+	
+	public boolean isTickingFrame() {
+	
+		return numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ;
 		
 	}
 	
@@ -2892,21 +2532,21 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		if(secondPassed()) {
 			
 			startNumberTicks();
-			framesPerTick = ((float)(framesLastSecond())  / 60f);//frames between a tick		
+			framesPerTick = ((float)(framesLastSecond())  / targetTicks);//frames between a tick		
 			
 		}
 		
 		float addativeTick = (1f / framesPerTick) % 1; //if the currentFrame is a multiple of this, subtract one from the frameStep
-		float frameStep = numberTicks * framesPerTick;				
+		frameStep = numberTicks * framesPerTick;				
 		if(currentFrame() % addativeTick == 0) frameStep -= 1;
 		
-		if(numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < 70) ) {
+		if(numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ) {
 			
-			start.execute();
+			if(start != null) start.execute();
 			Object[] comps;
 			
 			cdNode<Entities> iter = list.get(0);
-			Entities x;			
+			Entities x;
 			for(int i = 0 ; i < list.size() ; i ++) {
 				
 				x = iter.val;
@@ -2928,7 +2568,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			}
 			
 			//physics
-			inbetween.execute();
+			if(inbetween != null) inbetween.execute();
 			
 			iter = list.get(0);
 			for(int i = 0 ; i < list.size() ; i ++) {
@@ -2944,7 +2584,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				
 			}
 			
-			after.execute();
+			if(after != null) after.execute();
 			numberTicks++;
 			
 		}		
@@ -3016,8 +2656,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 		if((boolean) comps[Entities.HCOFF + 1] == false) return;//if the entity has control
 		Entities E = ((Entities)comps[0]);
-		if(pressed.apply(UserControls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
-		if(pressed.apply(UserControls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
+		if(Engine.controlKeyPressed(Controls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
+		if(Engine.controlKeyPressed(Controls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
 				
 	}
 
@@ -3059,7 +2699,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		if(E.has(ECS.COLLISION_DETECTION , ECS.GRAVITY_CONSTANT , ECS.VERTICAL_DISPLACEMENT)) {				
 			
 			//fall through a platform
-			if(pressed.apply(UserControls.DOWN) && pressed.apply(UserControls.JUMP)) {
+			if(Engine.controlKeyPressed(Controls.DOWN) && Engine.controlKeyPressed(Controls.JUMP)) {
 				
 				Tuple2<Colliders , Float> floorData = getFloorCollider(E);
 				if(floorData.getSecond() < 2.0f && floorData.getFirst().isPlatform()) {
@@ -3068,7 +2708,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}				
 				
-			} else if(pressed.apply(UserControls.JUMP) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
+			} else if(Engine.controlKeyPressed(Controls.JUMP) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
 				
 				comps[Entities.VCOFF] = comps[Entities.VCOFF + 1];
 				comps[Entities.VCOFF + 3] = true;
@@ -3103,8 +2743,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 		} else {
 
-			if(pressed.apply(UserControls.UP)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
-			if(pressed.apply(UserControls.DOWN)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
+			if(Engine.controlKeyPressed(Controls.UP)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
+			if(Engine.controlKeyPressed(Controls.DOWN)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
 
 		}
 	

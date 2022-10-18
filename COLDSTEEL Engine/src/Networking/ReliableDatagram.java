@@ -351,7 +351,7 @@ public final class ReliableDatagram {
 		
 	}
 	
-	static final double computeAverageRTT() {
+	public static final double computeAverageRTT() {
 		
 		return rawRTT / numberAcksReceivedLastSecond;
 		

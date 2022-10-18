@@ -11,8 +11,6 @@ if not initialized:
 	actionState = 0
 	positionState = 0
 
-	mariaHud = UIScript("ui_MariaHud.py")
-
 	hurtBloodExpr = MExpression("srand ( 125 / x )" , TRUE)
 	hurtBloodEmitter = createParticleEmitter(160 , 2400 , hurtBloodExpr , hurtBloodExpr , 0.90 , 0.0 , 0.0 , 1.5 , 1.5 , TRUE) 
 	hurtBloodEmitter.setEmissionRate(1)
@@ -29,8 +27,6 @@ if not initialized:
 	def setPositionState():
 		global positionState
 
-		
-		
 
 	def getState():
 		global state
@@ -82,10 +78,6 @@ if not initialized:
 
 
 getState()
-
-
-if kbStruck(GLFW_KEY_TAB):
-	mariaHud.toggle()
 
 if state == 0:
 	activateAnim(e_MariaIdle2)

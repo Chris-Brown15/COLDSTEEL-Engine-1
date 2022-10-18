@@ -52,15 +52,16 @@ public interface NKUI {
 		
 		allocator.push();
 		
-		IntBuffer width = allocator.mallocInt(1);
-		IntBuffer height = allocator.mallocInt(1);
-		IntBuffer BBP = allocator.mallocInt(1);
+		IntBuffer stats = allocator.mallocInt(3);
+		
 		stbi_set_flip_vertically_on_load(false);
-		ByteBuffer imageData = stbi_load(filepath , width , height , BBP , 3);
+		ByteBuffer imageData = stbi_load(filepath , stats.slice(0, 1) , stats.slice(1, 1) , stats.slice(2, 1) , 3);
+		
+		if(imageData == null) throw new IllegalStateException("Failed to allocate memory for image: " + filepath);
 		
 		glBindTexture(GL_TEXTURE_2D , textureID);
 		glPixelStorei(GL_UNPACK_ALIGNMENT , 1);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width.get(0) , height.get(0), 0, BBP.get(0) == 32 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, imageData);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, stats.get() , stats.get() , 0, stats.get() == 32 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, imageData);
 		glGenerateMipmap(GL_TEXTURE_2D);
 		
 		allocator.pop();
@@ -73,8 +74,12 @@ public interface NKUI {
 		stbi_set_flip_vertically_on_load(true);
 		
 		//create a java texture object so we can free this GPU memory later
-		ImageInfo newImageInfo = new ImageInfo(filepath , width.get(0) , height.get(0) , BBP.get(0));
-		Renderer.Renderer.addTexture(new Textures(textureID , newImageInfo));
+		stats.rewind();
+		ImageInfo newImageInfo = new ImageInfo(filepath , stats.get() , stats.get() , stats.get());
+		
+		Textures texture = new Textures();
+		
+		Renderer.Renderer.loadTexture(texture , textureID , newImageInfo);
 		
 		return newImageInfo;
 		

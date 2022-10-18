@@ -48,10 +48,8 @@ public class MainMenu implements NKUI{
 		
 		MAIN,
 		LOAD,
-		MULTIPLAYER,
-		MULTIPLAYER_HOSTING,
+		MULTIPLAYER_MAIN,
 		MULTIPLAYER_JOINING,
-		MULTIPLAYER_JOINED_CHOOSE,
 		OPTIONS,
 		;
 				
@@ -69,7 +67,7 @@ public class MainMenu implements NKUI{
 	public MainMenu() {
 		
 		rect = NkRect.malloc(allocator).set(760 , 540 , 400, 310);
-		mainMenuBillboard.setTexture(Renderer.Renderer.loadTexture(CS.COLDSTEEL.assets + "ui/minecraft.png"));
+		Renderer.Renderer.loadTexture(mainMenuBillboard.getTexture() , CS.COLDSTEEL.assets + "ui/minecraft.png");
 		mainMenuBillboard.translate(0, 150);
 		
 	}
@@ -78,8 +76,8 @@ public class MainMenu implements NKUI{
 				
 		start.play();
 		TemporalExecutor.onTrue(() -> start.stopped() , () -> restartLoop(start));
-				
-	}	
+
+	}
 	
 	public void layoutMainMenus(Engine engine) {
 		
@@ -88,10 +86,8 @@ public class MainMenu implements NKUI{
 			
 			case LOAD -> {}
 			case MAIN -> layoutMainMenu(engine);
-			case MULTIPLAYER -> layoutMainMultiplayer();
-			case MULTIPLAYER_HOSTING -> layoutMultiplayerHosting();
+			case MULTIPLAYER_MAIN -> layoutMainMultiplayer(engine);
 			case MULTIPLAYER_JOINING -> layoutMultiplayerJoining();
-			case MULTIPLAYER_JOINED_CHOOSE -> layoutMultiplayerChooseCharacterAfterJoining();
 			case OPTIONS -> layoutOptions();	
 						
 		}
@@ -127,12 +123,10 @@ public class MainMenu implements NKUI{
 			}			
 			
 			if(nk_button_label(context , "Multiplayer")) {
-								
-//				System.out.println(SoundEngine.getGlobalVolume());
-//				
-//				Sounds intro = SoundEngine.add(assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
-//				Sounds seg1 = SoundEngine.add(assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
-//				Sounds loop = SoundEngine.add(assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
+												
+//				Sounds intro = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
+//				Sounds seg1 = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
+//				Sounds loop = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
 //				
 //				intro.play();
 //				TemporalExecutor.onTrue(() -> intro.stopped() , () -> {
@@ -142,7 +136,7 @@ public class MainMenu implements NKUI{
 //					
 //				});
 				
-				menuState = MenuStates.MULTIPLAYER;
+				menuState = MenuStates.MULTIPLAYER_MAIN;
 				
 			}
 			
@@ -175,7 +169,7 @@ public class MainMenu implements NKUI{
 	
 	private void layoutOptions() {
 
-		try(MemoryStack stack = allocator.push()){
+		try(MemoryStack stack = allocator.push()) {
 			
 			NkRect optionsRect = NkRect.malloc(stack).set(810 , 540 , 300 , 400);
 			if(nk_begin(context , "Options" , optionsRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
@@ -198,21 +192,44 @@ public class MainMenu implements NKUI{
 	
 	}
 	
-	private void layoutMainMultiplayer() { 
+	private void layoutMainMultiplayer(Engine engine) { 
 		
 		try(MemoryStack stack = allocator.push()) {
 			
 			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
 			if(nk_begin(context , "Multiplayer" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
 				
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Host Session")) menuState = MenuStates.MULTIPLAYER_HOSTING;
+				if(engine.mg_isHostedServerRunning()) {
+					
+					nk_layout_row_dynamic(context , 20 , 1);
+					nk_text(context , "Server is Running. Join it to Play" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
+					nk_layout_row_dynamic(context , 20 , 1);
+					nk_text(context , "IP Address: " + engine.mg_hostedServerIPAddress() , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
+					nk_layout_row_dynamic(context , 20 , 1);
+					nk_text(context , "Port: " + engine.mg_hostedServerPort() , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
+					
+				} else {
+					
+					nk_layout_row_dynamic(context , 30 , 1);
+					if(nk_button_label(context , "Host Session")) engine.mg_startHostedServer();
+					
+				}
 
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Join Session")) menuState = MenuStates.MULTIPLAYER_JOINING;
+				if(nk_button_label(context , "Join Server With New Character")) {
+					
+					GameRuntime.setState(GameState.NEW_MULTIPLAYER);
+					menuState = MenuStates.MULTIPLAYER_MAIN;
+					
+				}
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Start Server")) {}
+				if(nk_button_label(context , "Join Server With Existing Character")) {
+					
+					menuState = MenuStates.MULTIPLAYER_JOINING;
+					GameRuntime.setState(GameState.LOAD_MULTIPLAYER);
+				
+				}
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
@@ -225,31 +242,7 @@ public class MainMenu implements NKUI{
 		}
 			
 	}
-	
-	private void layoutMultiplayerHosting() {
 		
-		try (MemoryStack stack = allocator.push()) { 
-			
-			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
-			if(nk_begin(context , "Host a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
-				
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "New Character")) GameRuntime.STATE = GameState.NEW_MULTIPLAYER_HOST;
-				
-				nk_layout_row_dynamic(context , 30 , 1);				
-				if(nk_button_label(context , "Load Character")) GameRuntime.STATE = GameState.LOAD_MULTIPLAYER_HOST;
-				
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER;			
-				
-			}
-			
-			nk_end(context);
-			
-		}
-		
-	}
-	
 	/**
 	 * First, input IP and port of the server, then connect to the server then choose to create or load a character, then begin joining
 	 * 
@@ -266,36 +259,12 @@ public class MainMenu implements NKUI{
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , portAndInetAddrInput , portAndInetAddrLength , 22 , NKUI.DEFAULT_FILTER);
-
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Accept")) menuState = MenuStates.MULTIPLAYER_JOINED_CHOOSE;
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER;
+				if(nk_button_label(context , "Join")) GameRuntime.setState(GameState.JOIN_MULTIPLAYER);
 				
-			}
-			
-			nk_end(context);
-			
-		}
-		
-	}
-	
-	private void layoutMultiplayerChooseCharacterAfterJoining() {
-		
-		try(MemoryStack stack = allocator.push()){
-
-			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
-			if(nk_begin(context , "Join a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
-				
-				nk_layout_row_dynamic(context  , 30 , 1);
-				if(nk_button_label(context , "New Character")) GameRuntime.STATE = GameState.NEW_MULTIPLAYER_CLIENT; 
-
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Load Character")) GameRuntime.STATE = GameState.LOAD_MULTIPLAYER_CLIENT;
-
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER_JOINING;
+				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER_MAIN;
 				
 			}
 			
@@ -304,7 +273,7 @@ public class MainMenu implements NKUI{
 		}
 		
 	}
-	
+		
 	String getServerConnectionInfo() {
 		
 		return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));

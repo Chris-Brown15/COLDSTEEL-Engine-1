@@ -15,10 +15,13 @@ if not initialized:
     from Physics import MExpression
     from Renderer import ParticleEmitter
     from Game.Items import ItemComponents
+    from CS import CSKeys
+    from CS import Controls
 
-    backDashDirection = Direction.RIGHT
+    print("Syncing controls in alucard script")
+    syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACKI , Controls.ATTACKII , Controls.POWERI])
+
     isBackDashing = FALSE
-    hurt_horizDir = Direction.RIGHT
 
     hurtBloodExpr = MExpression("srand ( 125 / x )" , TRUE)
     hurtBloodEmitter = createParticleEmitter(160 , 2400 , hurtBloodExpr , hurtBloodExpr , 0.90 , 0.0 , 0.0 , 1.5 , 1.5 , TRUE) 
@@ -116,7 +119,7 @@ if not initialized:
         if isJumping:
 
             setAutoOrient(TRUE)                       
-            if(kbPressed(GLFW_KEY_D) or kbPressed(GLFW_KEY_A)):
+            if anyPressed([Controls.RIGHT , Controls.LEFT]):
                 activateAnim(e_AlucardJumpingHoriz)
             else:
                 activateAnim(e_AlucardJumpStraight)
@@ -155,7 +158,7 @@ if not initialized:
             actionState = 1
 
     def unarmed():
-        if mPressed(GLFW_MOUSE_BUTTON_RIGHT):
+        if struck(Controls.ATTACKI):
             global actionState            
             if isHungup():
                 endHangup()
@@ -174,7 +177,7 @@ if not initialized:
 
             elif actionState == 3: #punching while in the air
 
-                if kbPressed(GLFW_KEY_S):
+                if pressed(Controls.DOWN):
                     activateAnim(e_AlucardJumpingPunchDown)
                 else:
                     activateAnim(e_AlucardJumpingPunchStraigt)
@@ -193,14 +196,14 @@ if not initialized:
             global actionState
             actionState = 1
         else:
-            moveH(1 if hurtHorizontalDirection == Direction.LEFT else -1)
+            moveH(1 if hurtHorizontalDirection == Direction.LEFT else -1)   
 
     def updateVariables():
         global isJumping
         global isRunning
         global nearFloor
         isJumping = components[VCOFF + 3]
-        isRunning = kbPressed(GLFW_KEY_A) or kbPressed(GLFW_KEY_D)
+        isRunning = pressed(Controls.RIGHT) or pressed(Controls.LEFT)
         nearFloor = distanceToFloor() < 5
 
     def getActionState():
@@ -215,13 +218,13 @@ if not initialized:
         elif actionState == 6:
             actionState = 6
 
-        elif not nearFloor or kbPressed(GLFW_KEY_SPACE): #in the air
+        elif not nearFloor or pressed(Controls.JUMP) : #in the air
             actionState = 3
 
-        elif nearFloor and  kbPressed(GLFW_KEY_S):#crouching
+        elif nearFloor and pressed(Controls.DOWN) :#crouching
             actionState = 2
 
-        elif nearFloor and (kbPressed(GLFW_KEY_LEFT_SHIFT) or actionState == 4):#back dashing
+        elif nearFloor and (pressed(Controls.POWERI) or actionState == 4):#back dashing
             actionState = 4
 
         elif nearFloor:
@@ -261,10 +264,10 @@ findItems()
 #first set the action state, then call the correct bahavior
 getActionState()
 
-if kbStruck(GLFW_KEY_TAB):
+if struck(Controls.INVENTORY):
     HUD.toggle()
 
-if actionState <= 3 and mPressed(GLFW_MOUSE_BUTTON_LEFT):
+if actionState <= 3 and pressed(Controls.ATTACKI):
     useSword()
     useItem(0)
 

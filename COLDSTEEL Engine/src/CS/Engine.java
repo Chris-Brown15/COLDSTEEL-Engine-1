@@ -41,6 +41,7 @@ import org.python.core.PyType;
 
 import AudioEngine.SoundEngine;
 import AudioEngine.Sounds;
+import CS.Controls.Control;
 import CSUtil.CSTFParser;
 import CSUtil.NkInitialize;
 import CSUtil.Timer;
@@ -90,9 +91,11 @@ import Renderer.Renderer;
  */
 public class Engine {
 	
-	public static RuntimeState STATE;
+	public static RuntimeState STATE;	
+	private static final Thread MAIN_THREAD;
 	
 	/*engine static objects*/
+	private static GLFWWindow WINDOW;
 	//layer manager. Array of lists of game objects
 	private static final CSArray<AbstractGameObjectLists<? extends Quads>> OBJECTS = new CSArray<>(CS.COLDSTEEL.NUMBER_LAYERS , 1);
 	//publicly accessable python interpreter
@@ -111,7 +114,13 @@ public class Engine {
 	private static final MemoryStack UI_ALLOCATOR = MemoryStack.ncreate(UI_ALLOCATOR_MEMORY , CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
 	//utilities
 	public static final PyType PYFUNCTION_PYTYPE = INTERNAL_ENGINE_PYTHON.get("functionForGettingType").getType();
+	
+	static {
 		
+		MAIN_THREAD = Thread.currentThread();
+		
+	}
+	
 	public static final void addGameObjectList(AbstractGameObjectLists<? extends Quads> list) {
 		
 		OBJECTS.addAt(list.renderOrder(), list);
@@ -142,7 +151,7 @@ public class Engine {
 	Renderer renderer;
 	private Levels currentLevel;
 	private MacroLevels currentMacroLevel;
-	private GLFWWindow window;
+	
 	private NkInitialize guiInitializer;
 	private Console engineConsole;
 	
@@ -160,7 +169,7 @@ public class Engine {
 		Engine.STATE = state;
 		
 	}
-		
+			
 	void initialize() {
 		
 		System.out.println("END STATIC\n");
@@ -173,46 +182,46 @@ public class Engine {
 		renderer = new Renderer();
 		SoundEngine.initialize();
 		
-		window = new GLFWWindow();	
+		WINDOW = new GLFWWindow();	
 		
 		scene = new Scene(
 			new ObjectLists(1) , 
 			new TileSets(3) , 
 			new StaticLists(2) , 
-			new EntityLists(4 , renderer.getCamera() , (key) -> window.keyboardPressed(key)) , 
+			new EntityLists(4 , renderer.getCamera()) , 
 			new UnownedItems(5) ,
 			new ObjectLists(6) ,
 			new TileSets(7) ,
 			new StaticLists(8) , 
 			new ColliderLists()	
 		);
-		
-    	window.intialize(this);
+				
+    	WINDOW.intialize(this);
     	
     	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
     	GL.createCapabilities();
     	
-    	guiInitializer = new NkInitialize(window.glfwWindow);
+    	guiInitializer = new NkInitialize(WINDOW.glfwWindow);
     	guiInitializer.initNKGUI();
     	NuklearContext = guiInitializer.getContext(); 
     	NuklearDrawCommands = guiInitializer.getCommands();
     	
-    	renderer.initialize(window); 
+    	renderer.initialize(() -> WINDOW.getWindowDimensions() , () -> WINDOW.getFramebufferDimensions()); 
     	
         // disable v-sync while loading
         glfwSwapInterval(0);
         
-    	window.setNuklearContext(NuklearContext);   	        	
+    	WINDOW.setNuklearContext(NuklearContext);   	        	
     	
         try(MemoryStack stack = stackPush()){
 
-        	glfwGetFramebufferSize(window.glfwWindow , window.winWidth , window.winHeight);
-        	glViewport(0, 0, window.winWidth.get(0), window.winHeight.get(0));
+        	glfwGetFramebufferSize(WINDOW.glfwWindow , WINDOW.winWidth , WINDOW.winHeight);
+        	glViewport(0, 0, WINDOW.winWidth.get(0), WINDOW.winHeight.get(0));
 
         }
         
         // Make the window visible
-		glfwShowWindow(window.glfwWindow);
+		glfwShowWindow(WINDOW.glfwWindow);
 		System.out.println("Window initialization complete.");
 		
 		switch(STATE) {
@@ -222,13 +231,13 @@ public class Engine {
 	    		editor = new Editor();
 	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
 	    			(targetState) -> switchState(targetState) , 
-	    			() -> window.getCursorWorldCoords() , 
-	    			() -> window.overrideCloseWindow());	    		
+	    			() -> WINDOW.getCursorWorldCoords() , 
+	    			() -> WINDOW.overrideCloseWindow());	    		
 				break;
 				
 			case GAME:
 				
-				gameRuntime = new GameRuntime(() -> currentLevel() , scene);
+				gameRuntime = new GameRuntime(scene);
 				gameRuntime.initialize();								
 				break;
 				
@@ -240,46 +249,24 @@ public class Engine {
 	
 		}
 		
-		NetworkedInstance networkedInstance = gameRuntime != null ? gameRuntime.getMultiplayerSession() : null;
-		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(networkedInstance , renderer, scene , window, engineConsole);
+		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(renderer, scene , engineConsole);
 		UI_SCRIPTING_INTERFACE = new UIScriptingInterface(engineConsole);
-		ITEM_SCRIPTING_INTERFACE = new ItemScriptingInterface(engineConsole , window , renderer , scene.entities());
+		ITEM_SCRIPTING_INTERFACE = new ItemScriptingInterface(engineConsole , renderer , scene.entities());
 		TRIGGER_SCRIPTING_INTERFACE = new TriggerScriptingInterface(scene , currentLevel);
 		PROJECTILE_SCRIPTING_INTERFACE = new ProjectileScriptingInterface(scene);
 		
-		//read controls
+		//read and set controls
 		try(BufferedReader reader = Files.newBufferedReader(Paths.get(data + "engine/controls.CStf"))){ 
 			
 			CSTFParser cstf = new CSTFParser(reader);
-			cstf.rlist();
-			UserControls.set(
+			int listSize = cstf.rlist("game");
 			
-				cstf.rintLabel("up"),
-				cstf.rintLabel("left"),
-				cstf.rintLabel("down"),
-				cstf.rintLabel("right"),
-				cstf.rintLabel("jump"),
-				cstf.rintLabel("attackI"),
-				cstf.rintLabel("attackII"),
-				cstf.rintLabel("attackIII"),
-				cstf.rintLabel("attackIV"),
-				cstf.rintLabel("attackV"),
-				cstf.rintLabel("powerI"),
-				cstf.rintLabel("powerII"),
-				cstf.rintLabel("powerIII"),
-				cstf.rintLabel("powerIV"),
-				cstf.rintLabel("powerV"),
-				cstf.rintLabel("powerVI"),
-				cstf.rintLabel("powerVII"),
-				cstf.rintLabel("powerIIX"),
-				cstf.rintLabel("powerIX"),
-				cstf.rintLabel("powerX"),
-				cstf.rintLabel("toggleInventory"),
-				cstf.rintLabel("toggleCharacterSheet"),
-				cstf.rintLabel("activate"),
-				cstf.rintLabel("map")
-					
-			);			
+			byte[] key = new byte[2];			
+			for(int i = 0 ; i < listSize ; i ++) {
+				
+				 String name = cstf.rlabel(key);
+				 Controls.setByName(name, key[0] , key[1]);				 
+			}
 			
 		} catch (IOException e) {
 
@@ -304,15 +291,15 @@ public class Engine {
 	    		editor = new Editor();
 	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
 	    			(targetState) -> switchState(targetState) , 
-	    			() -> window.getCursorWorldCoords() , 
-	    			() -> window.overrideCloseWindow());
+	    			() -> WINDOW.getCursorWorldCoords() , 
+	    			() -> WINDOW.overrideCloseWindow());
 	    		
 				break;
 				
 			case GAME:
 				
 				scene.clear();
-				gameRuntime = new GameRuntime(() -> currentLevel() , scene);
+				gameRuntime = new GameRuntime(scene);
 				GameRuntime.setState(GameState.MAIN_MENU);
 				gameRuntime.initialize();
 				
@@ -341,11 +328,11 @@ public class Engine {
     
 	void run() {
 
-        glClearColor(window.R, window.G, window.B, window.a);
+        glClearColor(WINDOW.R, WINDOW.G, WINDOW.B, WINDOW.a);
         glfwSwapInterval(1);
         System.out.println("Window running.");
         //This is the main loop.
-        while (!glfwWindowShouldClose(window.getGlfwWindow())) {
+        while (!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
         	        	
 	    	nk_input_begin(NuklearContext);
 	        glfwPollEvents();
@@ -376,13 +363,13 @@ public class Engine {
 	        	case EDITOR:
 	        		
 	        		editor.run(this);
-	        		if(!nk_window_is_any_hovered(NuklearContext) && window.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !window.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
+	        		if(!nk_window_is_any_hovered(NuklearContext) && WINDOW.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !WINDOW.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
 	        			
-	        			glfwGetCursorPos(window.glfwWindow , window.newX , window.newY);
-	        			int[] windowDims = window.getWindowDimensions();
-	        			window.newX.put(0 , getSCToWCForX(window.newX.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));
-	        			window.newY.put(0 , getSCToWCForY(window.newY.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));	        			
-	        			editor.resizeSelectionArea((float)window.newX.get(0), (float)window.newY.get(0));
+	        			glfwGetCursorPos(WINDOW.glfwWindow , WINDOW.newX , WINDOW.newY);
+	        			int[] windowDims = WINDOW.getWindowDimensions();
+	        			WINDOW.newX.put(0 , getSCToWCForX(WINDOW.newX.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));
+	        			WINDOW.newY.put(0 , getSCToWCForY(WINDOW.newY.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));	        			
+	        			editor.resizeSelectionArea((float)WINDOW.newX.get(0), (float)WINDOW.newY.get(0));
 	        				        			
 	        		}
 	        			        		
@@ -398,7 +385,7 @@ public class Engine {
         	
         	renderer.run();
         	
-            glfwSwapBuffers(window.glfwWindow);
+            glfwSwapBuffers(WINDOW.glfwWindow);
             framesThisSecond++;
             millisThisFrame += frameTimer.getElapsedTimeMillis();
 
@@ -413,7 +400,7 @@ public class Engine {
 		INTERNAL_ENGINE_PYTHON.shutDown();
 		guiInitializer.shutDownAllocator();
 		SoundEngine.shutDown();
-		window.shutDown();
+		WINDOW.shutDown();
 		ENTITY_SCRIPTING_INTERFACE.shutDown();
 		DialogUtils.shutDownDialogs();
 		nmemFree(UI_ALLOCATOR_MEMORY);
@@ -449,7 +436,7 @@ public class Engine {
 
 	public void closeOverride() {
 		
-		window.overrideCloseWindow();
+		WINDOW.overrideCloseWindow();
 		
 	}
 		
@@ -523,49 +510,105 @@ public class Engine {
 	
 	public void releaseKeys() {
 		
-		window.releaseKeys();
-		
-	}
-	
-	public int keyboardKeyState(int key) { 
-		
-		return window.getKeyboardKey(key);
+		WINDOW.releaseKeys();
 		
 	}
 
-	public int mouseKeyState(int key) { 
+	/**
+	 * Given some Control object, this will determine the state of that key and query the right peripheral. 
+	 * 
+	 * @param query
+	 * @return
+	 */
+	public static int controlKeyState(Control query) {
+
+		return switch(query.peripheral()) {
 		
-		return window.getMouseKey(key);
+			case Controls.KEYBOARD -> WINDOW.getKeyboardKey(CSKeys.glfwKey(query.key()));					
+			case Controls.MOUSE -> WINDOW.getMouseKey(CSKeys.glfwMouse(query.key()));
+			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+		
+		};
 		
 	}
 	
-	public boolean keyboardPressed(int key) { 
+	/**
+	 * True if the key referenced by {@code query} is pressed.
+	 * 
+	 * @param query — a User Control object
+	 * @return true if the key referenced in {@code query} is pressed
+	 */
+	public static boolean controlKeyPressed(Control query) {
+
+		return switch(query.peripheral()) {
 		
-		return window.keyboardPressed(key);
+			case Controls.KEYBOARD -> cs_keyboardPressed(query.key());
+			case Controls.MOUSE -> cs_mousePressed(query.key());
+			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+		
+		};
 		
 	}
 
-	public boolean keyboardReleased(int key) { 
+	public static boolean controlKeyStruck(Control query) {
+
+		return switch(query.peripheral()) {
 		
-		return window.keyboardReleased(key);
+			case Controls.KEYBOARD -> cs_keyboardStruck(query.key());					
+			case Controls.MOUSE -> cs_mouseStruck(query.key());
+			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+		
+		};
 		
 	}
 	
-	public boolean mousePressed(int key) { 
+	/*
+	 * Peripheral key state getters
+	 */
+	
+	public static int cs_keyboardKeyState(byte csKey) { 
 		
-		return window.mousePressed(key);
+		return WINDOW.getKeyboardKey(CSKeys.glfwKey(csKey));
 		
 	}
 
-	public boolean mouseReleased(int key) { 
+	public static int cs_mouseKeyState(byte csKey) { 
 		
-		return window.mouseReleased(key);
+		return WINDOW.getMouseKey(CSKeys.glfwMouse(csKey));
 		
 	}
 	
-	public boolean keyboardStruck(int key) { 
+	/*
+	 * Keyboard state queriers 
+	 */
+	
+	public static boolean cs_keyboardPressed(byte csKey) { 
 		
-		return window.keyboardStruck(key);
+		return WINDOW.keyboardPressed(CSKeys.glfwKey(csKey));
+		
+	}
+	
+	public static boolean cs_keyboardStruck(byte csKey) { 
+		
+		return WINDOW.keyboardStruck(CSKeys.glfwKey(csKey));
+		
+	}
+	
+	/*
+	 * Mouse state queriers
+	 */
+	public static boolean cs_mousePressed(byte csKey) { 
+		
+		return WINDOW.mousePressed(CSKeys.glfwMouse(csKey));
+		
+	}
+
+	public static boolean cs_mouseStruck(byte csKey) {
+		
+		return WINDOW.mouseStruck(CSKeys.glfwMouse(csKey));
 		
 	}
 	
@@ -621,9 +664,26 @@ public class Engine {
 			g_loadClearDeploy(data + "macrolevels/" + loadDoor.linkedLevel());
 			//this sets the player used load door to the load door linked to the one they just walked through
 			player.previouslyUsedLoadDoor(currentLevel.getLoadDoorByName(loadDoor.linkedLoadDoorName()));
-			player.moveTo(player.previouslyUsedLoadDoor().getConditionArea().getMidpoint());
+			float[] doorPos = player.previouslyUsedLoadDoor().getConditionArea().getMidpoint();
+			player.moveTo(doorPos);
 			scene.entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
+
+			NetworkedInstance multiplayer = gameRuntime.server();
+			if(multiplayer != null) { 
+				
+				try {
+					
+					multiplayer.onLevelLoad(currentLevel , doorPos);
+					
+				} catch (IOException e) {
+					
+					e.printStackTrace();
+					
+				}
+				
+			}
+			
 			GameRuntime.setState(previousState);
 			fadeIn(100d);
 			
@@ -674,13 +734,53 @@ public class Engine {
 		
 	}
 
-	public void g_loadSave(String selectedSaveNamePath , GameState targetState) {
+	public void g_loadSave(String selectedSaveNamePath , GameState targetState , boolean fade) {
 		
-		fadeToBlack(2000);
-		GameRuntime.setState(GameState.BUSY);
-		
-		TemporalExecutor.onElapseOf(2400d , () -> {
+		if(fade) {
+
+			fadeToBlack(2000);
+			GameRuntime.setState(GameState.BUSY);
 			
+			TemporalExecutor.onElapseOf(2400d , () -> {
+				
+				try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
+					
+					PlayerCharacter player = gameRuntime.player();
+					
+					if(player == null) player = new PlayerCharacter();
+					player.load(reader);
+					player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
+					player.playersEntity().LID(0);
+					
+					CSTFParser cstf = new CSTFParser(reader);
+					cstf.rlist();
+					
+					g_loadClearDeploy(data + "macrolevels/" + cstf.rlabel("level") + ".CStf");
+					float[] playersPosition = new float[2];
+					cstf.rlabel("position" , playersPosition);
+					
+					cstf.endList();
+					
+					player.moveTo(playersPosition);
+					scene.entities().addStraightIn(player.playersEntity());
+									
+					GameRuntime.setState(targetState);				
+					gameRuntime.player(player);
+									
+					fadeIn(1000);
+					
+				} catch (IOException e) {
+					
+					e.printStackTrace();
+					
+				}
+				
+			});
+		
+		} else {
+
+			GameRuntime.setState(GameState.BUSY);
+
 			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
 				
 				PlayerCharacter player = gameRuntime.player();
@@ -704,17 +804,15 @@ public class Engine {
 								
 				GameRuntime.setState(targetState);				
 				gameRuntime.player(player);
-								
-				fadeIn(1000);
-				
+							
 			} catch (IOException e) {
 				
 				e.printStackTrace();
 				
 			}
 			
-		});
-		
+		}
+			
 	}
 
 	private void g_buildOSTIntro(CSLinked<Sounds> introSegments) {
@@ -764,6 +862,26 @@ public class Engine {
 		
 	}
 	
+	private void setupMacroLevelOST(MacroLevels macro) {
+
+		//temporary holder of sounds loaded
+		CSLinked<Sounds> introSegments = new CSLinked<>();			
+		macro.forEachIntroSegment(x -> introSegments.add(SoundEngine.add(assets + "sounds/" + x)));
+	
+		CSLinked<Sounds> loopSegments = new CSLinked<>();			
+		macro.forEachLoopSegment(x -> loopSegments.add(SoundEngine.add(assets + "sounds/" + x)));
+		
+		if(introSegments.size() > 0) g_buildOSTIntro(introSegments);
+		
+		if(loopSegments.size() > 0) {			
+		
+			if(introSegments.size() > 0) 
+				TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> g_buildOSTLoop(loopSegments));
+			else g_buildOSTLoop(loopSegments);
+			
+		}
+	}
+	
 	/**
 	 * Loads the level at the given absolute file path, clears the scene, and deploys the new level. This should be called
 	 * <b> any </b> time a level should be loaded. 
@@ -775,47 +893,13 @@ public class Engine {
 		Levels newLevel = new Levels((CharSequence)(filepath));
 		MacroLevels macroLevel = newLevel.associatedMacroLevel();
 		
-		if(currentMacroLevel == null) {
-			
-			//temporary holder of sounds loaded
-			CSLinked<Sounds> introSegments = new CSLinked<>();			
-			macroLevel.forEachIntroSegment(x -> introSegments.add(SoundEngine.add(assets + "sounds/" + x)));
-		
-			CSLinked<Sounds> loopSegments = new CSLinked<>();			
-			macroLevel.forEachLoopSegment(x -> loopSegments.add(SoundEngine.add(assets + "sounds/" + x)));
-			
-			if(introSegments.size() > 0) g_buildOSTIntro(introSegments);
-			
-			if(loopSegments.size() > 0) {			
-			
-				if(introSegments.size() > 0) 
-					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> g_buildOSTLoop(loopSegments));
-				else g_buildOSTLoop(loopSegments);
-				
-			}
-			
-		} else if(currentMacroLevel != null && !macroLevel.equals(currentMacroLevel)) {
+		if(currentMacroLevel == null) setupMacroLevelOST(macroLevel); 
+		else if(currentMacroLevel != null && !macroLevel.equals(currentMacroLevel)) {
 			
 			Renderer.freeMacroLevel(currentMacroLevel);
 			SoundEngine.freeMacroLevel(currentMacroLevel);
-
-			//temporary holder of sounds loaded
-			CSLinked<Sounds> introSegments = new CSLinked<>();			
-			macroLevel.forEachIntroSegment(x -> introSegments.add(SoundEngine.add(assets + "sounds/" + x)));
-		
-			CSLinked<Sounds> loopSegments = new CSLinked<>();			
-			macroLevel.forEachLoopSegment(x -> loopSegments.add(SoundEngine.add(assets + "sounds/" + x)));
+			setupMacroLevelOST(macroLevel);
 			
-			if(introSegments.size() > 0) g_buildOSTIntro(introSegments);
-			
-			if(loopSegments.size() > 0) {			
-			
-				if(introSegments.size() > 0) 
-					TemporalExecutor.onTrue(() -> introSegments.get(introSegments.size() - 1).val.stopped() , () -> g_buildOSTLoop(loopSegments));
-				else g_buildOSTLoop(loopSegments);
-				
-			}
-		
 		}
 		
 		currentMacroLevel = macroLevel;
@@ -824,8 +908,40 @@ public class Engine {
 		newLevel.deploy(scene);
 		
 		currentLevel = newLevel;
+
 		onLevelLoad.accept(newLevel);
 		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);		
+		
+	}
+
+	public void g_clearDeploy(Levels level , Scene scene) {
+		
+		MacroLevels macroLevel = level.associatedMacroLevel();
+		
+		if(currentMacroLevel == null) setupMacroLevelOST(macroLevel);
+		else if(currentMacroLevel != null && !macroLevel.equals(currentMacroLevel)) {
+			
+			Renderer.freeMacroLevel(currentMacroLevel);
+			SoundEngine.freeMacroLevel(currentMacroLevel);
+			setupMacroLevelOST(macroLevel);
+		
+		}
+		
+		currentMacroLevel = macroLevel;
+		
+		this.scene.clear();
+		this.scene = scene;
+		
+		currentLevel = level;
+		
+		onLevelLoad.accept(level);
+		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(level);		
+	
+	}
+
+	public boolean g_keyPressed(int key) {
+		
+		return WINDOW.keyboardPressed(key); 
 		
 	}
 	
@@ -839,8 +955,37 @@ public class Engine {
 	public void mg_enterTextChat() {
 		
 	}
-
 	
+	public void mg_startHostedServer() {
+		
+		gameRuntime.startUserHostedServer(this);
+		
+	}
+	
+	public boolean mg_isHostedServerRunning() {
+		
+		return gameRuntime.isHostedServerRunning();
+		
+	}
+	
+	public String mg_hostedServerIPAddress() {
+		
+		return gameRuntime.hostedServerIPAddress();
+		
+	}
+	
+	public int mg_hostedServerPort() {
+		
+		return gameRuntime.hostedServerPort();
+		
+	}
+	
+	public void mg_propogateNewClientAndServer() {
+		
+		ENTITY_SCRIPTING_INTERFACE.setNetworkingVariables(gameRuntime.client() , gameRuntime.server());
+		
+	}
+
     /*
      * ______________________________________________________
      * |													|
@@ -1095,6 +1240,12 @@ public class Engine {
     public static EnginePython INTERNAL_ENGINE_PYTHON() {
     	
     	return INTERNAL_ENGINE_PYTHON;
+    	
+    }
+    
+    public static boolean isMainThread() {
+    	
+    	return Thread.currentThread() == MAIN_THREAD;
     	
     }
     

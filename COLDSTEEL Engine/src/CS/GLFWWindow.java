@@ -41,7 +41,7 @@ public class GLFWWindow {
 	private Engine engine;
 	private NkContext NuklearContext;	
 		
-	public GLFWWindow() {
+	GLFWWindow() {
 
         title = "COLDSTEEL";
         R = 0.15f;
@@ -112,7 +112,7 @@ public class GLFWWindow {
     	
     }
     
-    public void setNuklearContext(NkContext context) {
+    void setNuklearContext(NkContext context) {
 
     	NuklearContext = context;
 
@@ -124,14 +124,14 @@ public class GLFWWindow {
 
     }
 
-	public long getGlfwWindow() {
+	long getGlfwWindow() {
 
 		return glfwWindow;
 
 	}
 
 	
-	public int[] getWindowDimensions(){
+	int[] getWindowDimensions(){
 	
 		try(MemoryStack stack = stackPush()){
 		
@@ -143,13 +143,25 @@ public class GLFWWindow {
 	
 	}
 
+	int[] getFramebufferDimensions() {
+
+		try(MemoryStack stack = stackPush()){
+		
+			IntBuffer dims = stack.mallocInt(2);
+			glfwGetFramebufferSize(glfwWindow , dims.slice(0, 1) , dims.slice(1, 1));
+			return new int [] {dims.get() , dims.get()};
+		
+		}
+	
+	}
+	
 	/**
 	* 
 	* Gets cursor position x and y coordinates in screen space and returns them as an array.
 	* 
 	* @return double array where index 0 is cursor's x position and index 1 is cursor's y position
 	*/
-	public double[] getCursorPos(){
+	double[] getCursorPos(){
 	
 		try(MemoryStack stack = stackPush()){
 		
@@ -168,100 +180,163 @@ public class GLFWWindow {
 		double[] coords = getCursorPos();		
 		int[] winDims = getWindowDimensions();
 		return new float[] {(float) getSCToWCForX(coords[0] , winDims[0] , winDims[1] , engine.renderer.getCamera()) ,
-						(float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.renderer.getCamera())};
+						    (float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.renderer.getCamera())};
 	
 	}
 	
 	//Nilhearth Echo Pact
 	//keyboard struck
     
-	private static boolean isUpStruck = false;
-	private static boolean isLeftStruck = false;
-	private static boolean isDownStruck = false;
-	private static boolean isRightStruck = false;
-	         
-	private static boolean isTabStruck = false;
-	private static boolean isCapsStruck = false;
-	private static boolean isLShiftStruck = false;
-	private static boolean isLControlStruck = false;
-	private static boolean isLAltStruck = false;
-	private static boolean isBackSpaceStruck = false;
-	private static boolean isEnterStruck = false;
-	private static boolean isRShiftStruck = false;
-	private static boolean isRAltStruck = false;
-	private static boolean isRControlStruck = false;
+	private static boolean 
+		
+		isF1Struck = false,
+		isF2Struck = false,
+		isF3Struck = false,
+		isF4Struck = false,
+		isF5Struck = false,
+		isF6Struck = false,
+		isF7Struck = false,
+		isF8Struck = false,
+		isF9Struck = false,
+		isF10Struck = false,
+		isF11Struck = false,
+		isF12Struck = false,
+		isF13Struck = false,
+		isF14Struck = false,
+		isF15Struck = false,
+		isF16Struck = false,
+		isF17Struck = false,
+		isF18Struck = false,
+		isF19Struck = false,
+		isF20Struck = false,
+		isF21Struck = false,
+		isF22Struck = false,
+		isF23Struck = false,
+		isF24Struck = false,
+		isF25Struck = false,
+		
+		isUpStruck = false,
+		isLeftStruck = false,
+		isDownStruck = false,
+		isRightStruck = false,
+		
+		isTabStruck = false,
+		isCapsStruck = false,
+		isLShiftStruck = false,
+		isLControlStruck = false,
+		isLAltStruck = false,
+		isBackSpaceStruck = false,
+		isEnterStruck = false,
+		isRShiftStruck = false,
+		isRAltStruck = false,
+		isRControlStruck = false,
+		
+		isSpaceStruck = false,
+	   	
+		isQStruck = false,
+		isWStruck = false,
+		isEStruck = false,
+		isRStruck = false,
+		isTStruck = false,
+		isYStruck = false,
+		isUStruck = false,
+		isIStruck = false,
+		isOStruck = false,
+		isPStruck = false,
+		
+		isAStruck = false,
+		isSStruck = false,
+		isDStruck = false,
+		isFStruck = false,
+		isGStruck = false,
+		isHStruck = false,
+		isJStruck = false,
+		isKStruck = false,
+		isLStruck = false,
 	
-	private static boolean isSpaceStruck = false;
-   	
-	private static boolean isQStruck = false;
-	private static boolean isWStruck = false;
-	private static boolean isEStruck = false;
-	private static boolean isRStruck = false;
-	private static boolean isTStruck = false;
-	private static boolean isYStruck = false;
-	private static boolean isUStruck = false;
-	private static boolean isIStruck = false;
-	private static boolean isOStruck = false;
-	private static boolean isPStruck = false;
+		isZStruck = false,
+		isXStruck = false,
+		isCStruck = false,
+		isVStruck = false,
+		isBStruck = false,
+		isNStruck = false,
+		isMStruck = false,
+	    
+		isKP1Struck = false,
+		isKP2Struck = false,
+		isKP3Struck = false,
+		isKP4Struck = false,
+		isKP5Struck = false,
+		isKP6Struck = false,
+		isKP7Struck = false,
+		isKP8Struck = false,
+		isKP9Struck = false,
+		isKP0Struck = false,
+	    
+		is1Struck = false,
+		is2Struck = false,
+		is3Struck = false,
+		is4Struck = false,
+		is5Struck = false,
+		is6Struck = false,
+		is7Struck = false,
+		is8Struck = false,
+		is9Struck = false,
+		is0Struck = false,
+		
+		isGraveStruck = false,
+		isLBracketStruck = false,
+		isRBracketStruck = false,
+		isBackslashStruck = false,
+		isSemicolonStruck = false,
+		isApostropheStruck = false,
+		isCommaStruck = false,
+		isPeriodStruck = false,
+		isSlashStruck = false,
+		isMinusStruck = false,
+		isEqualsStruck = false,
+		
+		isKPDivideStruck = false,
+		isKPMultiplyStruck = false,
+		isKPMinusStruck = false,
+		isKPAddStruck = false,
+		isKPEnterStruck = false,
+		isKPDecimalStruck = false
+		
+	;
 	
-	private static boolean isAStruck = false;
-	private static boolean isSStruck = false;
-	private static boolean isDStruck = false;
-	private static boolean isFStruck = false;
-	private static boolean isGStruck = false;
-	private static boolean isHStruck = false;
-	private static boolean isJStruck = false;
-	private static boolean isKStruck = false;
-	private static boolean isLStruck = false;
-
-	private static boolean isZStruck = false;
-	private static boolean isXStruck = false;
-	private static boolean isCStruck = false;
-	private static boolean isVStruck = false;
-	private static boolean isBStruck = false;
-	private static boolean isNStruck = false;
-	private static boolean isMStruck = false;
-          
-	private static boolean isKP1Struck = false;
-	private static boolean isKP2Struck = false;
-	private static boolean isKP3Struck = false;
-	private static boolean isKP4Struck = false;
-	private static boolean isKP5Struck = false;
-	private static boolean isKP6Struck = false;
-	private static boolean isKP7Struck = false;
-	private static boolean isKP8Struck = false;
-	private static boolean isKP9Struck = false;
-	private static boolean isKP0Struck = false;
-    
-	private static boolean is1Struck = false;
-	private static boolean is2Struck = false;
-	private static boolean is3Struck = false;
-	private static boolean is4Struck = false;
-	private static boolean is5Struck = false;
-	private static boolean is6Struck = false;
-	private static boolean is7Struck = false;
-	private static boolean is8Struck = false;
-	private static boolean is9Struck = false;
-	private static boolean is0Struck = false;
-   	
 	//mouse states
 	
-	private static boolean isLMouseStruck = false;
-	private static boolean isRMouseStruck = false;
-	private static boolean isMMouseStruck = false;
-	private static boolean isM4Struck = false;
-	private static boolean isM5Struck = false;
+	private static boolean
+		isLMouseStruck = false,
+		isRMouseStruck = false,
+		isMMouseStruck = false,
+		isM4Struck = false,
+		isM5Struck = false
+	;
 
 	//gamepad states
 	//...	
 	
-	public int getKeyboardKey(int key) {
+	/**
+	 * Given a GLFW keyboard keycode, returns the state of that key, one of {@code RELEASE , PRESS, or, REPEAT}
+	 * 
+	 * @param key
+	 * @return
+	 */
+	int getKeyboardKey(int key) {
 		
 		return glfwGetKey(glfwWindow , key);
 		
 	}
 
-	public int getMouseKey(int key) { 
+	/**
+	 * Given a GLFW mouse keycode, returns the state of that key, one of {@code RELEASE , PRESS, or, REPEAT}
+	 * 
+	 * @param key
+	 * @return
+	 */
+	int getMouseKey(int key) { 
 		
 		return glfwGetMouseButton(glfwWindow , key);
 		
@@ -273,28 +348,41 @@ public class GLFWWindow {
 		
 	}
 
-	boolean keyboardReleased(int key) { 
-		
-		return glfwGetKey(glfwWindow , key) == GLFW_RELEASE;
-		
-	}
-	
 	boolean mousePressed(int key) { 
 	
 		return glfwGetMouseButton(glfwWindow ,  key) == GLFW_PRESS;
 		
 	}
 
-	boolean mouseReleased(int key) { 
-	
-		return glfwGetMouseButton(glfwWindow ,  key) == GLFW_RELEASE;
-		
-	}
-	
-	public boolean keyboardStruck(int key) { 
+	boolean keyboardStruck(int key) { 
 		
 		return switch(key) { 
 			
+			case GLFW_KEY_F1 -> isF1Struck;
+			case GLFW_KEY_F2 -> isF2Struck;
+			case GLFW_KEY_F3 -> isF3Struck;
+			case GLFW_KEY_F4 -> isF4Struck;
+			case GLFW_KEY_F5 -> isF5Struck;
+			case GLFW_KEY_F6 -> isF6Struck;
+			case GLFW_KEY_F7 -> isF7Struck;
+			case GLFW_KEY_F8 -> isF8Struck;
+			case GLFW_KEY_F9 -> isF9Struck;
+			case GLFW_KEY_F10 -> isF10Struck;
+			case GLFW_KEY_F11 -> isF11Struck;
+			case GLFW_KEY_F12 -> isF12Struck;
+			case GLFW_KEY_F13 -> isF13Struck;
+			case GLFW_KEY_F14 -> isF14Struck;
+			case GLFW_KEY_F15 -> isF15Struck;
+			case GLFW_KEY_F16 -> isF16Struck;
+			case GLFW_KEY_F17 -> isF17Struck;
+			case GLFW_KEY_F18 -> isF18Struck;
+			case GLFW_KEY_F19 -> isF19Struck;
+			case GLFW_KEY_F20 -> isF20Struck;
+			case GLFW_KEY_F21 -> isF21Struck;
+			case GLFW_KEY_F22 -> isF22Struck;
+			case GLFW_KEY_F23 -> isF23Struck;
+			case GLFW_KEY_F24 -> isF24Struck;
+			case GLFW_KEY_F25 -> isF25Struck;		
 			case GLFW_KEY_UP -> isUpStruck;
 			case GLFW_KEY_DOWN -> isDownStruck;
 			case GLFW_KEY_LEFT -> isLeftStruck;
@@ -355,14 +443,31 @@ public class GLFWWindow {
 			case GLFW_KEY_6 -> is6Struck;
 			case GLFW_KEY_7 -> is7Struck;
 			case GLFW_KEY_8 -> is8Struck;
-			case GLFW_KEY_9 -> is9Struck;			
+			case GLFW_KEY_9 -> is9Struck;
+			case GLFW_KEY_GRAVE_ACCENT -> isGraveStruck;
+			case GLFW_KEY_LEFT_BRACKET -> isLBracketStruck;
+			case GLFW_KEY_RIGHT_BRACKET -> isRBracketStruck;
+			case GLFW_KEY_BACKSLASH -> isBackslashStruck;
+			case GLFW_KEY_SEMICOLON -> isSemicolonStruck;
+			case GLFW_KEY_APOSTROPHE -> isApostropheStruck; //TODO: test me
+			case GLFW_KEY_COMMA -> isCommaStruck;
+			case GLFW_KEY_PERIOD -> isPeriodStruck;
+			case GLFW_KEY_SLASH -> isSlashStruck;
+			case GLFW_KEY_MINUS -> isMinusStruck;
+			case GLFW_KEY_EQUAL -> isEqualsStruck;
+			case GLFW_KEY_KP_DIVIDE -> isKPDivideStruck;
+			case GLFW_KEY_KP_MULTIPLY -> isKPMultiplyStruck;
+			case GLFW_KEY_KP_SUBTRACT -> isKPMinusStruck;
+			case GLFW_KEY_KP_ADD -> isKPAddStruck;
+			case GLFW_KEY_KP_ENTER -> isKPEnterStruck;
+			case GLFW_KEY_KP_DECIMAL -> isKPDecimalStruck;
 			default -> throw new IllegalArgumentException(key + " is not a valid GLFW key code");
 			
 		};
 		
 	}
 	
-	public boolean mouseStruck(int key) { 
+	boolean mouseStruck(int key) { 
 		
 		return switch(key) {
 		
@@ -377,8 +482,34 @@ public class GLFWWindow {
 		
 	}
 	
-	public void releaseKeys() {
-
+	void releaseKeys() {
+		
+		isF1Struck = false;
+		isF2Struck = false;
+		isF3Struck = false;
+		isF4Struck = false;
+		isF5Struck = false;
+		isF6Struck = false;
+		isF7Struck = false;
+		isF8Struck = false;
+		isF9Struck = false;
+		isF10Struck = false;
+		isF11Struck = false;
+		isF12Struck = false;
+		isF13Struck = false;
+		isF14Struck = false;
+		isF15Struck = false;
+		isF16Struck = false;
+		isF17Struck = false;
+		isF18Struck = false;
+		isF19Struck = false;
+		isF20Struck = false;
+		isF21Struck = false;
+		isF22Struck = false;
+		isF23Struck = false;
+		isF24Struck = false;
+		isF25Struck = false;
+				
 		isUpStruck = false;
 		isLeftStruck = false;
 		isDownStruck = false;
@@ -448,6 +579,25 @@ public class GLFWWindow {
 		is9Struck = false;
 		is0Struck = false;
 	    
+		isGraveStruck = false;
+		isLBracketStruck = false;
+		isRBracketStruck = false;
+		isBackslashStruck = false;
+		isSemicolonStruck = false;
+		isApostropheStruck = false;
+		isCommaStruck = false;
+		isPeriodStruck = false;
+		isSlashStruck = false;
+		isMinusStruck = false;
+		isEqualsStruck = false;
+
+		isKPDivideStruck = false;
+		isKPMultiplyStruck = false;
+		isKPMinusStruck = false;
+		isKPAddStruck = false;
+		isKPEnterStruck = false;
+		isKPDecimalStruck = false;
+		
 		isLMouseStruck = false;
 		isRMouseStruck = false;
 		isMMouseStruck = false;
@@ -837,7 +987,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isGraveStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1009,7 +1163,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isMinusStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1021,7 +1179,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isEqualsStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1106,17 +1268,6 @@ public class GLFWWindow {
 
     					break;
 
-    				case GLFW_KEY_SLASH:
-
-    					switch(action){
-
-    						case GLFW_PRESS:break;
-    						case GLFW_RELEASE:break;
-    						case GLFW_REPEAT:break;
-
-    					}
-
-    					break;
     				//XXX
     				case GLFW_KEY_TAB:
 
@@ -1307,7 +1458,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isLBracketStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1319,7 +1474,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isRBracketStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1331,7 +1490,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isBackslashStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1572,7 +1735,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isSemicolonStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1584,7 +1751,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isApostropheStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1754,7 +1925,11 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isCommaStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
@@ -1766,14 +1941,34 @@ public class GLFWWindow {
 
     					switch(action){
 
-    						case GLFW_PRESS:break;
+    						case GLFW_PRESS:
+    							
+    							isPeriodStruck = true;
+    							break;
+    							
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
     					}
 
     					break;
-    				
+
+    				case GLFW_KEY_SLASH:
+
+    					switch(action){
+
+    						case GLFW_PRESS:
+    							
+    							isSlashStruck = true;
+    							break;
+    							
+    						case GLFW_RELEASE:break;
+    						case GLFW_REPEAT:break;
+
+    					}
+
+    					break;
+    					
     				case GLFW_KEY_RIGHT_SHIFT:
 
     					switch(action){
@@ -1920,7 +2115,7 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							isSpaceStruck = true;    							
+    							isSpaceStruck = true;    				
     							break;
 
     						case GLFW_RELEASE:break;
@@ -2128,7 +2323,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPDivideStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 
@@ -2140,7 +2339,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPMultiplyStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 
@@ -2152,7 +2355,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPMinusStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 
@@ -2164,7 +2371,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPAddStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 
@@ -2176,7 +2387,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPEnterStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 
@@ -2188,7 +2403,11 @@ public class GLFWWindow {
 
         					switch(action){
 
-        						case GLFW_PRESS:break;
+        						case GLFW_PRESS:
+        							
+        							isKPDecimalStruck = true;
+        							break;
+        							
         						case GLFW_RELEASE:break;
         						case GLFW_REPEAT:break;
 

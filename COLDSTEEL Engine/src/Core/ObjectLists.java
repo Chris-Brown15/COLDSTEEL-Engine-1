@@ -80,7 +80,7 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
 
     public void texture(int index , String filepath){
 
-    	list.getVal(index).setTexture(Renderer.Renderer.loadTexture(filepath));
+    	Renderer.Renderer.loadTexture(list.getVal(index).texture , filepath);
 
     }
 

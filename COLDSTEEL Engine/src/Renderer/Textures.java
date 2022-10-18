@@ -33,12 +33,25 @@ import org.lwjgl.system.MemoryStack;
 public class Textures {
 
 	public static record ImageInfo(String path , int width , int height , int BPP){};
+	
 	private int textureID;
-	private ByteBuffer data;
+	private ByteBuffer data;	
+	public ImageInfo imageInfo;
+	private boolean initialized = false;
 	
-	public final ImageInfo imageInfo;
+	String filepath() {
 	
-	public Textures(String filepath) {
+		return imageInfo.path;
+		
+	}	
+	
+	void free() {
+
+		if(data != null) stbi_image_free(data);
+		
+	}
+	
+	void initialize(String filepath) {
 		
 		if(Files.notExists(Paths.get(filepath))) assert false: filepath + " does not point to a file.";		
 		
@@ -60,31 +73,6 @@ public class Textures {
 						
 		}
 		
-	}
-	
-	public Textures(int textureID , ImageInfo image) {
-		
-		assert glIsTexture(textureID) : "ERROR: " + textureID + " is not a valid openGL texture handle.";
-		
-		this.textureID = textureID;
-		this.imageInfo = image;
-		
-	}
-	
-	String filepath() {
-	
-		return imageInfo.path;
-		
-	}	
-	
-	void free() {
-
-		if(data != null) stbi_image_free(data);
-		
-	}
-	
-	void initialize() {
-		
 		textureID = glGenTextures();
 		glBindTexture(GL_TEXTURE_2D , textureID);
     	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -94,6 +82,19 @@ public class Textures {
 		glTexImage2D(GL_TEXTURE_2D , 0 , GL_RGB8 , imageInfo.width() , imageInfo.height() , 0 , GL_RGBA , GL_UNSIGNED_BYTE , data);
 		glBindTexture(GL_TEXTURE_2D , 0);
 		stbi_image_free(data);
+		
+		initialized = true;
+		
+	}
+	
+	void initialize(int textureID , ImageInfo image) {
+		
+		assert glIsTexture(textureID) : "ERROR: " + textureID + " is not a valid openGL texture handle.";
+		
+		this.textureID = textureID;
+		this.imageInfo = image;
+		
+		initialized = true;
 		
 	}
 	
@@ -125,6 +126,12 @@ public class Textures {
 	public String toString() {
 		
 		return "Texture " + imageInfo.path + ", GL TextureID: " + textureID;
+		
+	}
+	
+	public boolean filledOut() {
+		
+		return initialized;
 		
 	}
 	

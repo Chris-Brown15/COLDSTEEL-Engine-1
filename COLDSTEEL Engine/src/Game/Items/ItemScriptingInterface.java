@@ -4,7 +4,6 @@ import org.joml.Math;
 import org.python.core.PyCode;
 
 import static CS.Engine.INTERNAL_ENGINE_PYTHON;
-import CS.GLFWWindow;
 import CSUtil.QuadIndices;
 import CSUtil.DataStructures.cdNode;
 import Core.Console;
@@ -26,14 +25,12 @@ public class ItemScriptingInterface {
 	static final PyCode ITEM_SCRIPTING_FACADE = INTERNAL_ENGINE_PYTHON().compile("CS_itemScriptingFunctions.py");;
 	
 	Console console;
-	GLFWWindow window;
 	Renderer renderer;
 	EntityLists eList;
 	
-	public ItemScriptingInterface(Console console, GLFWWindow glfw , Renderer renderer , EntityLists eList) {
+	public ItemScriptingInterface(Console console, Renderer renderer , EntityLists eList) {
 		
 		this.console = console;
-		window = glfw; 
 		this.renderer = renderer;
 		this.eList = eList;
 		
@@ -42,12 +39,6 @@ public class ItemScriptingInterface {
 	public Console getConsole() {
 				
 		return console;
-		
-	}
-
-	public GLFWWindow getGLFW() {
-		
-		return window;
 		
 	}
 

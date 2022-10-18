@@ -438,7 +438,7 @@ public class Items extends Quads implements GameFiles<Items>{
 			
 			name = cstf.rname();
 			String textureNamePath = cstf.rlabel("texture");			
-			if(!textureNamePath.equals("null")) setTexture(Renderer.Renderer.loadTexture(CS.COLDSTEEL.assets + "items/" + textureNamePath));
+			if(!textureNamePath.equals("null")) Renderer.Renderer.loadTexture(texture , CS.COLDSTEEL.assets + "items/" + textureNamePath);
 			
 			float[] array = new float[6];
 			

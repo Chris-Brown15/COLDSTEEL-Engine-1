@@ -1,7 +1,5 @@
 package Renderer;
 
-import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
-import static org.lwjgl.glfw.GLFW.glfwGetWindowSize;
 import static org.lwjgl.nuklear.Nuklear.NK_ANTI_ALIASING_ON;
 import static org.lwjgl.nuklear.Nuklear.NK_FORMAT_COUNT;
 import static org.lwjgl.nuklear.Nuklear.NK_FORMAT_FLOAT;
@@ -86,6 +84,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -101,30 +100,32 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
 import CS.Engine;
-import CS.GLFWWindow;
 import CS.RuntimeState;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSStack;
+import CSUtil.DataStructures.Tuple2;
+import CSUtil.DataStructures.Tuple3;
 import Core.CSType;
 import Core.Quads;
 import Core.Statics.Statics;
 import Game.Levels.MacroLevels;
 import Physics.ColliderLists;
+import Renderer.Textures.ImageInfo;
 
 public class Renderer {
 
-	private final Thread nuklearRenderThread = new Thread(new Runnable() {
-		
-		@Override public void run(){
-		
-			renderUI();
-			
-		}
-		
-	});
-	
 	private static final CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
+	private static final CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
+	
+	private static final CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static final CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+    private static final CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static final CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+
+    private static int drawCalls = 0;
+    private static double renderTime;
+    
 	private Textures previousTexture = null;
 	
 	private Camera camera = new Camera(new Vector2f(0 , 0));
@@ -136,7 +137,6 @@ public class Renderer {
     
     private FloatBuffer vertexBuffer;
 	private IntBuffer elementBuffer;
-	private static int drawCalls = 0;
 
 	private boolean renderOthers = true;
 	private ArrayList<Particle> backgroundParticles = new ArrayList<Particle>();
@@ -145,17 +145,14 @@ public class Renderer {
 	private ArrayList<float[]> raw = new ArrayList<float[]>();
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
-    private static double renderTime;
     private double renderMilliCounter = 0;
     private Timer renderTimer = new Timer();
 
     public final Quads screenQuad = new Quads(-1);
     
-    private static final CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static final CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-    private static final CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static final CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-
+    private Supplier<int[]> windowDims;
+    private Supplier<int[]> framebufferDims;
+        
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -210,25 +207,48 @@ public class Renderer {
 		
 	}
 	
-	public static final Textures loadTexture(String filepath) {
+	public static final synchronized void loadTexture(Textures texture , String filepath) {
+
+		if(filepath == null || filepath.equals("null")) return;
 		
-		if(filepath == null || filepath.equals("null")) return null;
-		
-		Textures newTexture = new Textures(filepath);
-		newTexture.initialize();
-		LOADED_TEXTURES.add(newTexture);
-		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + filepath);
-		return newTexture;
+		if(!Engine.isMainThread()) TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(filepath , null , null)));
+		else {
+			
+			texture.initialize(filepath);
+			LOADED_TEXTURES.add(texture);
+			if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + filepath);
+			
+		}
 		
 	}
 
-	public static final void addTexture(Textures newTexture) {
-		
-		LOADED_TEXTURES.add(newTexture);
-		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to addTexture. Parameters: " + newTexture.toString());
+	public static final synchronized void loadTexture(Textures texture , int textureID , ImageInfo info) {
+
+		if(!Engine.isMainThread()) TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(null , textureID , info)));
+		else {
+			
+			texture.initialize(textureID , info);
+			LOADED_TEXTURES.add(texture);
+			if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + textureID + ", " + info);
+			
+		}
 		
 	}
+	
+	public static final void handleTextureLoadRequests() {
+
+		assert Engine.isMainThread() : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
+		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> requests;
+		while(!TEXTURE_LOAD_REQUESTS.empty()) {
+			
+			requests = TEXTURE_LOAD_REQUESTS.pop();
+			if(requests.getSecond().getFirst() != null) loadTexture(requests.getFirst() , requests.getSecond().getFirst());
+			else loadTexture(requests.getFirst() , requests.getSecond().getSecond() , requests.getSecond().getThird());
+			
+		}
 		
+	}
+	
     public static void draw_background(Quads drawThis) {
     	
     	Objects.requireNonNull(drawThis);
@@ -363,10 +383,12 @@ public class Renderer {
 
     }
 
-	public void initialize(GLFWWindow window){
-
+	public void initialize(Supplier<int[]> windowDims , Supplier<int[]> framebufferDims){
+		
+		this.windowDims = windowDims;
+		this.framebufferDims = framebufferDims;
+		
 		System.out.println("Beginning Renderer initialization...");
-		this.glfw = window.getGlfwWindow();
 		shader.initializeShader();
 		shader.activate();
 		initializeVAO();
@@ -376,13 +398,9 @@ public class Renderer {
 		initializeVertexAttribs();
 		setOpenGLState();
 		initializeNuklear();
-		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to initialize. Parameters: " + window.toString()); 
-		
-		
-		int[] dims = window.getWindowDimensions();		
+		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to initialize."); 
 		screenQuad.moveTo(camera.cameraPosition);		
-		screenQuad.setWidth(dims[0]);
-		screenQuad.setHeight(dims[1]);
+		screenQuad.setDimensions(windowDims.get());
 		screenQuad.makeTranslucent(0.0f);
 		
 		System.out.println("Renderer initialization complete.");
@@ -519,7 +537,7 @@ public class Renderer {
     		
     		Textures texture = target.getTexture();
     		
-    		if(texture != null) {
+    		if(texture.filledOut()) {
     			
     			shader.uniformInt("mode", 1);
     			
@@ -617,6 +635,8 @@ public class Renderer {
 
     	drawCalls = 0;
     	
+    	handleTextureLoadRequests();
+    	
     	renderTimer.start();
     	previousTexture = null;    	
     	
@@ -652,7 +672,7 @@ public class Renderer {
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
     	
-    	nuklearRenderThread.run();
+    	renderUI();
     	
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
@@ -694,8 +714,7 @@ public class Renderer {
     private int uniform_proj;
     private int uiMode;
 
-    private Matrix4f identityMatrix = new Matrix4f().identity();   
-    private long glfw;
+    private Matrix4f identityMatrix = new Matrix4f().identity();
     
     /*
      * ______________________________________________________
@@ -749,7 +768,11 @@ public class Renderer {
 
         null_texture.texture().id(nullTexID);
         null_texture.uv().set(0.5f, 0.5f);
-        setNuklearWidthHeight();
+        
+        int[] dims = windowDims.get();
+        width = dims[0]; height = dims[1];
+        int[] frameBuffer = framebufferDims.get();
+        display_width = frameBuffer[0]; display_height = frameBuffer[1];
         
         glBindTexture(GL_TEXTURE_2D, nullTexID);
 
@@ -793,39 +816,15 @@ public class Renderer {
      *
      */
 
-	private void setNuklearWidthHeight() {
-
-    	try (MemoryStack stack = stackPush()) {
-            IntBuffer w = stack.mallocInt(1);
-            IntBuffer h = stack.mallocInt(1);
-
-            glfwGetWindowSize(glfw, w, h);
-            width = w.get(0);
-            height = h.get(0);
-
-            glfwGetFramebufferSize(glfw, w, h);
-            display_width = w.get(0);
-            display_height = h.get(0);
-
-        }
-
-    }
-
     private void renderUI() {
     	
     	try (MemoryStack stack = stackPush()) {
-        
-    		IntBuffer w = stack.mallocInt(1);
-            IntBuffer h = stack.mallocInt(1);
 
-            glfwGetWindowSize(glfw, w, h);
-            width = w.get(0);
-            height = h.get(0);
-
-            glfwGetFramebufferSize(glfw, w, h);
-            display_width = w.get(0);
-            display_height = h.get(0);
-
+            int[] dims = windowDims.get();
+            width = dims[0]; height = dims[1];
+            int[] frameBuffer = framebufferDims.get();
+            display_width = frameBuffer[0]; display_height = frameBuffer[1];
+            
             glUniformMatrix4fv(uniform_view , false , viewBuffer);
     		glUniform1i(uiMode , 2);
 

@@ -11,9 +11,9 @@ import java.util.function.Predicate;
  */
 public class CSLinked<T>{
 
-	private cdNode<T> head;
-	private cdNode<T> tail;
-	private int size = 0;
+	private volatile cdNode<T> head;
+	private volatile cdNode<T> tail;
+	private volatile int size = 0;
 	
 	public CSLinked(){}
 

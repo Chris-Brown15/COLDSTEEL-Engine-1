@@ -288,7 +288,7 @@ public class MExpression {
 		VAR(true),
 		CONST(true),
 				
-		;
+	;
 			
 		final boolean oneToOne;
 		OperatorType(boolean oneToOne){
@@ -824,7 +824,7 @@ public class MExpression {
 	 */
 	public MExpression(String function) {
 	
-		String[] tokens = function.split(" ");				
+		String[] tokens = function.split(" ");
 		for(int i = 0; i < tokens.length ; i ++) parseToken(i , tokens[i]);
 		
 		//check for special case of non one to oneness, namely, if something is raied to a power that is even

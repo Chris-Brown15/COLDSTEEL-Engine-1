@@ -22,6 +22,7 @@ import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
 import static org.lwjgl.system.MemoryUtil.nmemCalloc;
 import static org.lwjgl.system.MemoryUtil.nmemFree;
 
+import static Networking.Utils.NetworkingConstants.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -34,6 +35,8 @@ import org.lwjgl.system.MemoryStack;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.cdNode;
 import Core.NKUI;
+import Networking.UserHostedServer.UserHostedServer;
+import Networking.Utils.PacketCoder;
 
 /**
  * 
@@ -86,23 +89,19 @@ public class MultiplayerChatUI implements NKUI {
 				nk_layout_row_push(context , 70);
 				if(nk_button_label(context , "Send")) {
 					
-					String prependedText = playerName + " says: ";									//prefix to messages sender sends
-					byte[] prependedTextBytes = prependedText.getBytes();							//bytes
-
-					byte[] data = new byte[prependedText.length() + stringInputLength.get(0) + 1];	//array of bytes to be sent 
-					data[0] = NetworkedInstance.CHAT_MESSAGE;										//flag this message a chat message
+					String input = org.lwjgl.system.MemoryUtil.memUTF8(stringInputBuffer.slice(0 , stringInputLength.get(0)));
 					
-					int i = 1; 																		//start i at 1 because 0 is taken	
-					for(; i <= prependedText.length() ; i ++) data[i] = prependedTextBytes[i - 1];	//fill out data with prepended bytes
-					for(int j = 0; i < data.length ; i ++ , j++) data[i] = stringInputBuffer.get(j);//copy the actual text from the input box
-																									//create string for the sender to see in chat
-					String myMessage = "You: " + new String(data , i - stringInputLength.get(0) , stringInputLength.get(0));
-					chatLog.add(myMessage);
+					PacketCoder coder = new PacketCoder()
+						.bflag(CHAT_MESSAGE)
+						.bstring(playerName + " says: " + input);
+					;
+
+					chatLog.add("You: " + input);
 
 					try {
 						
-						if(instance instanceof UserHostedSession) ((UserHostedSession) instance).broadcastReliable(data , chatLog.size() * 10 , 1000); 
-						else instance.sendReliable(data , stringInputLength.get(0) + 1 , 1000);
+						if(instance instanceof UserHostedServer) ((UserHostedServer) instance).broadCastReliable(coder.get() , 413890341 , 1500); 
+						else instance.sendReliable(coder.get() , 413890341 , 1500);
 						
 					} catch (IOException e) {
 

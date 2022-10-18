@@ -1,5 +1,6 @@
 package CSUtil.DataStructures;
 
+import java.util.HashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -17,7 +18,7 @@ import CSUtil.RefInt;
  */
 
 public class CSOHashMap <T , Hasher>{
-
+	
 	private CSArray<CSLinked<T>> backing;
 	private int size;
 	private final Function<Hasher , Integer> hashScheme; 
@@ -53,7 +54,6 @@ public class CSOHashMap <T , Hasher>{
 	public void add(T val , Hasher hashSource) {
 		
 		backing.get(hashScheme.apply(hashSource)).add(val);
-		
 	}
 
 	public void add(T val , int hashCode) {

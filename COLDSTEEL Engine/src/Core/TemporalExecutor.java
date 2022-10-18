@@ -253,7 +253,7 @@ public abstract class TemporalExecutor {
 	 * @param code — {@code java.util.Consumer} of {@code Double} which will be executed for {@code numberMillis} milliseconds, taking the elapsed time
 	 * 				 as its input
 	 */
-	public static final void withElapseOf(double numberMillis , Consumer<Double> code) {
+	public static final synchronized void withElapseOf(double numberMillis , Consumer<Double> code) {
 		
 		timeBasedEvents.add(new timeBasedEvent(numberMillis , code));
 		
@@ -267,7 +267,7 @@ public abstract class TemporalExecutor {
 	 * @param numberMillis — number of milliseconds this event will exist for
 	 * @param code — {@code PyObject} taking {@code Double} as input which will be executed for {@code numberMillis} milliseconds
 	 */
-	public static final void withElapseOf(double numberMillis , PyObject code) {
+	public static final synchronized void withElapseOf(double numberMillis , PyObject code) {
 		
 		timeBasedEvents.add(new timeBasedEvent(numberMillis , x -> code.__call__(new ClassicPyObjectAdapter().adapt(x))));
 		
@@ -280,7 +280,7 @@ public abstract class TemporalExecutor {
 	 * @param millis — number of milliseconds to wait until executing the given code
 	 * @param code — code to execute upon the elapsing of this timer.
 	 */
-	public static final void onElapseOf(double millis , Executor code) {
+	public static final synchronized void onElapseOf(double millis , Executor code) {
 		
 		events.add(new event(millis , code));
 	}
@@ -291,7 +291,7 @@ public abstract class TemporalExecutor {
 	 * @param millis — number of milliseconds to wait until executing the given code
 	 * @param code — code to execute upon the elapsing of this timer.
 	 */
-	public static final void onElapseOf(double millis , PyObject code) {
+	public static final synchronized void onElapseOf(double millis , PyObject code) {
 		
 		events.add(new event(millis , () -> code.__call__()));
 	}
@@ -302,7 +302,7 @@ public abstract class TemporalExecutor {
 	 * @param ticks — number of ticks to wait until executing this code
 	 * @param code — code to execute on elapse of specified ticks
 	 */
-	public static final void onTicks(int ticks , Executor code) {
+	public static final synchronized void onTicks(int ticks , Executor code) {
 		
 		events.add(new event(ticks , code));
 		
@@ -314,7 +314,7 @@ public abstract class TemporalExecutor {
 	 * @param ticks — number of ticks to wait until executing this code
 	 * @param code — code to execute on elapse of specified ticks
 	 */
-	public static final void onTicks(int ticks , PyObject code) {
+	public static final synchronized void onTicks(int ticks , PyObject code) {
 		
 		events.add(new event(ticks ,() ->  code.__call__()));
 		
@@ -326,7 +326,7 @@ public abstract class TemporalExecutor {
 	 * @param millis — number of milliseconds to execute code
 	 * @param code — SAM taking no parameters
 	 */
-	public static final void forMillis(double millis , Executor code) {
+	public static final synchronized void forMillis(double millis , Executor code) {
 		
 		continuousEvents.add(new continuous(millis , code));
 		
@@ -338,7 +338,7 @@ public abstract class TemporalExecutor {
 	 * @param millis — number of milliseconds to execute code
 	 * @param code — PyObject taking no parameters
 	 */
-	public static final void forMillis(double millis , PyObject code) {
+	public static final synchronized void forMillis(double millis , PyObject code) {
 		
 		continuousEvents.add(new continuous(millis , () -> code.__call__()));
 		
@@ -350,7 +350,7 @@ public abstract class TemporalExecutor {
 	 * @param ticks — number of ticks to execute code
 	 * @param code  — SAM taking no input to execute
 	 */
-	public static final void forTicks(int ticks , Executor code) {
+	public static final synchronized void forTicks(int ticks , Executor code) {
 		
 		continuousEvents.add(new continuous(ticks , code));
 		
@@ -362,7 +362,7 @@ public abstract class TemporalExecutor {
 	 * @param ticks — number of ticks to execute code
 	 * @param code  — callable PyObject taking no input to execute
 	 */
-	public static final void forTicks(int ticks , PyObject code) {
+	public static final synchronized void forTicks(int ticks , PyObject code) {
 		
 		continuousEvents.add(new continuous(ticks , () -> code.__call__()));
 		
@@ -374,7 +374,7 @@ public abstract class TemporalExecutor {
 	 * @param test — Tester SAM returning a boolean and taking no input
 	 * @param code —  Executor SAM to execute once
 	 */
-	public static final void whileTrue(Tester test , Executor code) {
+	public static final synchronized void whileTrue(Tester test , Executor code) {
 		
 		continuousEvents.add(new continuous(test , code));
 		
@@ -386,7 +386,7 @@ public abstract class TemporalExecutor {
 	 * @param test — Tester SAM returning a boolean and taking no input
 	 * @param code — PyObject representing a callable function taking no input to be called once
 	 */
-	public static final void whileTrue(PyObject test , PyObject code) {
+	public static final synchronized void whileTrue(PyObject test , PyObject code) {
 		
 		continuousEvents.add(new continuous(() -> (boolean)test.__call__().__tojava__(Boolean.TYPE) , () -> code.__call__()));
 		
@@ -398,7 +398,7 @@ public abstract class TemporalExecutor {
 	 * @param test — a Tester SAM, which takes no arguments and returns a boolean
 	 * @param unique — a unique long identifying this cooldown, a UUL
 	 */
-	public static final void coolDown(Tester test , long unique) {
+	public static final synchronized void coolDown(Tester test , long unique) {
 
 		RefInt has = new RefInt(0);
 		cooldowns.bucket(unique).forEachVal(cooldown -> {
@@ -422,7 +422,7 @@ public abstract class TemporalExecutor {
 	 * @param test — a callable PyObject which takes no arguments and returns a boolean
 	 * @param unique — a unique long identifying this cooldown, a UUL
 	 */ 
-	public static final void coolDown(PyObject test , long unique) {
+	public static final synchronized void coolDown(PyObject test , long unique) {
 
 		RefInt has = new RefInt(0);
 		cooldowns.bucket(unique).forEachVal(cooldown -> {
@@ -446,7 +446,7 @@ public abstract class TemporalExecutor {
 	 * @param milliseconds — milliseconds for this cooldown
 	 * @param unique — a unique long identifying this cooldown, a UUL
 	 */
-	public static final void coolDown(double milliseconds , long unique) {
+	public static final synchronized void coolDown(double milliseconds , long unique) {
 		
 		RefInt has = new RefInt(0);
 		cooldowns.bucket(unique).forEachVal(cooldown -> {
@@ -470,7 +470,7 @@ public abstract class TemporalExecutor {
 	 * @param ticks — number of ticks this cooldown will last for
 	 * @param unique — a unique long identifying this cooldown, a UUL
 	 */
-	public static final void coolDown(int ticks, long unique) {
+	public static final synchronized void coolDown(int ticks, long unique) {
 
 		RefInt has = new RefInt(0);
 		cooldowns.bucket(unique).forEachVal(cooldown -> {
@@ -494,7 +494,7 @@ public abstract class TemporalExecutor {
 	 * @param unique — a UUL identifying a cooldown
 	 * @return true if a cooldown exists whose {@code uniqueID} matches {@code unique}, else false.
 	 */
-	public static final boolean coolingDown(long unique) {
+	public static final synchronized boolean coolingDown(long unique) {
 
 		RefInt has = new RefInt(0);
 		cooldowns.bucket(unique).forEachVal(cooldown -> {
@@ -521,7 +521,7 @@ public abstract class TemporalExecutor {
 	 * @param code — a {@code java.util.function.Consumer} that will be called exactly once when {@code test} returns true
 	 * @param codeInput — some input to {@code code}
 	 */
-	public static final void onTrue(Tester test , Executor code) {
+	public static final synchronized void onTrue(Tester test , Executor code) {
 		
 		delayedEvents.add(new delayedEvent(test , code));
 		
@@ -534,7 +534,7 @@ public abstract class TemporalExecutor {
 	 * @param test — a PyObject who, on returning true, will trigger the delayed event
 	 * @param code — a {@code Executor} that will be called exactly once when {@code test} returns true
 	 */
-	public static final void onTrue(PyObject test , PyObject code) {
+	public static final synchronized void onTrue(PyObject test , PyObject code) {
 		
 		delayedEvents.add(new delayedEvent(() -> (boolean)test.__call__().__tojava__(Boolean.class) , () -> code.__call__()));
 		
@@ -545,7 +545,7 @@ public abstract class TemporalExecutor {
 	 * Handles all events created with this API.
 	 * 
 	 */
-	public static final void process() {
+	public static final synchronized void process() {
 		
 		handleElapsed(0 , events.get(0));
 		handleContinuous(0 , continuousEvents.get(0));

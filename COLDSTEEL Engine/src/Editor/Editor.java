@@ -8,13 +8,7 @@ import static CSUtil.BigMixin.toNamePath;
 import static Renderer.Renderer.loadTexture;
 import static org.lwjgl.Version.getVersion;
 
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_UP;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
-import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
+import static CS.CSKeys.*;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -192,12 +186,12 @@ public class Editor {
 			editorUI.buildModeLayoutElements(engine);
 			scene.entities().resetScriptCount();
 
-			if (!(engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
+			if (!(Engine.cs_keyboardPressed(CS_KEY_LEFT_SHIFT) || Engine.cs_keyboardPressed(CS_KEY_LEFT_CONTROL))) {
 
-				if(engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
-				if(engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.cs_keyboardPressed(CS_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(Engine.cs_keyboardPressed(CS_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(Engine.cs_keyboardPressed(CS_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);	
+				if(Engine.cs_keyboardPressed(CS_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -205,7 +199,7 @@ public class Editor {
 			TemporalExecutor.process();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			if(editorState == EditorState.EDITING_HITBOX && engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT)) editorUI.dragHitBoxMarker(cursorWorldCoords.get());
+			if(editorState == EditorState.EDITING_HITBOX && Engine.cs_mousePressed(CS_MOUSE_BUTTON_LEFT)) editorUI.dragHitBoxMarker(cursorWorldCoords.get());
 			engine.releaseKeys();
 			dragQuad();
 
@@ -260,14 +254,15 @@ public class Editor {
 
 			editorUI.buildModeLayoutElements(engine);
 
-			if (!(engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
+			if (!(Engine.cs_keyboardPressed(CS_KEY_LEFT_SHIFT) || Engine.cs_keyboardPressed(CS_KEY_LEFT_CONTROL))) {
 
-				if(engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
-				if(engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.cs_keyboardPressed(CS_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(Engine.cs_keyboardPressed(CS_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(Engine.cs_keyboardPressed(CS_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
+				if(Engine.cs_keyboardPressed(CS_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
+
 
 			Kinematics.process();
 			scene.entities().resetScriptCount();
@@ -762,7 +757,7 @@ public class Editor {
 		Supplier<String> filepath = DialogUtils.newFileExplorer("Select Texture" , 5 , 270 , false , false , assets + "entities/");
 		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
 
-			activeQuad.setTexture(loadTexture(filepath.get()));
+			loadTexture(activeQuad.getTexture() , filepath.get());
 			if (activeQuad instanceof Statics) activeQuad.fitQuadToTexture();
 
 		});
@@ -979,6 +974,7 @@ public class Editor {
 			for (String y : split) {
 
 				loaded = scene.entities().loadEntity(toNamePath(y));
+				System.out.println(loaded.getTexture().imageInfo);
 				if (spawnAtCursor) {
 
 					float[] cursor = cursorWorldCoords.get();

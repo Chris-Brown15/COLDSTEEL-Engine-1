@@ -3,8 +3,6 @@ package Game.Core;
 import static CS.COLDSTEEL.data;
 
 import java.io.IOException;
-import java.util.function.Supplier;
-
 import CS.Engine;
 import Core.Direction;
 import Core.ECS;
@@ -13,15 +11,14 @@ import Core.TemporalExecutor;
 import Core.UIScriptingInterface;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
+import Core.Entities.EntityScripts;
 import Game.Items.Inventories;
 import Game.Items.ItemComponents;
-import Game.Levels.Levels;
 import Game.Player.CharacterCreator;
 import Game.Player.PlayerCharacter;
 import Game.Player.PlayerLoader;
-import Networking.NetworkedInstance;
-import Networking.UserHostedSession;
-import Networking.UserHostedSessionClient;
+import Networking.NetworkClient;
+import Networking.UserHostedServer.UserHostedServer;
 import Physics.ColliderLists;
 import Physics.Kinematics;
 import Renderer.Renderer;
@@ -56,23 +53,49 @@ public class GameRuntime {
 	private PlayerLoader loadScreen;
 	private PlayerCharacter player;
 	private DebugInfo debugInfo = new DebugInfo();
-	private NetworkedInstance multiplayerSession;
+	private UserHostedServer hostedServer;
+	private NetworkClient client;
 	private boolean showPyUI = true;
 	private boolean renderDebug = false;
-	private final Supplier<Levels> getCurrentLevel;
 	
-	public GameRuntime(Supplier<Levels> getCurrentLevel , Scene scene) {
+	public GameRuntime(Scene scene) {
 	
 		this.scene = scene;
-		this.getCurrentLevel = getCurrentLevel;
 		
 	}	
 	
 	public void initialize() {}
 	
-	public void run(Engine engine){
+	public void startUserHostedServer(Engine engine) {
 		
-		debugInfo.layout(engine , this);
+		hostedServer = new UserHostedServer(engine);
+		engine.mg_propogateNewClientAndServer();
+		//kinda dubious, we allow the UI for the server to process forever until the program closes. 
+		TemporalExecutor.whileTrue(() -> true , hostedServer::instanceUI);
+		
+		
+	}
+	
+	public boolean isHostedServerRunning() {
+		
+		return hostedServer != null && hostedServer.running();
+		
+	}
+	
+	public String hostedServerIPAddress() {
+		
+		return hostedServer.IP();
+		
+	}
+
+	public int hostedServerPort() {
+		
+		return hostedServer.port();
+		
+	}
+	
+	public void run(Engine engine) {
+		
 		if(renderDebug) renderDebug(engine);
 		if(showPyUI) for(int i = 0 ; i < UIScriptingInterface.getPyUIs().size() ; i ++) UIScriptingInterface.getPyUIs().get(i).run();		
 		
@@ -94,6 +117,7 @@ public class GameRuntime {
 				});
 							
 				engine.g_levelUpdate();
+				debugInfo.layout(engine , this);
 				
 			}
 			
@@ -108,12 +132,15 @@ public class GameRuntime {
 				
 				} , () -> {
 				
+					client.instanceUpdate();				
 					engine.releaseKeys();
 				
 				});
 							
 				engine.g_levelUpdate();
-				multiplayerSession.update();
+				client.instanceUI();
+				debugInfo.layout(engine , this);
+				
 				
 			}
 			
@@ -139,46 +166,69 @@ public class GameRuntime {
 				
 			}
 			
-			case LOAD_MULTIPLAYER_HOST -> {
+			case LOAD_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
 				if(loadScreen == null) loadScreen = new PlayerLoader();
 				loadScreen.layout();
-				if(loadScreen.load() != null) {
-
-					//let the player be null until its filled out in the following method
-					player = null;
-					engine.g_loadSave(loadScreen.load() , GameState.GAME_RUNTIME_MULTIPLAYER);
-									
-					//sets the player of the newly loaded game. Because of the fade effect, we need to wait until the player is not null to do this
-					TemporalExecutor.onTrue(() -> player != null , () -> {
-
-						//construct the server which will be null if we are hosting from the main menu
-						if(multiplayerSession == null) multiplayerSession = new UserHostedSession(scene , getCurrentLevel);
-						((UserHostedSession) multiplayerSession).startServer(player);
-												
-					});					
+				if(loadScreen.load() != null) STATE = GameState.MAIN_MENU;
+				
+			}
+			
+			case NEW_SINGLEPLAYER -> {
+				
+				TemporalExecutor.process();
+				if(creator == null) creator = new CharacterCreator(true);				
+				creator.layout();
+				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
+				if(createdPlayer != null) {
+					
+					setState(GameState.BUSY);
+					
+					engine.fadeToBlack(1000d);
+					TemporalExecutor.onElapseOf(1000d , () -> {
+						
+						player = createdPlayer;
+						scene.entities().addStraightIn(player.playersEntity());
+						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
+						player.write(engine.currentLevel());
+						scene.entities().addStraightIn(player.playersEntity());
+						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
+						setState(GameState.GAME_RUNTIME_SINGLEPLAYER);
+						engine.fadeIn(250d);
+						
+					});
 					
 				}
 				
 			}
-
-			case LOAD_MULTIPLAYER_CLIENT -> {
+			
+			case NEW_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
-				if(loadScreen == null) loadScreen = new PlayerLoader();
-				loadScreen.layout();
-				if(loadScreen.load() != null) {
+				if(creator == null) creator = new CharacterCreator(false);				
+				creator.layout();
+				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
+				if(createdPlayer != null) {
 					
-					engine.g_loadSave(loadScreen.load() , GameState.GAME_RUNTIME_MULTIPLAYER);
+					setState(GameState.BUSY);
 					
-					TemporalExecutor.onTrue(() -> player != null , () -> {
+					engine.fadeToBlack(1000d);
+					TemporalExecutor.onElapseOf(1000d , () -> {
+
+						player = createdPlayer;
+						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());						
+						scene.entities().addStraightIn(player.playersEntity());
+						player.write(engine.currentLevel());
+						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
+						engine.fadeIn(250d);
+						STATE = GameState.MAIN_MENU;
 
 						//multiplayer here
 						try {
 						
-							multiplayerSession = new UserHostedSessionClient(scene , getCurrentLevel , mainMenu.getServerConnectionInfo());
-							((UserHostedSessionClient) multiplayerSession).connectAndStart(player);
+							client = new NetworkClient(scene , engine.currentLevel());							
+							engine.mg_propogateNewClientAndServer();
 							engine.fadeIn(1000);
 							
 						} catch (IOException e) {
@@ -196,107 +246,27 @@ public class GameRuntime {
 				
 			}
 			
-			case NEW_SINGLEPLAYER -> {
+			case JOIN_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(true);				
-				creator.layout();
-				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
-				if(createdPlayer != null) {
-					
-					setState(GameState.BUSY);
-					
-					engine.fadeToBlack(1000d);
-					TemporalExecutor.onElapseOf(1000d , () -> {
 
-						player = createdPlayer;
-						scene.entities().addStraightIn(player.playersEntity());
-						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
-						player.write(engine.currentLevel());
-						scene.entities().addStraightIn(player.playersEntity());
-						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
-						setState(GameState.GAME_RUNTIME_SINGLEPLAYER);
-						engine.fadeIn(250d);
-						
-					});
+				engine.g_loadSave(loadScreen.load() , GameState.GAME_RUNTIME_MULTIPLAYER , false);
+
+				//multiplayer here
+				try {
+				
+					client = new NetworkClient(scene , engine.currentLevel());
+					engine.mg_propogateNewClientAndServer();
+					((EntityScripts)player.playersEntity().components()[Entities.SOFF]).recompile();
+					
+				} catch (IOException e) {
+
+					System.err.println("Error Connecting to Server.");
+					e.printStackTrace();
 					
 				}
-				
-			}
 
-			case NEW_MULTIPLAYER_HOST -> {
-				
-				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(false);				
-				creator.layout();
-				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
-				if(createdPlayer != null) {
-					
-					setState(GameState.BUSY);
-					
-					engine.fadeToBlack(1000d);
-					TemporalExecutor.onElapseOf(1000d , () -> {
-
-						player = createdPlayer;
-						scene.entities().addStraightIn(player.playersEntity());
-						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
-						player.write(engine.currentLevel());
-						scene.entities().addStraightIn(player.playersEntity());
-						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
-						setState(GameState.GAME_RUNTIME_MULTIPLAYER);
-						engine.fadeIn(250d);
-
-						multiplayerSession = new UserHostedSession(scene , getCurrentLevel);
-						((UserHostedSession) multiplayerSession).startServer(player);
-						
-					});
-					
-				}
-				
-			}
-			
-			case NEW_MULTIPLAYER_CLIENT -> {
-				
-				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(false);				
-				creator.layout();
-				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
-				if(createdPlayer != null) {
-					
-					setState(GameState.BUSY);
-					
-					engine.fadeToBlack(1000d);
-					TemporalExecutor.onElapseOf(1000d , () -> {
-
-						player = createdPlayer;
-						scene.entities().addStraightIn(player.playersEntity());
-						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
-						player.write(engine.currentLevel());
-						scene.entities().addStraightIn(player.playersEntity());
-						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
-						setState(GameState.GAME_RUNTIME_MULTIPLAYER);
-						engine.fadeIn(250d);
-
-						//multiplayer here
-						try {
-						
-							multiplayerSession = new UserHostedSessionClient(scene , getCurrentLevel , mainMenu.getServerConnectionInfo());
-							((UserHostedSessionClient) multiplayerSession).connectAndStart(player);
-							engine.fadeIn(1000);
-							STATE = GameState.GAME_RUNTIME_MULTIPLAYER;
-							
-						} catch (IOException e) {
-
-							System.err.println("Error Connecting to Server.");
-							e.printStackTrace();
-							STATE = GameState.MAIN_MENU;
-							engine.fadeIn(100);
-							
-						}						
-						
-					});
-					
-				}
+				((NetworkClient) client).connectAndStart(player , mainMenu.getServerConnectionInfo());
 				
 			}
 			
@@ -313,18 +283,6 @@ public class GameRuntime {
 	public boolean renderDebug() {
 		
 		return renderDebug;
-		
-	}
-	
-	public <SessionType extends NetworkedInstance> void setMultiplayerSession(SessionType session) {
-		
-		multiplayerSession = session;
-		
-	}
-	
-	public NetworkedInstance getMultiplayerSession() {
-		
-		return multiplayerSession;
 		
 	}
 	
@@ -376,14 +334,17 @@ public class GameRuntime {
 	
 	public void toggleMultiplayerUI() {
 		
+		if(hostedServer != null) hostedServer.toggleUI();
+		
 		if(STATE != GameState.GAME_RUNTIME_MULTIPLAYER) return;
-		multiplayerSession.toggleUI();
+		client.toggleUI();
 		
 	}
 	
 	public void shutDown() {
 		
-		if(multiplayerSession != null) multiplayerSession.shutDown();
+		if(client != null) client.shutDown();
+		if(hostedServer != null) hostedServer.shutDown();
 		
 	}
 	
@@ -402,6 +363,18 @@ public class GameRuntime {
 	public Scene scene() {
 		
 		return scene;
+		
+	}
+	
+	public UserHostedServer server() {
+		
+		return hostedServer;
+		
+	}
+	
+	public NetworkClient client() {
+		
+		return client;
 		
 	}
 	

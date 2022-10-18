@@ -32,7 +32,7 @@ import Physics.MExpression;
  */
 public class ParticleEmitter {
 
-	final Textures texture;
+	Textures texture = new Textures();
 	private final Particle[] particles;
 	private final SpriteSets particleAnimation;
 	float[] position = new float[2]; 
@@ -59,7 +59,7 @@ public class ParticleEmitter {
 	public ParticleEmitter(Renderer renderer , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , String animNamePath , boolean foreground) {
 		
 		particles = new Particle[numberParticles];
-		texture = Renderer.loadTexture(textureAbsPath);
+		Renderer.loadTexture(texture, textureAbsPath);
 		particleAnimation = new SpriteSets(animNamePath);
 		textured = true;
 		this.particleLife = particleLifetime;
@@ -117,7 +117,7 @@ public class ParticleEmitter {
 	public ParticleEmitter(Renderer renderer , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , SpriteSets anim , boolean foreground) {
 		
 		particles = new Particle[numberParticles];
-		texture = Renderer.loadTexture(textureAbsPath);
+		Renderer.loadTexture(texture, textureAbsPath);
 		particleAnimation = anim;
 		textured = true;
 		this.particleLife = particleLifetime;
@@ -140,6 +140,19 @@ public class ParticleEmitter {
 		this.xMoveFunction = xMoveFunction;
 		this.yMoveFunction = yMoveFunction;
 				
+	}
+	
+	public void setTexture(Textures texture) {
+		
+		this.texture = texture;
+		for(Particle x : particles) x.setTexture(texture);
+		
+	}
+	
+	public boolean isTextureNull() {
+		
+		return texture == null;
+		
 	}
 	
 	public void setPosition(float x , float y) {
@@ -379,4 +392,3 @@ public class ParticleEmitter {
 	}
 	
 }
-

@@ -90,6 +90,7 @@ import org.python.core.PyObject;
 
 import AudioEngine.SoundEngine;
 import AudioEngine.Sounds;
+import CS.Controls;
 import CS.Engine;
 import CS.RuntimeState;
 import CSUtil.RefInt;
@@ -126,7 +127,6 @@ import Game.Levels.LevelLoadDoors;
 import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
 import Game.Levels.Triggers;
-import Networking.NetworkedInstance;
 import Physics.ColliderLists;
 import Physics.Colliders;
 import Physics.Joints;
@@ -5255,34 +5255,22 @@ public class EditorUI implements NKUI{
 			nk_layout_row_dynamic(context , 30 , 1);
 			if(nk_button_label(context , "test")) {
 				
-				//bits 1-9 represent the keystroke, bit 10 represent its state 
-				// 0 0 0 0 0 0 0 0 0 [0] {0 0} ...0 0 0 0...
-				short key = org.lwjgl.glfw.GLFW.GLFW_KEY_W;
-				int keyState = engine.keyboardKeyState(key);				
-				if (keyState == org.lwjgl.glfw.GLFW.GLFW_PRESS) key |= NetworkedInstance.KEY_PRESSED_MASK;
-				key |= NetworkedInstance.KEYBOARD_KEY_MASK;
-				
-				short keycode = (short) (key & NetworkedInstance.KEYCODE_MASK);
-				short pressed = (short) (key & NetworkedInstance.KEY_PRESSED_MASK);
-				short peripheral = (short) (key & NetworkedInstance.KEYBOARD_KEY_MASK);
-				if(peripheral == 0) { 
+				Controls.forEach((name , control) -> {
 					
-					peripheral = (short) (key & NetworkedInstance.MOUSE_KEY_MASK);
-					if(peripheral == 0) peripheral = (short) (key & NetworkedInstance.GAMEPAD_KEY_MASK);
+					editor.say(name + ": " + control.key());
 					
-				}
+				});
 				
-				console.say("original key data");
-				console.say(keycode);
-				console.say(pressed == NetworkedInstance.KEY_PRESSED_MASK ? "Key Pressed" : "Key Not Pressed");
-				console.say(
-					peripheral == NetworkedInstance.KEYBOARD_KEY_MASK ? "Keyboard key" : 
-					peripheral == NetworkedInstance.MOUSE_KEY_MASK ? "Mouse key" : 
-					peripheral == NetworkedInstance.GAMEPAD_KEY_MASK ? "Gamepad key" : "nothing"
-				);
-				
-			}		
+			}
 			
+			nk_layout_row_dynamic(context , 30 , 2);
+			if(nk_button_label(context , "test 2")) {}
+			
+			if(nk_button_label(context , "test 3")) {}
+			
+			nk_layout_row_dynamic(context , 30 , 1);
+			if(nk_button_label(context , "test 4")) {}
+									
 		}	
 		
 		nk_end(context);
@@ -5330,3 +5318,4 @@ public class EditorUI implements NKUI{
 	}
 	
 }
+

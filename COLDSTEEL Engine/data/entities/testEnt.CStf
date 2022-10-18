@@ -1,0 +1,8 @@
+testEnt
+texture -> null
+removed -> 2,2,2
+filter -> 0,0,0
+default_sprite -> null
+components 1:
+	Script:
+		script -> testEnt.py

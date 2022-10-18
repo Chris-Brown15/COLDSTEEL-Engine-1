@@ -1,9 +1,5 @@
 package CSUtil.DataStructures;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-
 public class Tuple2<U , V> {
 
 	private U first;

@@ -42,7 +42,7 @@ public class Quads{
 	protected float[] vertexData;
 	public final CSType type;
 
-    protected Textures texture = null;
+	protected Textures texture = new Textures();
     protected Vector3f removedColor = new Vector3f();
     protected Vector3f filter = new Vector3f();
     protected Matrix4f rotation = new Matrix4f().identity();
@@ -199,13 +199,13 @@ public class Quads{
 
     public boolean isTextured() {
     	
-    	return texture != null;
+    	return texture.filledOut();
     	
     }
     
     public void fitQuadToTexture(){
 
-    	if(texture == null) return;
+    	if(!texture.filledOut()) return;
     	
     	ImageInfo info = texture.imageInfo;
     	
@@ -812,6 +812,13 @@ public class Quads{
 	}
 	
 	public void setDimensions(float[] dims) {
+		
+		setWidth(dims[0]);
+		setHeight(dims[1]);
+		
+	}
+
+	public void setDimensions(int[] dims) {
 		
 		setWidth(dims[0]);
 		setHeight(dims[1]);

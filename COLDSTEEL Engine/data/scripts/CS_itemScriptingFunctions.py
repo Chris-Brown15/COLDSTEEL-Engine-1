@@ -1,7 +1,6 @@
 from Core import TemporalExecutor
 
 console = lib.getConsole()
-glfw = lib.getGLFW()
 
 def say(line):
 	console.say(str(line))

@@ -33,9 +33,7 @@ public class COLDSTEEL {
 		url = url.replaceFirst("file:/", "");
 		
 		//if running in a jar
-		if(url.subSequence(url.length() - 3, url.length()).equals("jar")) 		
-			url = url.substring(0 , url.lastIndexOf('/') + 1);
-				
+		if(url.subSequence(url.length() - 3, url.length()).equals("jar")) url = url.substring(0 , url.lastIndexOf('/') + 1);				
 		//else running from a bin folder
 		else url = url.substring(0, url.length() - 4);		
 		

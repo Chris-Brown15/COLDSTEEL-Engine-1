@@ -40,7 +40,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	private CSLinked<Tiles> sources = new CSLinked<Tiles>();
 	
 	private Quads tileSheet;
-	private Textures texture;
+	private Textures texture = new Textures();
 	private String name = "Unnamed Tile Set";
 	private float[] remove = new float[3];
 	
@@ -206,9 +206,9 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 		
 	}	
 	
-	public void texture(String texture) {
+	public void texture(String textureAbsPath) {
 		
-		this.texture = loadTexture(texture);
+		loadTexture(texture , textureAbsPath);
 		if(tileSheet != null) tileSheet.setTexture(this.texture);
 		
 	}
@@ -542,7 +542,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 			CSTFParser parser = new CSTFParser(reader);
 			
 			name = parser.rname();
-			texture = loadTexture(parser.rlabel("texture"));
+			loadTexture(texture , parser.rlabel("texture"));
 			parser.rlabel("remove", remove);			
 			int numberTiles = parser.rlist("tiles");
 			for(int i = 0 ; i < numberTiles ; i ++) {
