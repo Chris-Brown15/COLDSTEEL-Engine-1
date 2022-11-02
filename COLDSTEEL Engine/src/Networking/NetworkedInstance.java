@@ -22,12 +22,6 @@ public interface NetworkedInstance {
 	public void instanceUpdate();
 	
 	/**
-	 * This method is for updating UI. It will be called from a main thread in which calling UI code will not result in pointer
-	 * errors.
-	 */
-	public void instanceUI();
-	
-	/**
 	 * This method should be used to send some message to a recipient 
 	 * 
 	 * @param data — byte array of data to send over the network

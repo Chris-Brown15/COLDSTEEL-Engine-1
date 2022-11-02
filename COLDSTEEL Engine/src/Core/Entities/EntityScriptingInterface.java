@@ -1,10 +1,7 @@
 package Core.Entities;
 
 import static CS.Engine.INTERNAL_ENGINE_PYTHON;
-import static org.lwjgl.glfw.GLFW.GLFW_PRESS;
-import static org.lwjgl.glfw.GLFW.GLFW_RELEASE;
-
-import java.util.BitSet;
+import static Networking.Utils.NetworkingConstants.*;
 
 import org.joml.Random;
 import org.python.core.PyCode;
@@ -14,11 +11,9 @@ import org.python.util.PythonInterpreter;
 
 import CS.Engine;
 import CS.RuntimeState;
+
 import CS.Controls;
-import CS.Controls.Control;
 import Core.SpriteSets;
-import Core.UIScript;
-import Core.UIScriptingInterface;
 import Core.Entities.EntityLists.hitboxScan;
 import Core.ECS;
 import Core.Scene;
@@ -28,7 +23,6 @@ import Game.Core.DamageType;
 import Game.Core.EntityHurtData;
 import Game.Items.LootTables;
 import Networking.UserHostedServer.UserHostedServer;
-import Networking.Utils.NetworkingConstants;
 import Networking.NetworkClient;
 import Networking.NetworkedEntities;
 import Physics.MExpression;
@@ -70,28 +64,6 @@ public class EntityScriptingInterface {
 		
 	}
 
-	/**
-	 * Adds a UI script object into a list of UI's to be rendered. This must be done in order to view a UI.
-	 * 
-	 * @param script a UIScript object
-	 */
-	public static void addUI(UIScript script) {
-		
-		UIScriptingInterface.addUI(script);
-		
-	}
-	
-	/**
-	 * Removes a UIScript object from the UIScript list. After this call, the UI element will not longer be viewable or interactable.
-	 * 
-	 * @param script a UIScript
-	 */
-	public static void removeUI(UIScript script) {
-		
-		UIScriptingInterface.removeUI(script);
-		
-	}
-	
 	/**
 	 * Moves E x amount. This will perform the double pass collision detection if E has the collision detection component and horizontal displacement component.
 	 * 
@@ -655,372 +627,14 @@ public class EntityScriptingInterface {
 	 * 
 	 * @param keyCodes — list of key codes to send; should be either user settings or GLFW codes
 	 */
-	public void setNetworkedControls(Entities E , Control... controls) { 
+	public void setNetworkedControls(byte... controls) { 
 		
-		System.out.println("syncing controls in library");
-		
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			networked.syncPeripheralsByControls(controls);
+		if(client != null) { 
+
+			System.out.println("syncing controls in library");
+			client.syncPeripheralsByControls(controls);
 			
 		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			networkedEntity.syncPeripheralsByControls(controls);
-			
-		}
-		
-	}
-	
-	/**
-	 * Networked Key Strokes are keys whose state is transmitted to servers so servers can propperly simulate script behavior. 
-	 * Only keys needed for game logic should be sent. Keys that do things that don't directly impact gameplay should not be sent, such as
-	 * keys that open the inventory.
-	 * 
-	 * @param keyCodes — list of key codes to send; should be either user settings or GLFW codes
-	 */
-	public void setNetworkedKeyboard(Entities E , byte...keyCodes) { 
-		
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			networked.syncKeyboard(keyCodes);
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			networkedEntity.syncKeyboard(keyCodes);
-			
-		}
-		
-	}
-
-	/**
-	 * Gets and returns the array of keys currently being networked to the server.
-	 * 
-	 * @return — array representation of keys being networked to the server or null if none could  be found
-	 */
-	public byte[] getNetworkedKeyboardKeys(Entities E) {
-
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			return networked.syncedKeyboard();
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			return networkedEntity.syncedKeyboard();
-			
-		}
-		
-		return null;
-		
-	}
-
-	/**
-	 * Networked Keys are keys whose state is transmitted to servers so servers can propperly simulate script behavior. 
-	 * Only keys needed for game logic should be sent. Keys that do things that don't directly impact gameplay should not be sent, such as
-	 * keys that open the inventory.
-	 * 
-	 * @param keyCodes — list of mouse button codes to send; should be either user settings or GLFW codes
-	 */
-	public void setNetworkedMouseButtons(Entities E , byte...keyCodes) { 
-		
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			networked.syncMouse(keyCodes);
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			networkedEntity.syncMouse(keyCodes);
-			
-		}
-		
-	}
-	
-	/**
-	 * Gets and returns the array of keys currently being networked to the server.
-	 * 
-	 * @return — array representation of keys being networked to the server.
-	 */
-	public byte[] getNetworkedMouseButtons(Entities E) {
-
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			return networked.syncedMouse();
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			return networkedEntity.syncedMouse();
-			
-		}
-		
-		return null;
-		
-	}
-
-	/**
-	 * Networked Keys are keys whose state is transmitted to servers so servers can propperly simulate script behavior. 
-	 * Only keys needed for game logic should be sent. Keys that do things that don't directly impact gameplay should not be sent, such as
-	 * keys that open the inventory.
-	 * 
-	 * @param keyCodes — list of mouse button codes to send; should be either user settings or GLFW codes
-	 */
-	public void setNetworkedGamepadButtons(Entities E , byte...keyCodes) { 
-		
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			networked.syncGamepad(keyCodes);
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			networkedEntity.syncGamepad(keyCodes);
-			
-		}
-		
-	}
-	
-	/**
-	 * Gets and returns the array of keys currently being networked to the server.
-	 * 
-	 * @return — array representation of keys being networked to the server.
-	 */
-	public byte[] getNetworkedGamepadButtons(Entities E) {
-
-		if(server != null) {
-			
-			NetworkedEntities networked = server.getNetworkedEntity(E);
-			if(networked == null) throw new IllegalStateException("No networked entity found for " + E.name);
-			return networked.syncedGamepad();
-			
-		}
-		
-		if(client != null) {
-			
-			NetworkedEntities networkedEntity = client.networkedEntity();
-			return networkedEntity.syncedGamepad();
-			
-		}
-		
-		return null;
-		
-	}
-	
-	/*
-	 * Direct peripheral accessors 
-	 */
-	
-	/*
-	 * Keyboard accessors
-	 */
-	
-	/*
-	 * Helpers
-	 */
-	private int getState(byte[] keys , byte queriedKey) {
-		
-		for(int i = 0 ; i < keys.length ; i ++) if ((keys[i] & NetworkingConstants.KEYCODE_MASK) == queriedKey){
-			
-			if((keys[i] & NetworkingConstants.KEY_PRESSED_MASK) != 0) return GLFW_PRESS;
-			else return GLFW_RELEASE;
-			
-		}
-		
-		return -1;
-		
-	}
-	
-	private boolean isStatePressed(byte[] keys , byte queriedKey) {
-	
-		for(int i = 0 ; i < keys.length ; i ++) {
-		
-			if((keys[i] & NetworkingConstants.KEYCODE_MASK) == queriedKey)  return (keys[i] & NetworkingConstants.KEY_PRESSED_MASK) != 0;
-		
-		}
-			
-		//return false if the key isnt found. This is because they key is not synced which means the caller doesn't want to handle it associated with it
-		return false;
-		
-	}
-	
-	public boolean isStateStruck(byte[] keys , BitSet strikeStates , byte queriedKey) {
-		
-		for(int i = 0 ; i < keys.length ; i ++)  {
-			
-			if((keys[i] & NetworkingConstants.KEYCODE_MASK) == queriedKey) return strikeStates.get(i);
-		
-		}
-		
-		//return false if the key isnt found. This is because they key is not synced which means the caller doesn't want to handle it associated with it
-		return false;
-		
-	}
-	
-	/**
-	 * Queries the state of a key directly. Not preferred.
-	 * 
-	 * @param csKey
-	 * @return
-	 */
-	public int kb_state(Entities E , byte csKey) {
-				
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-			
-			byte[] networkedKeys = server.getNetworkedEntity(E).keyboardState();
-			return getState(networkedKeys , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).keyboardState();
-			return getState(networkedKeys , csKey);
-			
-		} else return Engine.cs_keyboardKeyState(csKey);
-		
-	}
-
-	public boolean kb_pressed(Entities E , byte csKey) {
-		
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-			
-			byte[] networkedKeys = server.getNetworkedEntity(E).keyboardState();
-			return isStatePressed(networkedKeys , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).keyboardState();
-			return isStatePressed(networkedKeys , csKey);
-			
-		} else return Engine.cs_keyboardPressed(csKey);
-		
-	}
-
-	public boolean kb_struck(Entities E , byte csKey) {
-		
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-
-			byte[] networkedKeys = server.getNetworkedEntity(E).keyboardState();
-			BitSet networkedKeyboardStrikes = server.getNetworkedEntity(E).keyboardStrikeState();
-			return isStateStruck(networkedKeys , networkedKeyboardStrikes , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).keyboardState();
-			BitSet networkedKeyboardStrikes = client.getNetworkedByEntity(E).keyboardStrikeState();
-			return isStateStruck(networkedKeys , networkedKeyboardStrikes , csKey);
-			
-		} else return Engine.cs_keyboardStruck(csKey);
-		
-	}
-
-	/*
-	 * Mouse accessors
-	 */
-	
-	public int mb_state(Entities E , byte csKey) {
-		
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-			
-			byte[] networkedKeys = server.getNetworkedEntity(E).mouseState();
-			return getState(networkedKeys , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).mouseState();
-			return getState(networkedKeys , csKey);
-			
-		} else return Engine.cs_mouseKeyState(csKey);
-		
-	}
-
-	public boolean mb_pressed(Entities E , byte csKey) {
-			
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-			
-			byte[] networkedKeys = server.getNetworkedEntity(E).mouseState();
-			return isStatePressed(networkedKeys , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).mouseState();
-			return isStatePressed(networkedKeys , csKey);
-			
-		} else return Engine.cs_mousePressed(csKey);
-		
-	}
-	
-	public boolean mb_struck(Entities E , byte csKey) {
-		
-		if(server != null) {
-			//the server is simulating an entity which is calling into this function
-
-			byte[] networkedKeys = server.getNetworkedEntity(E).mouseState();
-			BitSet networkedKeyboardStrikes = server.getNetworkedEntity(E).mouseStrikeState();
-			return isStateStruck(networkedKeys , networkedKeyboardStrikes , csKey);
-			
-		} else if (client != null && client.networkedEntity().networked() != E) { 
-
-			byte[] networkedKeys = client.getNetworkedByEntity(E).mouseState();
-			BitSet networkedKeyboardStrikes = client.getNetworkedByEntity(E).mouseStrikeState();
-			return isStateStruck(networkedKeys , networkedKeyboardStrikes , csKey);
-			
-		} else return Engine.cs_mouseStruck(csKey);
-		
-	}
-	
-	/*
-	 * Indirect peripheral accessors by using user-bound controls
-	 */
-	
-	/**
-	 * Unlike direct peripheral accessors, these methods handle things like which peripheral a key code goes to etc.
-	 * 
-	 * Returns the state of a the key wrapped in {@code control}
-	 * 
-	 * @param control
-	 * @return
-	 */
-	public int state(Entities E , Control control) {
-		
-		if(server != null || client != null && client.networkedEntity().networked() != E) {
-			
-			if(control.peripheral() == Controls.KEYBOARD) return kb_state(E , control.key());
-			else if (control.peripheral() == Controls.MOUSE) return mb_state(E , control.key());
-			else ;//return gp_state(E , control.key());
-			
-		} else return Engine.controlKeyState(control);
-		
-		throw new IllegalArgumentException("Either given entity is not valid or control is not valid");
 		
 	}
 
@@ -1030,17 +644,14 @@ public class EntityScriptingInterface {
 	 * @param control
 	 * @return
 	 */
-	public boolean pressed(Entities E , Control control) {
+	public boolean pressed(Entities E , byte controlID) {
 		
 		if(server != null || client != null && client.networkedEntity().networked() != E) {
-		
-			if(control.peripheral() == Controls.KEYBOARD) return kb_pressed(E , control.key());
-			else if (control.peripheral() == Controls.MOUSE) return mb_pressed(E , control.key());
-			else ; 
-		
-		} else return Engine.controlKeyPressed(control);
-
-		throw new IllegalArgumentException("Either given entity is not valid or control is not valid");
+			
+			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : client.getNetworkedByEntity(E);			
+			return networked.pressed(controlID);
+			
+		} else return Engine.controlKeyPressed(controlID);
 			
 	}
 
@@ -1052,48 +663,45 @@ public class EntityScriptingInterface {
 	 * @param control
 	 * @return
 	 */
-	public boolean struck(Entities E , Control control) {
+	public boolean struck(Entities E , byte controlID) {
 		
 		if(server != null || client != null && client.networkedEntity().networked() != E) {
-
-			if(control.peripheral() == Controls.KEYBOARD) return kb_struck(E , control.key());
-			else if (control.peripheral() == Controls.MOUSE) return mb_struck(E , control.key());
-			else ; 
-		
-		} else return Engine.controlKeyStruck(control);
-
-		throw new IllegalArgumentException("Either given entity is not valid or control is not valid");
 			
+			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : client.getNetworkedByEntity(E);			
+			return networked.struck(controlID);
+			
+		} else return Engine.controlKeyStruck(controlID);
+
 	}
 
 	/*
 	 * Multicontrol accessors
 	 */
 	
-	public boolean allPressed(Entities E , Control... controls) {
+	public boolean allPressed(Entities E , byte... controlIDs) {
 		
-		for(Control x : controls) if(!pressed(E , x)) return false;
+		for(byte x : controlIDs) if(!pressed(E , x)) return false;
 		return true;
 		
 	}
 
-	public boolean allStruck(Entities E , Control... controls) {
+	public boolean allStruck(Entities E , byte... controlIDs) {
 		
-		for(Control x : controls) if(!struck(E , x)) return false; 
+		for(byte x : controlIDs) if(!struck(E , x)) return false; 
 		return true;
 		
 	}
 		
-	public boolean anyPressed(Entities E , Control... controls) {
+	public boolean anyPressed(Entities E , byte... controlIDs) {
 		
-		for(Control x : controls) if(pressed(E , x)) return true;
+		for(byte x : controlIDs) if(pressed(E , x)) return true;
 		return false;
 		
 	}
 
-	public boolean anyStruck(Entities E , Control... controls) {
+	public boolean anyStruck(Entities E , byte... controlIDs) {
 		
-		for(Control x : controls) if(struck(E , x)) return true; 
+		for(byte x : controlIDs) if(struck(E , x)) return true; 
 		return false;
 		
 	}
@@ -1102,6 +710,22 @@ public class EntityScriptingInterface {
 		
 		if(client != null) this.client = client;
 		if(server != null) this.server = server;
+		
+	}
+	
+	/**
+	 * 
+	 * @return True if this function was called from a server. False otherwise.
+	 */
+	public boolean onServer() {
+	 		
+		return server != null;
+		
+	}
+	
+	public Controls clientControls() {
+		
+		return Engine.clientControls;
 		
 	}
 	

@@ -1,6 +1,8 @@
 package CS;
 
 import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
+import org.lwjgl.glfw.GLFWWindowSizeCallback;
 import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.nuklear.NkVec2;
 
@@ -18,11 +20,8 @@ import static org.lwjgl.nuklear.Nuklear.*;
 import org.lwjgl.system.*;
 import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
-import CSUtil.Dialogs.DialogUtils;
 import Editor.CursorState;
 import Editor.EditorMode;
-import Game.Core.DebugInfo;
-
 import java.nio.IntBuffer;
 import java.nio.DoubleBuffer;
 import static CSUtil.BigMixin.getSCToWCForX;
@@ -30,27 +29,15 @@ import static CSUtil.BigMixin.getSCToWCForY;
 
 public class GLFWWindow {
 	
-    private String title;
+	GLFWWindowSizeCallback onWindowResize = GLFWWindowSizeCallback.create((handle , width , height) -> onWindowResize(width , height));
+	GLFWFramebufferSizeCallback onFramebufferResize = GLFWFramebufferSizeCallback.create((handle , widthPx , heightPx) -> onFramebufferResize(widthPx , heightPx));
+		
     long glfwWindow;
-	//window colors:
-    float R = 0.15f;
-	float G = 0.15f;
-	float B = 0.15f;
-	float a = 1.0f;
-
+    float r = 0.15f , g = 0.15f , b = 0.15f;
+    
 	private Engine engine;
 	private NkContext NuklearContext;	
-		
-	GLFWWindow() {
 
-        title = "COLDSTEEL";
-        R = 0.15f;
-		G = 0.15f;
-		B = 0.15f;
-		a = 1.0f;
-
-    }
-	
     void intialize(Engine engine){
 
     	this.engine = engine;
@@ -75,7 +62,7 @@ public class GLFWWindow {
 
         glfwWindowHint(GLFW_SAMPLES, 8);
         //Create the window
-        glfwWindow = glfwCreateWindow(1920, 1080, title, NULL, NULL);
+        glfwWindow = glfwCreateWindow(1920, 1080, "COLDSTEEL", NULL, NULL);
         //this places the window in the top left corner of the screen
         glfwSetWindowPos(glfwWindow , 0 , 0);
 
@@ -100,6 +87,9 @@ public class GLFWWindow {
 	    glfwTerminate();
 	    glfwSetErrorCallback(null).free();
 	    
+	    onWindowResize.free();
+		onFramebufferResize.free();
+		
 	    memFree(startingX);
 	    memFree(startingY);
 	    memFree(newX);
@@ -130,6 +120,23 @@ public class GLFWWindow {
 
 	}
 
+	/**
+	 * Fill out as needed
+	 */
+	void onWindowResize(int width , int height) {
+	
+		
+		
+	}
+
+	/**
+	 * Fill out as needed
+	 */
+	void onFramebufferResize(int widthPx , int heightPx) {
+		
+		glViewport(0, 0, widthPx , heightPx);
+		
+	}
 	
 	int[] getWindowDimensions(){
 	
@@ -789,7 +796,8 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
     							
-    							DebugInfo.showDebug = DebugInfo.showDebug ? false:true;
+    							if(engine.debugInfo.showing()) engine.debugInfo.hide();
+    							else engine.debugInfo.show();
     							break;
     							
     						case GLFW_RELEASE:break;
@@ -1771,10 +1779,9 @@ public class GLFWWindow {
     							
     							isEnterStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_ENTER, press);
-    			    			engine.e_returnConsole();
+    			    			engine.returnConsole();
     			    			engine.mg_enterTextChat();
-    			    			DialogUtils.acceptLast();
-    							break;
+    			    			break;
 
     						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
@@ -1794,11 +1801,7 @@ public class GLFWWindow {
     							isLShiftStruck = true;    							
     							break;
 
-    						case GLFW_RELEASE:
-    							
-    							if(keyboardPressed(GLFW_KEY_LEFT_ALT)) DialogUtils.acceptLast();    							
-    							break;
-
+    						case GLFW_RELEASE:break;
     						case GLFW_REPEAT:break;
 
     					}
@@ -1995,11 +1998,15 @@ public class GLFWWindow {
     							isUpStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_UP, press);    			    			
     			    			if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaUpperFace(1);
+    							engine.mg_scrollCamera(0 , 1);
+    			    			
     							break;
 
     						case GLFW_RELEASE:break;
 
     						case GLFW_REPEAT:
+
+    							engine.mg_scrollCamera(0 , 1);
 
     							break;
 
@@ -2013,11 +2020,15 @@ public class GLFWWindow {
 
     						case GLFW_PRESS:
 
-    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLeftFace(1);							
+    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLeftFace(1);
+    							engine.mg_scrollCamera(-1 , 0);
     							break;
 
     						case GLFW_RELEASE:break;
-    						case GLFW_REPEAT:break;
+    						case GLFW_REPEAT:
+    							
+    							engine.mg_scrollCamera(-1 , 0);
+    							break;
 
     					}
 
@@ -2032,11 +2043,16 @@ public class GLFWWindow {
     							isDownStruck = true;
     			    			nk_input_key(NuklearContext, NK_KEY_DOWN, press);
 
-    			    			if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLowerFace(1);    			    			
+    			    			if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaLowerFace(1);
+    			    			engine.mg_scrollCamera(0 , -1);
+    			    			
     							break;
 
     						case GLFW_RELEASE:break;
-    						case GLFW_REPEAT:break;
+    						case GLFW_REPEAT:
+    							
+    							engine.mg_scrollCamera(0 , -1);
+    							break;
 
     					}
 
@@ -2049,11 +2065,16 @@ public class GLFWWindow {
     						case GLFW_PRESS:
 
     							isRightStruck = true;
-    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaRightFace(1);    							
+    							if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) engine.e_getEditor().moveSelectionAreaRightFace(1);
+    							engine.mg_scrollCamera(1 , 0);
+
     							break;
 
     						case GLFW_RELEASE:break;
-    						case GLFW_REPEAT:break;
+    						case GLFW_REPEAT:
+    							
+    							engine.mg_scrollCamera(1 , 0);
+    							break;
 
     					}
 

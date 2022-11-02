@@ -14,6 +14,13 @@ public class Tuple2<U , V> {
 		
 	}
 	
+	public Tuple2(Tuple2<U , V> source) {
+		
+		this.first = source.first;
+		this.second = source.second;
+		
+	}
+	
 	public void setFirst(U u){
 
 		this.first = u;

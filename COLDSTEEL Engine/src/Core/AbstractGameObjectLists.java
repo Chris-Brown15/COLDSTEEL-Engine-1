@@ -1,8 +1,5 @@
 package Core;
 
-import static CS.Engine.addGameObjectList;
-import static CS.Engine.removeGameObjectList;
-
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -20,16 +17,9 @@ public abstract class AbstractGameObjectLists<T extends Quads> {
 		
 		renderOrder = order;
 		this.TYPE = type;
-		addGameObjectList(this);
 		
 	}
 
-	public void shutDown() {
-		
-		removeGameObjectList(this);
-		
-	}
-	
 	protected void renderOrder(int order) {
 		
 		this.renderOrder = order;

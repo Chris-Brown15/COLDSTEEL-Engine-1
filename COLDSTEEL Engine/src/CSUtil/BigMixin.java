@@ -24,6 +24,7 @@ import org.joml.Vector4f;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.system.MemoryStack;
 
+import CS.UserInterface;
 import CSUtil.Dialogs.DialogUtils;
 import Core.HitBoxSets;
 import Core.Quads;
@@ -1162,7 +1163,7 @@ public abstract class BigMixin {
     
     public static final void offloadFloatAssignment(String title , Consumer<Float> assignmentFunction) {
     	
-    	Supplier<String> input = DialogUtils.newInputBox(title, 5 , 270 , DialogUtils.NUMBER_FILTER);
+    	Supplier<String> input = DialogUtils.newInputBox(title, 5 , 270 , UserInterface.NUMBER_FILTER);
     	TemporalExecutor.onTrue(() -> input.get() != null , () -> assignmentFunction.accept(Float.parseFloat(input.get())));
     	
     }

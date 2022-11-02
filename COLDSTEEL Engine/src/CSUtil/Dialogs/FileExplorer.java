@@ -1,5 +1,9 @@
 package CSUtil.Dialogs;
 
+import static CS.COLDSTEEL.assets;
+import static CS.COLDSTEEL.data;
+import static CS.COLDSTEEL.deleted;
+import static CS.COLDSTEEL.mods;
 import static CSUtil.BigMixin.alloc0;
 import static CSUtil.BigMixin.toBool;
 import static CSUtil.BigMixin.put;
@@ -11,9 +15,7 @@ import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MINIMIZABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
@@ -22,14 +24,15 @@ import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_text;
 import static org.lwjgl.nuklear.Nuklear.nk_selectable_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
 import static org.lwjgl.system.MemoryUtil.nmemCalloc;
+import static org.lwjgl.system.MemoryUtil.nmemFree;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.function.Predicate;
 
-import org.lwjgl.nuklear.NkRect;
 import org.lwjgl.system.MemoryStack;
 
+import CS.UserInterface;
 import CSUtil.DataStructures.CSStack;
 import CSUtil.DataStructures.CSTree;
 import CSUtil.DataStructures.cdNode;
@@ -49,8 +52,13 @@ import CSUtil.DataStructures.tNode;
  * @author Chris Brown
  *
  */
-public final class FileExplorer extends DialogUtils{
+public final class FileExplorer extends UserInterface implements Acceptable {
 
+	protected static final File DATA_FOLDER = new File(data);
+	protected static final File ASSETS_FOLDER = new File(assets);
+	protected static final File DELETED_FOLDER = new File(deleted);
+	protected static final File MODS_FOLDER = new File(mods);
+	
 	private ByteBuffer[] rootChecks = new ByteBuffer[4];
 	 
 	private CSTree<ByteBuffer , File> dataTree = new CSTree<>();
@@ -62,13 +70,23 @@ public final class FileExplorer extends DialogUtils{
 	
 	boolean allowMultiple = true;
 	boolean allowFolders = true;
+	private long UIMemory;
+	private MemoryStack allocator;
+	
+	{
+		show = true;
+	}
+	
+	private static final int options = NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE;
 	
 	FileExplorer(String title , int x , int y , boolean allowMultiple , boolean allowFolders , String startingPath){
 	
+		super(title , x , y , 500 , 650 , options , options);
+		
 		UIMemory = nmemCalloc(1 , 1024);
 		allocator = MemoryStack.ncreate(UIMemory, 1024);
-		this.title = title;
-		rect = NkRect.malloc(allocator).set(x , y , 500 , 650);
+		
+		
 		
 		this.allowMultiple = allowMultiple;
 		this.allowFolders = allowFolders;
@@ -119,6 +137,22 @@ public final class FileExplorer extends DialogUtils{
 			
 		}
 		
+		layoutBody((frame) -> {
+			
+			nk_layout_row_dynamic(context , 30 , 2);
+			if(nk_button_label(context , "Accept")) onAccept();			
+			if(nk_button_label(context , "Cancel")) end = true;
+			
+			//layout the first nodes of the trees
+			layoutNode(dataTree.get(DATA_FOLDER) , 0);
+			layoutNode(assetsTree.get(ASSETS_FOLDER) , 0);
+			layoutNode(deletedTree.get(DELETED_FOLDER) , 0);
+			layoutNode(modsTree.get(MODS_FOLDER) , 0);
+			
+		});
+		
+		onEnd(() -> nmemFree(UIMemory));
+		
 	}
 		
 	private void findStartingPath(CSStack<File> roots ,  tNode<ByteBuffer , File> node , File fileAtPath) {
@@ -145,27 +179,6 @@ public final class FileExplorer extends DialogUtils{
 		
 		File[] archive = folder.listFiles();		
 		for(File f : archive) node.add(alloc0(allocator) , f);
-		
-	}
-	
-	@Override protected void layout() {
-
-		if(nk_begin(context , title , rect , NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE)) {
-			
-			nk_layout_row_dynamic(context , 30 , 2);
-			if(nk_button_label(context , "Accept")) accept();
-			
-			if(nk_button_label(context , "Cancel")) finished = true;
-			
-			//layout the first nodes of the trees
-			layoutNode(dataTree.get(DATA_FOLDER) , 0);
-			layoutNode(assetsTree.get(ASSETS_FOLDER) , 0);
-			layoutNode(deletedTree.get(DELETED_FOLDER) , 0);
-			layoutNode(modsTree.get(MODS_FOLDER) , 0);
-
-		}
-		
-		nk_end(context);
 		
 	}
 
@@ -227,7 +240,7 @@ public final class FileExplorer extends DialogUtils{
 			
 	}
 	
-	@Override protected void accept() {
+	public void onAccept() {
 
 		Predicate<tNode<ByteBuffer , File>> test = (tnode) -> 
 			toBool(tnode.val) && (!tnode.ID.isDirectory() || tnode.ID.isDirectory() && allowFolders);
@@ -255,7 +268,7 @@ public final class FileExplorer extends DialogUtils{
 			
 		} else result = "";
 		
-		finished = true;
+		end = true;
 		
 	}
 	

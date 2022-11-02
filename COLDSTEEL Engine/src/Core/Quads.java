@@ -228,6 +228,15 @@ public class Quads{
 		vertexData[33] = opacity;
 
 	}
+	
+	public void modTranslucencty(float opacity) {
+
+		vertexData[6] += opacity;
+		vertexData[15] += opacity;
+		vertexData[24] += opacity;
+		vertexData[33] += opacity;
+
+	}
 
 	public float getTranslucency() {
 		

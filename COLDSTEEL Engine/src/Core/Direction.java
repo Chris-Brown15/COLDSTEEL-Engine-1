@@ -4,21 +4,6 @@ public enum Direction {
 
 	UP , DOWN , LEFT , RIGHT , NONE;
 
-	public String toString() {
-				
-		switch(this) {
-			
-			case UP: return "UP";	
-			case DOWN: return "DOWN";				
-			case LEFT: return "LEFT";				
-			case RIGHT: return "RIGHT";			
-			case NONE: return "NONE";				
-			default: return "ERROR";
-				
-		}
-		
-	}
-	
 	public boolean equals(Direction compare) {
 		
 		if(this == compare) return true;

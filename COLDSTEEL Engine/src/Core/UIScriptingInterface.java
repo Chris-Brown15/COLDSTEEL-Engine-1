@@ -1,12 +1,13 @@
 package Core;
 
+import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.nuklear.NkImage;
 import org.lwjgl.nuklear.NkRect;
 import org.lwjgl.system.MemoryStack;
 import org.python.core.PyCode;
 
 import CS.Engine;
-import CSUtil.DataStructures.CSArray;
+import CS.UserInterface;
 import CSUtil.DataStructures.Tuple2;
 import Game.Items.Items;
 
@@ -17,17 +18,19 @@ import Game.Items.Items;
  * @author Chris Brown
  *
  */
-public class UIScriptingInterface implements NKUI {
+public class UIScriptingInterface extends UserInterface{
 
 	static final PyCode UI_SCRIPTING_FACADE = Engine.INTERNAL_ENGINE_PYTHON().compile("CS_uiScriptingFunctions.py");
 	
-	private static CSArray<UIScript> pyUIs = new CSArray<UIScript>(25 , 2);
+	private Engine engine;
 	private Console console;
 	public record ImageInfo(NkImage image , int width , int height , int bitsPP) {}
 	
-	public UIScriptingInterface(Console console) {
+	public UIScriptingInterface(Engine engine , Console console) {
 	
+		super("UIScriptingInterface" , 0 , 0 , 0 , 0 , 0 , 0);
 		this.console = console;
+		this.engine = engine;
 		
 	}
 	
@@ -39,37 +42,25 @@ public class UIScriptingInterface implements NKUI {
 	 */
 	public MemoryStack getAllocator() {
 		
-		return allocator;
+		return ALLOCATOR;
 		
 	}
-	
-	public static CSArray<UIScript> getPyUIs(){
 		
-		return pyUIs;
-		
-	}
-	
 	/**
-	 * Mallocates a NkRect object and returns it. it's values are not set.
-	 * 
-	 * @return a NkRect instance allocated by {@code NkRect.malloc(allocator)}
+	 * Returns the programs console. 
 	 */
-	public NkRect newRect() {
-		
-		return NkRect.malloc(allocator);
-
-	}
-	
-	/**
-	 * Returns the editor's console. This will eventually be replaced but for now since the editor is the only console available, this returns that.
-	 * @return the editor console
-	 */
-	public Console console() {
+	public Console getConsole() {
 		
 		return console;
 		
 	}
 		
+	public NkContext getContext() { 
+		
+		return context;
+		
+	}
+	
 	/**
 	 * Creates and returns an image for nuklear, specifically {@code nk_image()}. The returned object is a record info about the image, as well as its
 	 * width, height, and bits per pixel
@@ -79,34 +70,12 @@ public class UIScriptingInterface implements NKUI {
 	 */
 	public ImageInfo image(String filepath) {
 		
-		NkImage image = NkImage.malloc(allocator);
-		var textureImageInfo = NKUI.image(filepath, image);
+		NkImage image = NkImage.malloc(ALLOCATOR);
+		var textureImageInfo = image(filepath, image);
 		return new ImageInfo(image , image.w() , image.h() , textureImageInfo.BPP());
 		
 	}
 
-	/**
-	 * Adds a UIScript object into a static data structure containing a list of Python UI objects.
-	 * 
-	 * @param addThis — a UIScript to add
-	 */
-	public static void addUI(UIScript addThis) {
-		
-		pyUIs.add(addThis);
-		
-	}
-	
-	/**
-	 * Removes a UIScript object from a static data structure containing a list of Python UI objects.
-	 * 
-	 * @param remThis — a UIScript to remove
-	 */
-	public static void removeUI(UIScript remThis) {
-		
-		pyUIs.remove(remThis);
-		
-	}
-	
 	public Tuple2<NkImage , NkRect> itemIconAsImageSubRegion(Items item){
 		
 		float textureWidth = item.getTexture().imageInfo.width() , textureHeight = item.getTexture().imageInfo.height();
@@ -115,11 +84,17 @@ public class UIScriptingInterface implements NKUI {
 		short leftX = (short) (textureWidth * sprite[0]);
 		short topY = (short) (textureHeight - (textureHeight * sprite[2]));
 		
-		NkImage itemTextureAsImage = NkImage.malloc(allocator);
-		NKUI.image(item.texture.imageInfo.path() , itemTextureAsImage);
+		NkImage itemTextureAsImage = NkImage.malloc(ALLOCATOR);
+		image(item.texture.imageInfo.path() , itemTextureAsImage);
 		
-		Tuple2<NkImage , NkRect> result = NKUI.subRegion(itemTextureAsImage, item.texture.imageInfo , leftX, topY, (short)(sprite[4] * 2) , (short)(sprite[5] * 2));
+		Tuple2<NkImage , NkRect> result = subRegion(itemTextureAsImage, item.texture.imageInfo , leftX, topY, (short)(sprite[4] * 2) , (short)(sprite[5] * 2));
 		return result;
+		
+	}
+		
+	public boolean isServer() {
+		
+		return engine.mg_isHostedServerRunning();
 		
 	}
 	

@@ -8,10 +8,8 @@ import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
 
 import static CSUtil.BigMixin.toByte;
@@ -23,15 +21,16 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.system.MemoryStack;
-
+import CS.Controls;
+import CS.Engine;
+import CS.UserInterface;
+import CS.Controls.Control;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSQueue;
-import Core.NKUI;
 import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
@@ -40,6 +39,7 @@ import Game.Core.GameState;
 import Game.Levels.Levels;
 import Game.Player.PlayerCharacter;
 import Networking.Utils.ByteArrayUtils;
+import Networking.Utils.NetworkingConstants;
 import Networking.Utils.PacketCoder;
 
 /**
@@ -68,7 +68,7 @@ public class NetworkClient implements NetworkedInstance {
 	private NetworkedEntities networkedPlayer;
 	private Timer timeoutTimer = new Timer();
 	private short connectionID = -1;
-	
+
 	public NetworkClient(Scene scene , Levels currentLevel) throws IOException {
 		
 		this.level = currentLevel;
@@ -194,7 +194,9 @@ public class NetworkClient implements NetworkedInstance {
 						short othersID = (short)othersData.dequeue();
 						String entName = (String) othersData.dequeue();
 						Entities otherClient = new Entities(entName + ".CStf");
-						otherClients.add(new NetworkedEntities(othersID , otherClient , false));						
+						NetworkedEntities newNetworked = new NetworkedEntities(othersID , otherClient , false);
+						otherClients.add(newNetworked);
+						newNetworked.setNetworkControlled();						
 						
 					}
 					
@@ -240,6 +242,7 @@ public class NetworkClient implements NetworkedInstance {
 				String newClientsName = coder.rstring();
 				
 				NetworkedEntities newClientsEntity = new NetworkedEntities(newClientsID , new Entities(newClientsName) , false);
+				newClientsEntity.setNetworkControlled();
 				
 				if(coder.testFor(PacketCoder.POSITION)) {
 					
@@ -272,30 +275,25 @@ public class NetworkClient implements NetworkedInstance {
 	}
 	
 	@Override public void instanceUpdate() {
+
+		PacketCoder coder = new PacketCoder()
+			.bflag(UPDATE)
+			.bControlStrokes(networkedPlayer.controlStates())
+		;
 		
-		if(scene.entities().numberTicks() % 2 == 0) {
+		//send unreliable message to server
+		try {
 
-			PacketCoder coder = new PacketCoder()
-				.bflag(UPDATE)
-				.bkeyboardKeyStrokes(networkedPlayer.syncedKeyboard())
-				.bmouseKeyStrokes(networkedPlayer.syncedMouse())
-				.bgamepadKeyStrokes(networkedPlayer.syncedGamepad())
-			;
-			
-			//send unreliable message to server
-			try {
+			clientSocket.send(new DatagramPacket(coder.get() , coder.position()));
+		
+		} catch (IOException e) {
 
-				clientSocket.send(new DatagramPacket(coder.get() , coder.position()));
-			
-			} catch (IOException e) {
+			e.printStackTrace();
 
-				e.printStackTrace();
-
-			}
-			
-			timeoutTimer.start();
 		}
 		
+		timeoutTimer.start();
+			
 		if(timeoutTimer.getElapsedTimeSecs() > 30) {
 			
 			System.err.println("TIMED OUT");
@@ -312,13 +310,6 @@ public class NetworkClient implements NetworkedInstance {
 			e.printStackTrace();
 			
 		}
-		
-	}
-	
-	@Override public void instanceUI() {
-
-		chatUI.layout();
-		debugUI.layout();
 		
 	}
 	
@@ -445,45 +436,45 @@ public class NetworkClient implements NetworkedInstance {
 		
 	}
 	
-	private class ClientDebugUI implements NKUI {
+	public void syncPeripheralsByControls(byte... controls) {
+		
+		networkedPlayer.syncPeripheralsByControls(controls);
+		
+	}
+	
+	private class ClientDebugUI extends UserInterface {
 	
 		private boolean playersDropDown = false;
 		private boolean show = false;
 		
-		void layout() {
+		ClientDebugUI() {		
 			
-			if(!show) return;
-			
-			try(MemoryStack stack = allocator.push()) {
+			super("Multiplayer Debug" , 1210 , 5 , 350 , 600 , NK_WINDOW_BORDER|NK_WINDOW_TITLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE);
+		
+			layoutBody((frame) -> {
+
+				int playersListDropDown = playersDropDown ? NK_SYMBOL_TRIANGLE_RIGHT : NK_SYMBOL_TRIANGLE_DOWN;
 				
-				NkRect rect = NkRect.malloc(allocator).set(1210 , 5 , 350 , 600);
-				if(nk_begin(context , "Multiplayer Debug" , rect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
-					
-					int playersListDropDown = playersDropDown ? NK_SYMBOL_TRIANGLE_RIGHT : NK_SYMBOL_TRIANGLE_DOWN;
-					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "Unique Connection ID:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , "" + connectionID , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "RTT:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , "" + ReliableDatagram.computeAverageRTT() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Unique Connection ID:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , "" + connectionID , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "RTT:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , "" + ReliableDatagram.computeAverageRTT() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				
+				nk_layout_row_dynamic(context , 20 , 1);
+				if(nk_selectable_symbol_label(context , playersListDropDown , "Players" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE , toByte(ALLOCATOR , playersDropDown))) 
+					playersDropDown  = playersDropDown ? false : true;
+				
+				if(playersDropDown) for(NetworkedEntities x : otherClients) {
+						
 					nk_layout_row_dynamic(context , 20 , 1);
-					if(nk_selectable_symbol_label(context , playersListDropDown , "Players" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE , stack.bytes(toByte(playersDropDown)))) playersDropDown  = playersDropDown ? false : true;
-					
-					if(playersDropDown) for(NetworkedEntities x : otherClients) {
-							
-						nk_layout_row_dynamic(context , 20 , 1);
-						nk_text(context , x.connectionIndex() + "|" + x.networked().name() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_RIGHT);
-							
-					}
-					
+					nk_text(context , x.connectionIndex() + "|" + x.networked().name() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_RIGHT);
+						
 				}
 				
-				nk_end(context);
-				
-			}
+			});
 			
 		}
 		

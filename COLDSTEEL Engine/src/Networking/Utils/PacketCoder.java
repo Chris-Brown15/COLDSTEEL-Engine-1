@@ -1,8 +1,9 @@
 package Networking.Utils;
 
+import static Networking.Utils.NetworkingConstants.*;
 import CSUtil.DataStructures.CSQueue;
-import java.nio.ByteBuffer;
 
+import java.nio.ByteBuffer;
 import CS.Engine;
 
 /**
@@ -20,85 +21,18 @@ public final class PacketCoder {
 		CONNECTION_ID = 2 ,
 		STRING = -107 ,
 		REPITITION = 3,
+		//this code represents the seventh bit set. 
 		/*
-		 * These flags tightly pack keystroke data into as few bytes as possible. They are marked as negative
-		 * to avoid collision with valid key codes.
+		 * Control IDs will arrive at the server. these will consist of some of the first 6 bits set and possibly the 
+		 * last bit.
+		 * 
+		 * if the seventh bit is set, this tells the server to stop reading as controls.
+		 * 
 		 */
-		KEYBOARD_KEY_STROKES = -4,
-		MOUSE_KEY_STROKES = -5,
-		GAMEPAD_KEY_STROKES = -6
+		CONTROL_KEY_STROKES = 64
+
 	;
 
-	public static final float[] rposition(byte[] bytes , int startIndex) {
-
-		if(bytes[startIndex] != POSITION) except("Static read position at invalid position.");
-		return ByteArrayUtils.toFloats(startIndex, Float.BYTES * 2, bytes);		
-		
-	}
-	
-	public static final short rconnectionID(byte[] bytes , int startIndex) {
-		
-		if(bytes[startIndex] != CONNECTION_ID) except("Static read connection at invalid position");
-		return ByteArrayUtils.toShorts(startIndex, Short.BYTES, bytes)[0];
-		
-	}
-
-	public static final String rstring(byte[] bytes , int startIndex) {
-		
-		if(bytes[startIndex] != STRING) except("Static read string at invalid position");
-		int pos = startIndex + 1, stringStart = startIndex + 1;
-		while(bytes[pos++] != STRING) ;
-		String newStr = new String(bytes , stringStart , pos - 1 - stringStart);
-		return newStr;
-		
-	}
-	
-	public static final CSQueue<Object> rRepititions(byte[] bytes , int startIndex , byte...types) {
-		
-		if(bytes[startIndex] != REPITITION) except("Static read repititions at invalid position");
-		int off = startIndex + 1;
-		short reps = ByteArrayUtils.toShorts(off , Short.BYTES , bytes)[0]; off += 2;
-		short numberItemsPerRep = bytes[off]; off += 1;
-		if(numberItemsPerRep < 0) numberItemsPerRep *= -1; 
-		
-		CSQueue<Object> readQueue = new CSQueue<Object>();
-		reps *= numberItemsPerRep;
-		
-		for(int i = 0 , j = 0; i < reps ; i ++) {
-			
-			switch(types[j]) {
-			
-				case POSITION ->  {
-					
-					readQueue.enqueue(rposition(bytes , off));
-					off += 1 + (Float.BYTES * 2);
-					
-				}
-				
-				case CONNECTION_ID -> {
-					
-					readQueue.enqueue(rconnectionID(bytes , off));
-					off += 1 + (Short.BYTES);
-					
-				}
-				
-				case STRING -> {
-					
-					readQueue.enqueue(rstring(bytes , off));
-					off += 2 + (((String) readQueue.peek()).length());
-					
-				}
-			
-			}
-			
-			if(++j == types.length) j = 0;
-			
-		}
-		
-		return readQueue;
-		
-	}
-	
 	private ByteBuffer bytes;
 	
 	public PacketCoder() {
@@ -158,60 +92,21 @@ public final class PacketCoder {
 		
 	}
 	
-	public PacketCoder bkeyboardKeyStrokes(byte[] networkedKeys) {
+	public PacketCoder bControlStrokes(byte[] controls) {
 		
-		bytes.put(KEYBOARD_KEY_STROKES);
+		//bytes in controls are control IDs a client is sending to the server.
 		
-		/*
-		 * Steps for each byte:
-		 * 1) get the state of the glfw key mapped to this key
-		 * 2) set the eighth bit if the glfw key is pressed
-		 * 3) buffer that byte
-		 * Do this for every key for keyboard, mouse, and gamepad
-		 */
-		byte thisCode;
-		for(int i = 0 ; i < networkedKeys.length ; i ++) {
-				
-			thisCode = networkedKeys[i];
-			bytes.put(Engine.cs_keyboardPressed(thisCode) ? thisCode |= NetworkingConstants.KEY_PRESSED_MASK : thisCode);
+		bytes.put(CONTROL_KEY_STROKES);
+		boolean pressed = false;
+		for(int i = 0 ; i < controls.length ; i ++) {
 			
-		}				
-		
-		bytes.put(KEYBOARD_KEY_STROKES);
-		return this;
-		
-	}
-
-	public PacketCoder bmouseKeyStrokes(byte[] networkedKeys) {
-		
-		bytes.put(MOUSE_KEY_STROKES);
-		
-		byte thisCode;
-		for(int i = 0 ; i < networkedKeys.length ; i ++) {
-				
-			thisCode = networkedKeys[i];
-			bytes.put(Engine.cs_mousePressed(thisCode) ? thisCode |= NetworkingConstants.KEY_PRESSED_MASK : thisCode);
+			pressed = Engine.controlKeyPressed((byte)(controls[i] & KEYCODE_MASK));
+			if(pressed) bytes.put((byte) (controls[i] | CONTROL_PRESSED_MASK));
+			else bytes.put((byte)controls[i]);
 			
-		}				
+		}
 		
-		bytes.put(MOUSE_KEY_STROKES);
-		return this;
-		
-	}
-
-	public PacketCoder bgamepadKeyStrokes(byte[] networkedKeys) {
-		
-		bytes.put(GAMEPAD_KEY_STROKES);
-		
-		byte thisCode;
-		for(int i = 0 ; i < networkedKeys.length ; i ++) {
-				
-			thisCode = networkedKeys[i];
-			bytes.put(Engine.cs_keyboardPressed(thisCode) ? thisCode |= NetworkingConstants.KEY_PRESSED_MASK : thisCode);
-			
-		}				
-		
-		bytes.put(GAMEPAD_KEY_STROKES);
+		bytes.put(CONTROL_KEY_STROKES);
 		return this;
 		
 	}
@@ -273,48 +168,35 @@ public final class PacketCoder {
 		
 	}
 	
-	public byte[] rkeyboardKeyStrokes() {
+	public byte[] rControlStrokes() {
 		
-		boolean correct = bytes.get() == KEYBOARD_KEY_STROKES;
-		if(!correct) except("buffer read keyboard key strokes at invalid position");
+		boolean correct = bytes.get() == CONTROL_KEY_STROKES;
+		if(!correct) except("buffer read control key strokes at invalid position");
 		
+		//this is an array of bytes so read byte by byte, constructing an array of shorts representing them
 		int startingPos = bytes.position() , endingPos = bytes.position();
-		//find the end
-		while(bytes.get(endingPos++) != KEYBOARD_KEY_STROKES);
-		//the length is the difference between the flag and the starting pos -1 because ending pos is the index of the flag which tells to stop
-		byte[] keys = new byte[endingPos - 1 - startingPos];
-		//copy bytes from coder to returned value
-		for(int i = 0 ; i < keys.length ; i ++) keys[i] = bytes.get(startingPos++);
-		bytes.position(endingPos);
-		return keys;
+		while(bytes.get(endingPos++) != CONTROL_KEY_STROKES);
+		byte[] expandedControlView = new byte[endingPos - 1 - startingPos];		
+		byte currentControlIDAndPressState;
+		for(int i = 0 ; i < expandedControlView.length ; i ++) {
+			
+//			//key is presed and therefore struck
+//			if(((currentControlIDAndPressState = bytes.get()) & CONTROL_PRESSED_MASK) != 0 ) {
+//				
+//				//sets the seventh bit to struck as well
+//				expandedControlView[i] = (byte) (currentControlIDAndPressState|CONTROL_STRUCK_MASK);
+//				
+//			} else {
+//		
+//				expandedControlView[i] = currentControlIDAndPressState;
+			
+//			}
+			
+				expandedControlView[i] = bytes.get();
+		}		
 		
-	}
-
-	public byte[] rmouseKeyStrokes() {
-		
-		boolean correct = bytes.get() == MOUSE_KEY_STROKES;
-		if(!correct) except("buffer read mouse key strokes at invalid position");
-		
-		int startingPos = bytes.position() , endingPos = bytes.position();
-		while(bytes.get(endingPos++) != MOUSE_KEY_STROKES);
-		byte[] keys = new byte[endingPos - 1 - startingPos];
-		for(int i = 0 ; i < keys.length ; i ++) keys[i] = bytes.get(startingPos++);
-		bytes.position(endingPos);
-		return keys;
-		
-	}
-
-	public byte[] rgamepadKeyStrokes() {
-		
-		boolean correct = bytes.get() == GAMEPAD_KEY_STROKES;
-		if(!correct) except("buffer read gamepad key strokes at invalid position");
-		
-		int startingPos = bytes.position() , endingPos = bytes.position();
-		while(bytes.get(endingPos++) != GAMEPAD_KEY_STROKES);
-		byte[] keys = new byte[endingPos - 1 - startingPos];
-		for(int i = 0 ; i < keys.length ; i ++) keys[i] = bytes.get(startingPos++);
-		bytes.position(endingPos);
-		return keys;
+		bytes.position(endingPos + 1);
+		return expandedControlView;
 		
 	}
 	
@@ -343,7 +225,7 @@ public final class PacketCoder {
 		return bytes.get(bytes.position()) == incomingType;	
 		
 	}
-	
+		
 	private static void except(String error) {
 		
 		throw new IllegalArgumentException("PACKET BUILDER ERROR: " + error);

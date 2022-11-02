@@ -2,21 +2,21 @@ package Core;
 
 public enum ECS {
 	
-	HORIZONTAL_PLAYER_CONTROLLER(1 ,  1 , new Object[] {2.0f , true}),
-	COLLISION_DETECTION(		 2 ,  3 , new Object[] {null , 1000f , false}),
-	GRAVITY_CONSTANT(			 3 ,  6 , new Object[] {3.0f , 0f , 30f , 5f}),
-	HORIZONTAL_DISPLACEMENT(	 4 , 10 , new Object[] {0f , 0f}),
-	VERTICAL_PLAYER_CONTROLLER(	 5 , 12 , new Object[] {00f , 30.0f , 5.0f , false , true , null}),
-	VERTICAL_DISPLACEMENT(		 6 , 18 , new Object[] {0f , 0f}),
-	SCRIPT(						 7 , 20 , new Object[] {null , true}),
-	ANIMATIONS(					 8 , 22 , new Object[] {null , true}),
-	HITBOXES(					 9 , 24 , new Object[] {null}),
-	RPG_STATS(					10 , 25 , new Object[] {null}),	
-	CAMERA_TRACK(				11 , 26 , new Object[] {-320f , -80f , 16f}),
-	DIRECTION(				   	12 , 29 , new Object[] {null , null , true}),
-	INVENTORY(					13 , 32 , new Object[] {null}),
-	FLAGS(						14 , 33 , new Object[] {null}),
-	AUDIO_EMIT(					15 , 34 , new Object[] {null}),
+	HORIZONTAL_PLAYER_CONTROLLER(1 ,  1 , new Object[] {2.0f , true , false}),
+	COLLISION_DETECTION(		 2 ,  4 , new Object[] {null , 1000f , false}),
+	GRAVITY_CONSTANT(			 3 ,  7 , new Object[] {3.0f , 0f , 30f , 5f}),
+	HORIZONTAL_DISPLACEMENT(	 4 , 11 , new Object[] {0f , 0f}),
+	VERTICAL_PLAYER_CONTROLLER(	 5 , 13 , new Object[] {00f , 30.0f , 5.0f , false , true , null , false}),
+	VERTICAL_DISPLACEMENT(		 6 , 20 , new Object[] {0f , 0f}),
+	SCRIPT(						 7 , 22 , new Object[] {null , true}),
+	ANIMATIONS(					 8 , 24 , new Object[] {null , true}),
+	HITBOXES(					 9 , 26 , new Object[] {null}),
+	RPG_STATS(					10 , 27 , new Object[] {null}),	
+	CAMERA_TRACK(				11 , 28 , new Object[] {-320f , -80f , 16f}),
+	DIRECTION(				   	12 , 31 , new Object[] {null , null , true}),
+	INVENTORY(					13 , 34 , new Object[] {null}),
+	FLAGS(						14 , 35 , new Object[] {null}),
+	AUDIO_EMIT(					15 , 36 , new Object[] {null}),
 	
 	;
 	

@@ -7,8 +7,7 @@ import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_property_float;
@@ -16,19 +15,19 @@ import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
 
 import static org.lwjgl.system.MemoryUtil.memUTF8Safe;
+import static org.lwjgl.system.MemoryUtil.memCalloc;
+import static org.lwjgl.system.MemoryUtil.memCallocInt;
+import static org.lwjgl.system.MemoryUtil.memFree;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-
 import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.system.MemoryStack;
-
 import AudioEngine.SoundEngine;
 import AudioEngine.Sounds;
 import CS.Engine;
 import CS.RuntimeState;
-import Core.NKUI;
+import CS.UserInterface;
 import Core.Quads;
 import Core.TemporalExecutor;
 import Game.Player.CharacterCreator;
@@ -39,36 +38,40 @@ import Game.Player.CharacterCreator;
  * Class for the main menu of the game which will appear in the initial state of the program.
  *
  */
-public class MainMenu implements NKUI{
+public class MainMenu  {
 
-	/**
-	 * Used to switch on UI elements to render where each possible state is a different UI.
-	 */
-	private static enum MenuStates {
+	private enum MenuStates {
 		
-		MAIN,
 		LOAD,
+		BUSY,
+		MAIN,
 		MULTIPLAYER_MAIN,
 		MULTIPLAYER_JOINING,
-		OPTIONS,
-		;
-				
+		OPTIONS;
+		
 	}
 	
-	private MenuStates menuState = MenuStates.MAIN;
+	MenuStates menuState = MenuStates.MAIN;
 	
 	public boolean menuReturned = false;	
 	NkRect rect;	
 	Quads mainMenuBillboard = new Quads(-1);
 	CharacterCreator multiplayerCharacterCreator = new CharacterCreator(false);	
-	ByteBuffer portAndInetAddrInput = allocator.calloc(1 , 23);
-	IntBuffer portAndInetAddrLength = allocator.callocInt(1);
+	ByteBuffer portAndInetAddrInput = memCalloc(1 , 23);
+	IntBuffer portAndInetAddrLength = memCallocInt(1);
+	private final Main main;
+	private final Multiplayer multi ;
+	private final MultiplayerJoiner multiplayerJoin;
+	private final Options options;
 	
-	public MainMenu() {
+	public MainMenu(Engine engine) {
 		
-		rect = NkRect.malloc(allocator).set(760 , 540 , 400, 310);
 		Renderer.Renderer.loadTexture(mainMenuBillboard.getTexture() , CS.COLDSTEEL.assets + "ui/minecraft.png");
 		mainMenuBillboard.translate(0, 150);
+		main = new Main(engine);
+		multi = new Multiplayer(engine);
+		multiplayerJoin = new MultiplayerJoiner(engine); 
+		options = new Options(engine);
 		
 	}
 	
@@ -79,27 +82,96 @@ public class MainMenu implements NKUI{
 
 	}
 	
-	public void layoutMainMenus(Engine engine) {
+	void layoutMainMenus() {
 		
 		TemporalExecutor.process();		
 		switch(menuState) {
 			
-			case LOAD -> {}
-			case MAIN -> layoutMainMenu(engine);
-			case MULTIPLAYER_MAIN -> layoutMainMultiplayer(engine);
-			case MULTIPLAYER_JOINING -> layoutMultiplayerJoining();
-			case OPTIONS -> layoutOptions();	
+			case LOAD -> {
+			
+				GameRuntime.setState(GameState.LOAD_SAVE);
+				
+			}
+			
+			case BUSY -> {
+
+				main.hide();
+				multi.hide();
+				multiplayerJoin.hide();
+				options.hide();
+				
+			}
+			
+			case MAIN -> {
+				
+				main.show();
+				multi.hide();
+				multiplayerJoin.hide();
+				options.hide();
+				
+			}
+			
+			case MULTIPLAYER_MAIN -> {
+				
+				multi.show();
+				multiplayerJoin.hide();
+				options.hide();
+				main.hide();
+				
+			}
+			
+			case MULTIPLAYER_JOINING -> {
+				
+				multiplayerJoin.show();
+				multi.hide();
+				options.hide();
+				main.hide();
+				
+			}
+			
+			case OPTIONS -> {
+				
+				options.show();
+				multi.hide();
+				multiplayerJoin.hide();
+				main.hide();
+				
+			}
 						
 		}
 				
 	}
 	
-	private void layoutMainMenu(Engine engine) {
+	void hideAll() {
 		
-		Renderer.Renderer.draw_foreground(mainMenuBillboard);
+		options.hide();
+		multi.hide();
+		multiplayerJoin.hide();
+		main.hide();		
 		
-		if(nk_begin(context , "" , rect , NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER)) {
+	}
+	
+	String getServerConnectionInfo() {
+		
+		return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
+		
+	}
+	
+	void shutDown() {
+		
+		memFree(portAndInetAddrInput);
+		memFree(portAndInetAddrLength);
+		
+	}
+	
+	class Main extends UserInterface {
+
+		public Main(Engine engine) {
 			
+			super("GAMEMAINMENU" , 760 , 540 , 400, 310, NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER , NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER);
+			
+			layoutBody((frame) -> {
+				
 			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Continue")) {
 				
@@ -108,6 +180,7 @@ public class MainMenu implements NKUI{
 				
 			}	
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "New Character")) {
 				
 				GameRuntime.STATE = GameState.NEW_SINGLEPLAYER;
@@ -115,6 +188,7 @@ public class MainMenu implements NKUI{
 				
 			}			
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Load Character")) {
 
 				GameRuntime.STATE = GameState.LOAD_SAVE;
@@ -122,6 +196,7 @@ public class MainMenu implements NKUI{
 				
 			}			
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Multiplayer")) {
 												
 //				Sounds intro = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
@@ -140,65 +215,60 @@ public class MainMenu implements NKUI{
 				
 			}
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Options")) {
 				
 				menuState = MenuStates.OPTIONS;
 				
 			}
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Open Editor")) {
 				
-				engine.switchState(RuntimeState.EDITOR);
-				GameRuntime.STATE = GameState.BUSY;
-				menuReturned = true;
+				engine.schedule(() -> {
+					
+					engine.switchState(RuntimeState.EDITOR);
+					GameRuntime.STATE = GameState.BUSY;
+					menuReturned = true;
+					hide();
+					
+				});
 				
 			}	
 			
+			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Close")) {
 				
 				engine.closeOverride();
 				menuReturned = true;
 				
-			}
+			}});
 			
 		}
 		
-		nk_end(context);
-		
-	}
-	
-	private void layoutOptions() {
+		void show() {
+			
+			show = true;
+			
+		}
 
-		try(MemoryStack stack = allocator.push()) {
+		void hide() {
 			
-			NkRect optionsRect = NkRect.malloc(stack).set(810 , 540 , 300 , 400);
-			if(nk_begin(context , "Options" , optionsRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
-				
-				nk_layout_row_dynamic(context , 20 , 1);
-				nk_text(context , "Sound Options" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED);
-				nk_layout_row_dynamic(context , 30 , 1);
-				FloatBuffer slider = stack.floats(SoundEngine.getGlobalVolume());
-				nk_property_float(context , "Sound Volume" , -999 , slider , 999 , 0.05f , 0.05f);
-				SoundEngine.setGlobalVolume(slider.get());
-				
-				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
-				
-			}
-			
-			nk_end(context);
+			show = false;
 			
 		}
-	
+		
 	}
 	
-	private void layoutMainMultiplayer(Engine engine) { 
-		
-		try(MemoryStack stack = allocator.push()) {
+	class Multiplayer extends UserInterface {
+
+		public Multiplayer(Engine engine) {
 			
-			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
-			if(nk_begin(context , "Multiplayer" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) {
-				
+			super("" , 810 , 540 , 300 , 310, NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE ,
+											  NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+			 
+			layoutBody((frame) -> {
+
 				if(engine.mg_isHostedServerRunning()) {
 					
 					nk_layout_row_dynamic(context , 20 , 1);
@@ -234,49 +304,101 @@ public class MainMenu implements NKUI{
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
 				
-				
-			}
-			
-			nk_end(context);
+			});
 			
 		}
+		
+		void show() {
 			
+			show = true;
+			
+		}
+
+		void hide() {
+			
+			show = false;
+			
+		}
+		
 	}
-		
-	/**
-	 * First, input IP and port of the server, then connect to the server then choose to create or load a character, then begin joining
-	 * 
-	 */
-	private void layoutMultiplayerJoining() {
-		
-		try(MemoryStack stack = allocator.push()) { 
-			
-			NkRect multiplayerRect = NkRect.malloc(allocator).set(810 , 540 , 300 , 310);
-			if(nk_begin(context , "Join a Session" , multiplayerRect , NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE)) { 
+	
+	class MultiplayerJoiner extends UserInterface {
+
+		public MultiplayerJoiner(Engine engine) {
+			super("" , 810 , 540 , 300 , 310, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE
+											, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+
+			layoutBody((frame) -> {
 				
 				nk_layout_row_dynamic(context , 20 , 1);
 				nk_text(context  , "IP Address:Port" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , portAndInetAddrInput , portAndInetAddrLength , 22 , NKUI.DEFAULT_FILTER);
+				nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , portAndInetAddrInput , portAndInetAddrLength , 22 , UserInterface.DEFAULT_FILTER);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Join")) GameRuntime.setState(GameState.JOIN_MULTIPLAYER);
+				if(nk_button_label(context , "Join")) { 
+					
+					GameRuntime.setState(GameState.JOIN_MULTIPLAYER);
+					hideAll();
+					
+				}
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER_MAIN;
 				
-			}
+			});
+				
+		}
+		
+		void show() {
 			
-			nk_end(context);
+			show = true;
+			
+		}
+
+		void hide() {
+			
+			show = false;
 			
 		}
 		
 	}
+	
+	class Options extends UserInterface {
+
+		public Options(Engine engine) {
+			
+			super("" , 810 , 540 , 300 , 400, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE
+											, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+
+			layoutBody((frame) -> {
+
+				nk_layout_row_dynamic(context , 20 , 1);
+				nk_text(context , "Sound Options" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED);
+				nk_layout_row_dynamic(context , 30 , 1);
+				FloatBuffer slider = frame.floats(SoundEngine.getGlobalVolume());
+				nk_property_float(context , "Sound Volume" , -999 , slider , 999 , 0.05f , 0.05f);
+				SoundEngine.setGlobalVolume(slider.get());
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
+				
+			});
+			
+		}
 		
-	String getServerConnectionInfo() {
+		void show() {
+			
+			show = true;
+			
+		}
 		
-		return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
+		void hide() {
+			
+			show = false;
+			
+		}
 		
 	}
 	

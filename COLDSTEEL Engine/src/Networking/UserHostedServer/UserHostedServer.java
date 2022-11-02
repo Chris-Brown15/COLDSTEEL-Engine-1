@@ -1,6 +1,8 @@
 package Networking.UserHostedServer;
 
-import static CSUtil.BigMixin.toByte;
+import static org.lwjgl.system.MemoryUtil.memCalloc;
+import static org.lwjgl.system.MemoryUtil.memFree;
+import static CSUtil.BigMixin.toBool;
 import static Networking.Utils.NetworkingConstants.*;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_LEFT;
@@ -10,37 +12,33 @@ import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_push;
-import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_text;
+import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
-import static org.lwjgl.nuklear.Nuklear.nk_selectable_text;
-
+import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.system.MemoryStack;
-
 import CS.COLDSTEEL;
 import CS.Engine;
+import CS.UserInterface;
 import CSUtil.RefInt;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
-import Core.NKUI;
 import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
@@ -49,7 +47,6 @@ import Networking.MultiplayerChatUI;
 import Networking.NetworkedEntities;
 import Networking.NetworkedInstance;
 import Networking.ReliableDatagram;
-import Networking.UserConnection;
 import Networking.Utils.ByteArrayUtils;
 import Networking.Utils.PacketCoder;
 import Physics.Kinematics;
@@ -102,9 +99,11 @@ public class UserHostedServer implements NetworkedInstance {
 		
 		@Override public void run() {
 			
-			while(true) 
+			while(true) { 
+				
 				instanceUpdate();
-//			if() run();
+			
+			}
 			
 		}
 		
@@ -155,7 +154,7 @@ public class UserHostedServer implements NetworkedInstance {
 					
 					connections.remove(key);
 					//disconnected
-										
+
 				} else {
 										
 					/*
@@ -179,12 +178,14 @@ public class UserHostedServer implements NetworkedInstance {
 					String entrantmacroLevelLevel = entrantCoder.rstring();
 					
 					short connectionID = nextConnectionID++;
+					NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(connectionID , new Entities(entrantName) , false);
+					newClientNetworkedEntity.setNetworkControlled();
 					UserConnection newClient = new UserConnection(
 						connectionID , 
 						packet.getPort() , 
 						packet.getAddress() , 
 						new Timer() , 
-						new NetworkedEntities(connectionID , new Entities(entrantName) , false)
+						newClientNetworkedEntity
 					);
 					
 					newClient.entity.networked().moveTo(entrantPos);
@@ -200,7 +201,7 @@ public class UserHostedServer implements NetworkedInstance {
 					PacketCoder toEntrant = new PacketCoder()
 						.bflag(CHANGE_CONNECTION)					
 						.bconnectionID(connectionID)
-						.brepitition((short) connections.size() , (byte) 2)
+						.brepitition((short) connections.size() , (byte) 3)
 					;
 					
 					//populate the coder for the entrant of ALL players ID and entity
@@ -282,12 +283,16 @@ public class UserHostedServer implements NetworkedInstance {
 					if(foundLevel.get() == 0)  {
 						
 						Levels newLiveLevel = new Levels((CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
-						Scene thisLevelScene = new Scene(1 , engine.getCamera());
-						//server simulates at 30 ticks per second
-						thisLevelScene.entities().setTargetTicksPerSecond(30);
-						newLiveLevel.deploy(thisLevelScene);
-						thisLevelScene.entities().add(newClient.entity.networked());
-						liveLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , thisLevelScene) , new CSLinked<UserConnection>(newClient));
+						Scene newLevelScene = new Scene(engine.getCamera());
+						newLevelScene.entities().setServer(this);
+//						//server simulates at 30 ticks per second
+//						newLevelScene.entities().setTargetTicksPerSecond(30);
+						newLiveLevel.deploy(newLevelScene);
+						newLevelScene.entities().add(newClient.entity.networked());
+						liveLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(newClient));
+					
+						//update UI that we loaded a new level
+						ui.refreshLevelPointers();
 						
 					}
 					
@@ -348,13 +353,16 @@ public class UserHostedServer implements NetworkedInstance {
 				
 				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
 				PacketCoder coder = new PacketCoder(packet.getData() , offset + 1);
-				byte[] keyboardStates = coder.rkeyboardKeyStrokes() , mouseStates = coder.rmouseKeyStrokes() , gamepadStates = coder.rgamepadKeyStrokes();
+				
 				/*
 				 * Sets the server's view of the keystrokes sender made last 
-				 */
-				sender.entity.keyboardState(keyboardStates);
-				sender.entity.mouseState(mouseStates);
-				sender.entity.gamepadState(gamepadStates);
+				 */				
+				if(coder.testFor(PacketCoder.CONTROL_KEY_STROKES)) {
+					
+					byte[] controls = coder.rControlStrokes();
+					sender.entity.controlsState(controls);
+					
+				}
 				
 			}
 			
@@ -379,12 +387,6 @@ public class UserHostedServer implements NetworkedInstance {
 	public int port() {
 		
 		return serverSocket.getLocalPort();
-		
-	}
-	
-	public void setAndDisplayLevel(Tuple2<Levels , Scene> target) {
-		
-		engine.g_clearDeploy(target.getFirst() , target.getSecond());
 		
 	}
 	
@@ -438,7 +440,7 @@ public class UserHostedServer implements NetworkedInstance {
 										
 					} , 
 					//release server view of connection's keys
-					() -> listOfConnections.forEachVal(connection -> connection.entity.releaseKeys())
+					() -> listOfConnections.forEachVal(connection -> connection.entity.unStrikeKeys())
 				);
 								
 			});
@@ -451,13 +453,6 @@ public class UserHostedServer implements NetworkedInstance {
 		
 	}
 	
-	@Override public void instanceUI() {
-
-		ui.layout();
-		chatUI.layout();
-		
-	}
-
 	@Override public void send(byte[] data) throws IOException {
 
 		
@@ -509,7 +504,7 @@ public class UserHostedServer implements NetworkedInstance {
 
 	@Override public void toggleUI() {
 
-		ui.toggle();
+		ui.toggleShow();
 		chatUI.toggle();
 		
 	}
@@ -526,96 +521,119 @@ public class UserHostedServer implements NetworkedInstance {
 		
 	}
 
-	private class ServerUI implements NKUI {
+	private class ServerUI extends UserInterface {
 		
-		//toggle this with f11
-		boolean show = false;
-		private boolean liveLevelDropdown = false;
-		Levels displayingLevel = null;
+		private static int options = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_TITLE;
 		
-		public void layout() {
+		public ServerUI() {
 			
-			if(!show) return;
+			super("Multiplayer Information", 1565 , 5 , 350 , 600 , options , options);
+			
+			layoutBody((frame) -> {
 
-			try(MemoryStack stack = allocator.push()) {
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Server Address:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , serverSocket.getLocalAddress().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 				
-				NkRect rect = NkRect.malloc(allocator).set(1565 , 475 , 350 , 600);
-				if(nk_begin(context , "Multiplayer Information" , rect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Server Port:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , "" + serverSocket.getLocalPort() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);					
+				
+				int symbol = toBool(liveLevelDropdown) ? NK_SYMBOL_TRIANGLE_DOWN : NK_SYMBOL_TRIANGLE_RIGHT;
+				
+				nk_layout_row_dynamic(context , 30 , 1);				
+				if(nk_selectable_symbol_label(context , symbol , "Show Live Levels" , NK_TEXT_ALIGN_LEFT , liveLevelDropdown)) { 
 					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "Server Address:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , serverSocket.getLocalAddress().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "Server Port:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , "" + serverSocket.getLocalPort() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);					
-					
-					int symbol = liveLevelDropdown ? NK_SYMBOL_TRIANGLE_DOWN : NK_SYMBOL_TRIANGLE_RIGHT;
-					
-					nk_layout_row_dynamic(context , 20 , 1);
-					var ptr = toByte(stack , liveLevelDropdown);
-					if(nk_selectable_symbol_text(context , symbol , "Live Levels" , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE , ptr)) {
-						
-						liveLevelDropdown = liveLevelDropdown ? false : true;
-						
-					}
-					
-					if(liveLevelDropdown) {
-						
-						liveLevels.forEach((levelSceneTuple , listOfPlayers) -> {
-							
-							nk_layout_row_dynamic(context , 20 , 2);
-							var displayingThisLevel = stack.bytes(toByte(displayingLevel != null && displayingLevel.equals(levelSceneTuple.getFirst())));
-							if(nk_selectable_text(context , "Level:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE , displayingThisLevel)) {
-								
-								displayingLevel = levelSceneTuple.getFirst();
-								setAndDisplayLevel(levelSceneTuple);
-								
-							}
-							
-							nk_text(context , levelSceneTuple.getFirst().gameName() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-							
-							listOfPlayers.forEachVal(connection -> {
-								
-								nk_layout_row_begin(context , NK_STATIC , 30 , 2);								
-								nk_layout_row_push(context , 20);
-								nk_text_wrap(context , "");
-								nk_layout_row_push(context , 150);
-								nk_text(context , connection.index + ": " + connection.entity.networked().name() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-								nk_layout_row_end(context);
-								
-							});
-							
-						});
-						
-					}
-					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "Number Connections" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , "" + connections.size() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-					
-					nk_layout_row_dynamic(context , 20 , 2);
-					nk_text(context , "Average RTT (1 second)" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-					nk_text(context , "" + ReliableDatagram.computeAverageRTT() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-					
-					var set = connections.entrySet();
-					for(Entry<Integer , UserConnection> x : set) { 
-						
-						nk_layout_row_dynamic(context , 20 , 2);
-						nk_text(context , "Index|IP Address:Port" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-						nk_text(context , x.getValue().index + " | " + x.getValue().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-						
-					}
+					refreshLevelPointers();
 					
 				}
 				
-				nk_end(context);
+				if(toBool(liveLevelDropdown)) {
+					
+					RefInt iter = new RefInt(0);
+					
+					liveLevels.forEach((levelSceneTuple , listOfPlayers) -> {
+						
+						nk_layout_row_dynamic(context , 20 , 1);
+						if(nk_checkbox_label(context , levelSceneTuple.getFirst().gameName() , levelPtrs[iter.get()])) {
+							
+							//unsets all others
+							for(int i = 0 ; i < liveLevels.size() ; i ++) if(i != iter.get()) levelPtrs[i].put(0 , (byte) 0);
+							
+							engine.schedule(() -> {
+								
+								Engine.boundScene().entities().runSystems(false);
+								Engine.bindScene(levelSceneTuple.getSecond());
+								
+							});
+														
+						}
+						
+						nk_layout_row_dynamic(context , 20 , 2);
+						nk_text(context , "Ticks Last Second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+						nk_text(context , "" + Engine.boundScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+						
+						listOfPlayers.forEachVal(connection -> {
+							
+							nk_layout_row_begin(context , NK_STATIC , 30 , 2);								
+							nk_layout_row_push(context , 20);
+							nk_text_wrap(context , "");
+							nk_layout_row_push(context , 150);
+							nk_text(context , connection.index + ": " + connection.entity.networked().name() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+							nk_layout_row_end(context);
+							
+						});
+							
+						iter.add();
+						
+					});
+					
+				}
+				
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Number Connections" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , "" + connections.size() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Average RTT (1 second)" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+				nk_text(context , "" + ReliableDatagram.computeAverageRTT() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				
+				var set = connections.entrySet();
+				for(Entry<Integer , UserConnection> x : set) { 
+					
+					nk_layout_row_dynamic(context , 20 , 2);
+					nk_text(context , "Index|IP Address:Port" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+					nk_text(context , x.getValue().index + " | " + x.getValue().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+				
+				}
+				
+			});
+
+		}
+
+		//toggle this with f11
+		private ByteBuffer liveLevelDropdown = ALLOCATOR.bytes((byte) 0);
+		
+		private ByteBuffer[] levelPtrs;
+		
+		public void refreshLevelPointers() {
+
+			int active = -1;
+
+			if(levelPtrs != null) for(int i = 0 ; i < levelPtrs.length ; i ++) { 
+
+				if(levelPtrs[i].get(0) == 1) active = i;					
+				memFree(levelPtrs[i]);
+				
 			}
 			
-		
+			levelPtrs = new ByteBuffer[liveLevels.size()];
+			for(int i = 0 ; i < liveLevels.size() ; i ++) levelPtrs[i] = memCalloc(1);
+			if(active != -1) levelPtrs[active].put(0 , (byte) 1);
+			
 		}
 		
-		public void toggle() {
+		public void toggleShow() {
 			
 			show = show ? false : true;
 			
@@ -624,6 +642,7 @@ public class UserHostedServer implements NetworkedInstance {
 		public void shutDown() {
 			
 			show = false;
+			if(levelPtrs != null) for(ByteBuffer b : levelPtrs) memFree(b);
 			
 		}
 	

@@ -6,6 +6,8 @@ import static org.lwjgl.system.MemoryUtil.memReport;
 import org.lwjgl.system.Configuration;
 import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
+import CSUtil.CSLogger;
+
 /**
  * Entry of the COLDSTEEL Engine, a 2D game and game editor. 
  * 
@@ -18,6 +20,7 @@ public class COLDSTEEL {
 	public static final String data;
 	public static final String deleted;
 	public static final String mods;
+	public static final String logs;
 	public static final String root;
 	
 	/**
@@ -46,10 +49,12 @@ public class COLDSTEEL {
 	static {
 		
 		System.out.println("STATIC:");
+		
 		assets = getPath("assets");		
 		data = getPath("data");
 		deleted = getPath("deleted");
 		mods = getPath("mods");
+		logs = getPath("logs");
 		String incorrectRoot = getPath("");
 		root = incorrectRoot.substring(0, incorrectRoot.length() -1);
 		
@@ -71,6 +76,13 @@ public class COLDSTEEL {
 			Configuration.OPENGL_EXPLICIT_INIT.set(true);
 			DEBUG_CHECKS = true;
 						
+		}
+		
+		if(args[5].contains("logging=true")) {
+			
+			CSLogger.LOGGING_ENABLED = true;
+			CSLogger.initialize();
+			
 		}
 		
 		UI_MEMORY_SIZE_KILOS = Integer.parseInt(args[2]);

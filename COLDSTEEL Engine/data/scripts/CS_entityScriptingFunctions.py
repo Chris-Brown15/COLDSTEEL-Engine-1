@@ -13,22 +13,14 @@ from CSUtil import Timer
 from Physics import Kinematics
 from Physics import ForceType
 from Core import TemporalExecutor
+from Core import UIScript
+from CS import Controls
 
 console = lib.getConsole() if lib.getState() == RuntimeState.EDITOR else None
+controlBinds = lib.clientControls()
 
 TRUE = 1
 FALSE = 0
-
-def getAllVariables():    
-    from CSUtil.DataStructures import CSLinked
-    from CSUtil.DataStructures import Tuple2
-
-    globalVariables = globals()
-    global variableList    
-    variableList = CSLinked()
-
-    for x , i in list(globalVariables.items()):
-        variableList.add(Tuple2(x , i))
 
 def moveH(xDist):
     return lib.moveHzntl(E , xDist)
@@ -225,12 +217,11 @@ def stopOnInitialization(state):
 def newLootTable():
     return lib.newLootTable()
 
-#returns the state of some given control
-def state(control):
-    return lib.state(E , control)
-
 def pressed(control):
     return lib.pressed(E , control)
+
+def struck(control):
+    return lib.struck(E , control)
 
 def allPressed(controls):
     return lib.allPressed(E , controls)
@@ -244,51 +235,8 @@ def anyPressed(controls):
 def anyStruck(controls):
     return lib.anyStruck(E , controls)
 
-def struck(control):
-    return lib.struck(E , control)
-
-#peripheral state accessors
-def kb_state(key):
-    return lib.kb_state(E , key)
-
-#perihperal press checks
-def kb_pressed(key):
-    return lib.kb_pressed(E , key)
-
-#peripheral strike checks
-def kb_struck(key):
-    return lib.kb_struck(E , key)
-
-#peripheral state accessors
-def mb_state(key):
-    return lib.mb_state(E , key)
-
-#perihperal press checks
-def mb_pressed(key):
-    return lib.mb_pressed(E , key)
-
-#peripheral strike checks
-def mb_struck(key):
-    return lib.mb_struck(E , key)
-
 def syncControls(controls):
-    print("syncing controls in facade")
-    lib.setNetworkedControls(E , controls)
+    lib.setNetworkedControls(controls)
 
-def syncKBKeys(keys):
-    lib.setNetworkedKeyboardKeys(E , keys)
-
-def syncedKBKeys():
-    return lib.getNetworkedKeyboardKeys(E)
-
-def syncMKeys(keys):
-    lib.setNetworkedMouseButtons(E , keys)
-
-def syncedMKeys():
-    return lib.getNetworkedMouseButtons(E)
-
-def syncGPKeys(keys):
-    lib.setNetworkedGamepadButtons(E , keys)
-
-def syncedGPKeys():
-    return lib.getNetworkedGamepadButtons(E)
+def onServer():
+    return lib.onServer()

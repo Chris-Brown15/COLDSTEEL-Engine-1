@@ -8,30 +8,22 @@ import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_push;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
 import static org.lwjgl.nuklear.Nuklear.nk_button_symbol;
-import static org.lwjgl.nuklear.Nuklear.nnk_edit_string;
+import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
 
-import static org.lwjgl.system.MemoryUtil.nmemFree;
 import static org.lwjgl.system.MemoryUtil.memUTF8;
 
-import static CSUtil.BigMixin.dr;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 
-import org.lwjgl.nuklear.NkContext;
-import org.lwjgl.nuklear.NkPluginFilter;
-import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.nuklear.Nuklear;
-import org.lwjgl.system.MemoryStack;
+import CS.UserInterface;
+import CSUtil.DataStructures.CircularQueue;
 
-import CS.Engine;
-import CSUtil.DataStructures.CSLinked;
-import CSUtil.DataStructures.cdNode;
 
 /**
  * 
@@ -40,75 +32,67 @@ import CSUtil.DataStructures.cdNode;
  * 
  *
  */
-public class Console {
+public class Console extends UserInterface {
 
-	private static final NkContext context = Engine.NuklearContext();
-	private static final MemoryStack allocator = Engine.UIAllocator();
-	private static final int TEXT_FIELD_OPTIONS = NK_EDIT_FIELD|NK_EDIT_SELECTABLE;
-	private static final long FILTER_ADDRESS = NkPluginFilter.create(Nuklear::nnk_filter_default).address();
-
-	int x , y , w , h;
-	String title;	
-	private long stringInputMemory = allocator.nmalloc(999);
-	private long stringLengthMemory = allocator.nmalloc(4);
-	private CSLinked<String> consoleLines = new CSLinked<String>();
-	private boolean renderConsole = false;
+	private ByteBuffer inputBuffer = ALLOCATOR.malloc(100);
+	private IntBuffer inputBuffersLength = ALLOCATOR.mallocInt(1);
 	
+	private final CircularQueue<String> consoleText = new CircularQueue<String>(50);
 	
-	public Console(String title , int x , int y , int w , int h) {
+	/*
+	 * The console has to destroy old text because otherwise nuklear will slow to a crawl trying to display thousands of lines.
+	 * I don't think there's a way to necessarily compute which text the user could be looking at and only make nuklear calls
+	 * on that data.
+	 * 
+	 */
 		
-		this.x = x;
-		this.y = y;
-		this.w = w;
-		this.h = h;
-		this.title = title;
+	public Console() {
 		
-	}
-	
-	public void layout() {
-		
-		if(renderConsole && nk_begin(context , title , NkRect.malloc(allocator).set(x, y, w, h) , NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE)) {
+		super("Console", 5f , 5f , 400f , 700f , NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_SCALABLE , 
+												 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_SCALABLE);
+		layoutBody((frame) -> {
 			
 			nk_layout_row_begin(context , NK_STATIC , 30 , 2);
 			nk_layout_row_push(context , 30);
 			if(nk_button_symbol(context , NK_SYMBOL_TRIANGLE_RIGHT)) {
-				
-				consoleLines.add(memUTF8(stringInputMemory , dr(stringLengthMemory)));
+			
+				//sends whatever they typed
+				enter();
 				
 			}
 			
-			nk_layout_row_push(context , w - 50);
-			nnk_edit_string(context.address() , TEXT_FIELD_OPTIONS , stringInputMemory , stringLengthMemory , 999 , FILTER_ADDRESS);
-		
+			nk_layout_row_push(context  , 340);
+			nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , inputBuffer , inputBuffersLength , 100 , DEFAULT_FILTER);
 			nk_layout_row_end(context);
 			
-			cdNode<String> iter = consoleLines.get(0);
-			for(int i = 0 ; i < consoleLines.size() ; i ++ , iter = iter.next) {
+			consoleText.forEach((string) -> {
 				
-				nk_layout_row_dynamic(context , 20 , 1);
-				nk_text_wrap(context , iter.val);
+				nk_layout_row_dynamic(context , 40 , 1);
+				nk_text_wrap(context , string);
 				
-			}
+			});
 			
+		});
+		
+	}
+	
+	public synchronized void sayln(Object line) {
+		
+		consoleText.add(line.toString());
+		
+	}
+	
+	public synchronized void enter() {
+		
+		if(inputBuffersLength.get(0) != 0) {
+					
+			String ln = memUTF8(inputBuffer.slice(0 , inputBuffersLength.get()));
+			inputBuffer.reset();
+			inputBuffersLength.reset();
+			consoleText.add(ln);
+					
 		}
 		
-		nk_end(context);
-		
 	}
-	
-	public static final void shutDown() {
-		
-		System.out.println("Shutting Down Console");		
-		nmemFree(FILTER_ADDRESS);
-		
-	}	
-
-	public void toggleConsole() {
-		
-		renderConsole = renderConsole ? false:true;
-		
-	}
-	
 	
 }
-

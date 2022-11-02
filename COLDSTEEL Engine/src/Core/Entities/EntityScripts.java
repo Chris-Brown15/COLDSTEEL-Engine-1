@@ -4,15 +4,10 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 
 import org.python.core.PyCode;
-import org.python.core.PyObject;
-
 import AudioEngine.Sounds;
 import CS.Engine;
 import CS.PythonScriptEngine;
 import CSUtil.DataStructures.CSArray;
-import CSUtil.DataStructures.CSLinked;
-import CSUtil.DataStructures.Tuple2;
-import CSUtil.DataStructures.cdNode;
 import Core.SpriteSets;
 import Core.ECS;
 import Game.Items.Inventories;
@@ -125,7 +120,7 @@ public class EntityScripts extends PythonScriptEngine{
 			
 			code = python.compile(new FileReader(CS.COLDSTEEL.data + "scripts/" + scriptName));
 			call(EntityScriptingInterface.ENTITY_SCRIPTING_FACADE);
-			System.out.println("Recompiled Script: " + scriptName);		
+			System.out.println("Recompiled Script: " + scriptName);
 			
 		} catch (FileNotFoundException e) {
 
@@ -161,65 +156,6 @@ public class EntityScripts extends PythonScriptEngine{
 		}
 		
 		
-	}
-		
-	public CSLinked<Tuple2<PyObject , PyObject>> getAllVariables() {
-		
-		python.exec("getAllVariables()");
-		PyObject list = python.get("variableList");
-		@SuppressWarnings("unchecked")
-		CSLinked<Tuple2<PyObject , PyObject>> allMembers = (CSLinked<Tuple2<PyObject , PyObject>>)list.__tojava__(CSLinked.class);
-		cdNode<Tuple2<PyObject , PyObject>> iter = allMembers.get(0);
-		boolean bumpedIterator = false;
-		for(int i = 0 ; i < allMembers.size() ; i ++) {
-			
-			try {
-			
-				if(iter.val.getSecond().getType() == Engine.PYFUNCTION_PYTYPE) {
-					
-					iter = allMembers.safeRemove(iter);
-					bumpedIterator = true;
-					
-				} else {
-					
-					iter = iter.next;
-					bumpedIterator = true;
-					
-				}
-				
-			} catch(ClassCastException|NullPointerException n) {} finally {
-				
-				if(!bumpedIterator) iter = iter.next;
-				
-				bumpedIterator = false;
-				
-			}			
-			
-		}
-		
-		return allMembers;
-		
-	}
-
-	/**
-	 * Returns a {@code CSLinked} list of {@code Tuple2}s, each holding a reference to a python member name and value belonging to
-	 * the owning entity's python instance.
-	 * <br> <br>
-	 * The returned list is sorted alphabetically by the variable's names.
-	 * 
-	 * @return — CSLinkedList<Tuple2<PyObject , PyObject>> containing all members in the current python instance
-	 */
-	@SuppressWarnings("unchecked")
-	public CSLinked<Tuple2<PyObject , PyObject>> getAllMembers(){
-		
-		python.exec("getAllVariables()");
-		//This list PyObject is a global variable created when getAllVariables() is called which is a CSLinked list of Tuple2s which
-		//are python variable names and values.
-		PyObject list = python.get("variableList");
-		CSLinked<Tuple2<PyObject , PyObject>> members = (CSLinked<Tuple2<PyObject , PyObject>>)list.__tojava__(CSLinked.class); 
-		
-		return members; 
-				
 	}
 		public boolean initialized() {
 		

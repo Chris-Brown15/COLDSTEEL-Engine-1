@@ -11,16 +11,18 @@ public abstract class NetworkingConstants {
 
 	/**
 	 * Masks for packets. 
-	 * Packets are constructed which contain a user's keystroke data. The {@code KEYCODE_MAK} can be used to pull 7 bits out a byte, which
-	 * will represent the keycode to the key pressed. the {@code KEY_PRESSED_MASK} can be used to pull the last bit out of the byte, which
-	 * tells whether the preceding key was pressed or not. 
+	 * Packets are constructed which contain a user's keystroke data. The {@code KEYCODE_MAK} can be used to pull 5 bits out a byte, which
+	 * will represent the control ID the user is updating about. the {@code CONTROL_PRESSED_MASK} can be used to pull the last bit out of the byte, which
+	 * tells whether the preceding key was pressed or not. The {@code CONTROL_STRUCK_MASK} can be used to query whether the key is struck or not
 	 * 
 	 */
-	public static final byte	
-		//mask for the bits of the short that represent the glfw keycode
-		KEYCODE_MASK = 127 ,		
-		//mask for the eighth bit in a byte which represents a keystroke
-		KEY_PRESSED_MASK = -128
+	public static final int
+		//mask for the bits of the byte that represent the control ID 
+		KEYCODE_MASK = 63 ,		
+		//mask for the eighth bit in a byte which represents a press state for the control ID of the preceding first six bits
+		CONTROL_PRESSED_MASK = -128,
+		//mask for the seventh bit of a number, telling that this key was struck
+		CONTROL_STRUCK_MASK = 64;
 	;
 
 	/**

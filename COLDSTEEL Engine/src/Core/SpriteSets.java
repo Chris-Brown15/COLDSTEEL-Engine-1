@@ -362,15 +362,6 @@ public class SpriteSets implements GameFiles<SpriteSets> {
 	}
 	
 	/**
-	 * Duplicates sprites not at the beginning of end of the list and appends then in descending order.
-	 */
-	public void appendReverseFromEnd() {
-		
-		for(int i = sprites.size() - 2 ; i > 0 ; i--) sprites.add(sprites.get(i));
-		
-	}
-
-	/**
 	 * Pass 1 for facing right, 0 for facing left.
 	 * 
 	 * @param directionInt — integer representation of the default direction
@@ -401,35 +392,6 @@ public class SpriteSets implements GameFiles<SpriteSets> {
 		
 	}
 
-	public void fixWidth(float textureWidth) {
-		
-		float largestWidth = Float.MIN_VALUE;
-		for(float[] x : sprites) if(x[4] > largestWidth) largestWidth = x[4];//x[4] = sprite width
-		for(float[] x : sprites) {
-			
-			float difference = (largestWidth - x[4]) / textureWidth;
-			x[0] -= difference;
-			x[1] += difference;
-			x[4] = largestWidth;
-			
-		}
-		
-	}
-	
-	public void fixHeight(float textureHeight) {
-		
-		float largestHeight = Float.MIN_VALUE;
-		for(float[] x : sprites) if(x[5] > largestHeight) largestHeight = x[5];//x[5] = sprite height
-		for(float[] x : sprites) {
-			
-			float difference = (largestHeight - x[5]) / textureHeight;
-			x[2] += difference * 2f;
-			x[5] = largestHeight;
-			
-		}
-		
-	}
-	
 	public void reverse(boolean reverse) {
 		
 		this.reverse = reverse;

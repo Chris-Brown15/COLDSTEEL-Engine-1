@@ -1,6 +1,7 @@
-package Networking;
+package Networking.UserHostedServer;
 
 import java.net.InetAddress;
+import Networking.NetworkedEntities;
 
 import CSUtil.Timer;
 

@@ -5,6 +5,8 @@ import static CS.COLDSTEEL.data;
 import static CSUtil.BigMixin.getSCToWCForX;
 import static CSUtil.BigMixin.getSCToWCForY;
 import static org.lwjgl.Version.getVersion;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
+import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
 import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
@@ -20,37 +22,32 @@ import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11C.glClearColor;
 import static org.lwjgl.opengl.GL11C.glViewport;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.nmemAlloc;
-import static org.lwjgl.system.MemoryUtil.nmemFree;
-
-import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import org.lwjgl.nuklear.NkBuffer;
-import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
-import org.python.core.PyType;
 
 import AudioEngine.SoundEngine;
 import AudioEngine.Sounds;
 import CS.Controls.Control;
+import CSUtil.CSLogger;
 import CSUtil.CSTFParser;
-import CSUtil.NkInitialize;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSArray;
 import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
 import Core.AbstractGameObjectLists;
 import Core.Console;
+import Core.Executor;
 import Core.ObjectLists;
 import Core.Quads;
 import Core.Scene;
@@ -63,6 +60,7 @@ import Core.TileSets.TileSets;
 import Editor.CursorState;
 import Editor.Editor;
 import Editor.EditorMode;
+import Game.Core.DebugInfo;
 import Game.Core.GameRuntime;
 import Game.Core.GameState;
 import Game.Items.ItemScriptingInterface;
@@ -97,7 +95,7 @@ public class Engine {
 	/*engine static objects*/
 	private static GLFWWindow WINDOW;
 	//layer manager. Array of lists of game objects
-	private static final CSArray<AbstractGameObjectLists<? extends Quads>> OBJECTS = new CSArray<>(CS.COLDSTEEL.NUMBER_LAYERS , 1);
+	private static final CSArray<Scene> OBJECTS = new CSArray<>(CS.COLDSTEEL.NUMBER_LAYERS , 1);
 	//publicly accessable python interpreter
 	private static final EnginePython INTERNAL_ENGINE_PYTHON = new EnginePython();
 	//scripting singletons, static so that anything that wants to have a script does not need a reference to the engine
@@ -106,54 +104,54 @@ public class Engine {
 	public static ItemScriptingInterface ITEM_SCRIPTING_INTERFACE;
 	public static TriggerScriptingInterface TRIGGER_SCRIPTING_INTERFACE;
 	public static ProjectileScriptingInterface PROJECTILE_SCRIPTING_INTERFACE;	
-	//ui structs
-	private static NkContext NuklearContext;
-	private static NkBuffer NuklearDrawCommands;
-	//ui memory, allocated once and freed once
-	private static final long UI_ALLOCATOR_MEMORY = nmemAlloc(CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
-	private static final MemoryStack UI_ALLOCATOR = MemoryStack.ncreate(UI_ALLOCATOR_MEMORY , CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
-	//utilities
-	public static final PyType PYFUNCTION_PYTYPE = INTERNAL_ENGINE_PYTHON.get("functionForGettingType").getType();
+	public static Controls clientControls;
 	
 	static {
 		
 		MAIN_THREAD = Thread.currentThread();
 		
 	}
-	
-	public static final void addGameObjectList(AbstractGameObjectLists<? extends Quads> list) {
 		
-		OBJECTS.addAt(list.renderOrder(), list);
+	public static final int addScene(Scene newScene) {
 		
-	}
-	
-	public static final void removeGameObjectList(AbstractGameObjectLists<? extends Quads> list) {
-		
-		OBJECTS.remove(list.renderOrder());
+		int sceneIndex = OBJECTS.size();
+		OBJECTS.add(newScene);
+		return sceneIndex;
 		
 	}
 	
-	public static final void forEachObjectList(Consumer<AbstractGameObjectLists<? extends Quads>> function) {
+	public static final Scene boundScene() {
 		
-		OBJECTS.forEach(function);
+		return OBJECTS.get(0);
 		
 	}
 	
-	public static final void removeAllGameObjectLists() {
+	public static final void bindScene(Scene bindThis) {
 		
-		OBJECTS.clear();
+		Scene oldBound = OBJECTS.get(0);
+		int newBoundOldIndex = bindThis.index;
+		OBJECTS.set(0 , bindThis);
+		OBJECTS.set(newBoundOldIndex , oldBound);
 		
 	}
-
-	Editor editor;
-	GameRuntime gameRuntime;
+	
+	public static final void forBoundScene(Consumer<AbstractGameObjectLists<? extends Quads>> function) {
+		
+		OBJECTS.get(0).forEach(function);
+		
+	}
+	
+	private ReentrantLock lock = new ReentrantLock();
+	private final CSQueue<Executor> events = new CSQueue<>();
+	final Editor editor = new Editor();
+	final GameRuntime gameRuntime = new GameRuntime();
 	
 	Renderer renderer;
 	private Levels currentLevel;
 	private MacroLevels currentMacroLevel;
 	
-	private NkInitialize guiInitializer;
 	private Console engineConsole;
+	DebugInfo debugInfo;
 	
 	/**
 	 * The Scene is the star of the show. It holds references to game object manager classes, which are typically named
@@ -201,17 +199,14 @@ public class Engine {
     	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
     	GL.createCapabilities();
     	
-    	guiInitializer = new NkInitialize(WINDOW.glfwWindow);
-    	guiInitializer.initNKGUI();
-    	NuklearContext = guiInitializer.getContext(); 
-    	NuklearDrawCommands = guiInitializer.getCommands();
+    	renderer.initialize(() -> WINDOW.getWindowDimensions() , () -> WINDOW.getFramebufferDimensions() , UserInterface.context , UserInterface.drawCommands); 
     	
-    	renderer.initialize(() -> WINDOW.getWindowDimensions() , () -> WINDOW.getFramebufferDimensions()); 
+    	engineConsole = new Console();
     	
         // disable v-sync while loading
         glfwSwapInterval(0);
         
-    	WINDOW.setNuklearContext(NuklearContext);   	        	
+    	WINDOW.setNuklearContext(UserInterface.context);   	        	
     	
         try(MemoryStack stack = stackPush()){
 
@@ -228,16 +223,12 @@ public class Engine {
 			
 			case EDITOR:
 				
-	    		editor = new Editor();
-	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
-	    			(targetState) -> switchState(targetState) , 
-	    			() -> WINDOW.getCursorWorldCoords() , 
-	    			() -> WINDOW.overrideCloseWindow());	    		
+	    		editor.initialize(this , renderer , scene , currentLevel , engineConsole , onLevelLoad ,
+	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());	    		
 				break;
 				
 			case GAME:
 				
-				gameRuntime = new GameRuntime(scene);
 				gameRuntime.initialize();								
 				break;
 				
@@ -250,10 +241,13 @@ public class Engine {
 		}
 		
 		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(renderer, scene , engineConsole);
-		UI_SCRIPTING_INTERFACE = new UIScriptingInterface(engineConsole);
+		UI_SCRIPTING_INTERFACE = new UIScriptingInterface(this , engineConsole);
 		ITEM_SCRIPTING_INTERFACE = new ItemScriptingInterface(engineConsole , renderer , scene.entities());
 		TRIGGER_SCRIPTING_INTERFACE = new TriggerScriptingInterface(scene , currentLevel);
 		PROJECTILE_SCRIPTING_INTERFACE = new ProjectileScriptingInterface(scene);
+		
+		debugInfo = new DebugInfo(this , gameRuntime);
+		clientControls = new Controls();
 		
 		//read and set controls
 		try(BufferedReader reader = Files.newBufferedReader(Paths.get(data + "engine/controls.CStf"))){ 
@@ -261,11 +255,11 @@ public class Engine {
 			CSTFParser cstf = new CSTFParser(reader);
 			int listSize = cstf.rlist("game");
 			
-			byte[] key = new byte[2];			
+			int[] key = new int[2];			
 			for(int i = 0 ; i < listSize ; i ++) {
 				
 				 String name = cstf.rlabel(key);
-				 Controls.setByName(name, key[0] , key[1]);				 
+				 clientControls.setByName(name, (byte) key[0] , key[1]);				 
 			}
 			
 		} catch (IOException e) {
@@ -273,9 +267,10 @@ public class Engine {
 			e.printStackTrace();
 			
 		}
-		
+
+		UserInterface.threadSpinup();
 		System.gc();
-		
+		CSLogger.log("Successfully initialized");
 	}
 	
 	/**
@@ -288,18 +283,14 @@ public class Engine {
 			
 			case EDITOR:
 
-	    		editor = new Editor();
-	    		editor.initialize(renderer , scene, currentLevel , onLevelLoad , 
-	    			(targetState) -> switchState(targetState) , 
-	    			() -> WINDOW.getCursorWorldCoords() , 
-	    			() -> WINDOW.overrideCloseWindow());
+	    		editor.initialize(this , renderer , scene, currentLevel , engineConsole , onLevelLoad , 
+	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());
 	    		
 				break;
 				
 			case GAME:
 				
 				scene.clear();
-				gameRuntime = new GameRuntime(scene);
 				GameRuntime.setState(GameState.MAIN_MENU);
 				gameRuntime.initialize();
 				
@@ -328,17 +319,18 @@ public class Engine {
     
 	void run() {
 
-        glClearColor(WINDOW.R, WINDOW.G, WINDOW.B, WINDOW.a);
+        glClearColor(WINDOW.r, WINDOW.g, WINDOW.b, 1);
         glfwSwapInterval(1);
         System.out.println("Window running.");
         //This is the main loop.
         while (!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
         	        	
-	    	nk_input_begin(NuklearContext);
+	    	nk_input_begin(UserInterface.context);
 	        glfwPollEvents();
-	        nk_input_end(NuklearContext);
+	        nk_input_end(UserInterface.context);
 	        
-	        DialogUtils.layoutDialogs();
+	        handleEvents();
+	        
 	        frameTimer.start();
 
         	if(engineTimer.getElapsedTimeMillis() >= 1000) {
@@ -363,7 +355,7 @@ public class Engine {
 	        	case EDITOR:
 	        		
 	        		editor.run(this);
-	        		if(!nk_window_is_any_hovered(NuklearContext) && WINDOW.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !WINDOW.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
+	        		if(!nk_window_is_any_hovered(UserInterface.context) && WINDOW.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !WINDOW.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
 	        			
 	        			glfwGetCursorPos(WINDOW.glfwWindow , WINDOW.newX , WINDOW.newY);
 	        			int[] windowDims = WINDOW.getWindowDimensions();
@@ -376,7 +368,7 @@ public class Engine {
 	        		break;
 
 	        	case GAME:
-	        		
+
 	        		gameRuntime.run(this);
 	        		
 	        		break;
@@ -393,47 +385,37 @@ public class Engine {
 
     }
 		
+	public void schedule(Executor code) {
+		
+		lock.lock();
+		events.enqueue(code);
+		lock.unlock();
+		
+	}
+	
+	private void handleEvents() {
+		
+		lock.lock();
+		while(!events.empty()) events.dequeue().execute();
+		lock.unlock();
+		
+	}
+	
 	void shutDown() {
     	
-		guiInitializer.shutDown();
+		UserInterface.shutDown1();
 		renderer.shutDown();	        
 		INTERNAL_ENGINE_PYTHON.shutDown();
-		guiInitializer.shutDownAllocator();
+		UserInterface.shutDown2();
 		SoundEngine.shutDown();
 		WINDOW.shutDown();
 		ENTITY_SCRIPTING_INTERFACE.shutDown();
-		DialogUtils.shutDownDialogs();
-		nmemFree(UI_ALLOCATOR_MEMORY);
-		Console.shutDown();
-		
-    	switch(STATE) {
-
-	    	case EDITOR -> editor.shutDown();
-	    	case GAME -> gameRuntime.shutDown();	    		
-
-    	}
-    	
+		gameRuntime.shutDown();
+		CSLogger.shutDown();
     	System.out.println("Program shut down, until next time...");    	
     	
     }
 	
-	/**
-	 * 
-	 * Designed to be a way to free resources only relevent to the current game state without stopping the entire program.
-	 * If for example this is called during the Game runtime, GameRuntime resources will be freed and a new state can be initialized.
-	 * 
-	 */
-	void preShutDown() {
-
-		switch(STATE) {
-
-	    	case EDITOR -> editor.shutDown();
-	    	case GAME -> gameRuntime.shutDown();	    		
-
-    	}
-
-	}
-
 	public void closeOverride() {
 		
 		WINDOW.overrideCloseWindow();
@@ -490,7 +472,6 @@ public class Engine {
 	
 	public void switchState(RuntimeState state) {
 		
-		preShutDown();
 		STATE = state;
 		reinitialize();
 	
@@ -515,25 +496,6 @@ public class Engine {
 	}
 
 	/**
-	 * Given some Control object, this will determine the state of that key and query the right peripheral. 
-	 * 
-	 * @param query
-	 * @return
-	 */
-	public static int controlKeyState(Control query) {
-
-		return switch(query.peripheral()) {
-		
-			case Controls.KEYBOARD -> WINDOW.getKeyboardKey(CSKeys.glfwKey(query.key()));					
-			case Controls.MOUSE -> WINDOW.getMouseKey(CSKeys.glfwMouse(query.key()));
-			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
-			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
-		
-		};
-		
-	}
-	
-	/**
 	 * True if the key referenced by {@code query} is pressed.
 	 * 
 	 * @param query — a User Control object
@@ -543,8 +505,29 @@ public class Engine {
 
 		return switch(query.peripheral()) {
 		
-			case Controls.KEYBOARD -> cs_keyboardPressed(query.key());
-			case Controls.MOUSE -> cs_mousePressed(query.key());
+			case Controls.KEYBOARD -> keyboardPressed(query.key());
+			case Controls.MOUSE -> mousePressed(query.key());
+			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+		
+		};
+		
+	}
+
+	/**
+	 * True if the key referenced by {@code query} is pressed.
+	 * 
+	 * @param query — a User Control object
+	 * @return true if the key referenced in {@code query} is pressed
+	 */
+	public static boolean controlKeyPressed(byte queriedID) {
+
+		Control query = clientControls.getByIndex(queriedID);
+		
+		return switch(query.peripheral()) {
+		
+			case Controls.KEYBOARD -> keyboardPressed(query.key());
+			case Controls.MOUSE -> mousePressed(query.key());
 			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
 			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
 		
@@ -556,8 +539,23 @@ public class Engine {
 
 		return switch(query.peripheral()) {
 		
-			case Controls.KEYBOARD -> cs_keyboardStruck(query.key());					
-			case Controls.MOUSE -> cs_mouseStruck(query.key());
+			case Controls.KEYBOARD -> keyboardStruck(query.key());					
+			case Controls.MOUSE -> mouseStruck(query.key());
+			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
+		
+		};
+		
+	}
+
+	public static boolean controlKeyStruck(byte queriedID) {
+
+		Control query = clientControls.getByIndex(queriedID);
+		
+		return switch(query.peripheral()) {
+		
+			case Controls.KEYBOARD -> keyboardStruck(query.key());					
+			case Controls.MOUSE -> mouseStruck(query.key());
 			case Controls.GAMEPAD -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
 			default -> throw new IllegalArgumentException("Unexpected value: " + query.peripheral());
 		
@@ -566,49 +564,33 @@ public class Engine {
 	}
 	
 	/*
-	 * Peripheral key state getters
-	 */
-	
-	public static int cs_keyboardKeyState(byte csKey) { 
-		
-		return WINDOW.getKeyboardKey(CSKeys.glfwKey(csKey));
-		
-	}
-
-	public static int cs_mouseKeyState(byte csKey) { 
-		
-		return WINDOW.getMouseKey(CSKeys.glfwMouse(csKey));
-		
-	}
-	
-	/*
 	 * Keyboard state queriers 
 	 */
 	
-	public static boolean cs_keyboardPressed(byte csKey) { 
+	public static boolean keyboardPressed(int glfwKey) { 
 		
-		return WINDOW.keyboardPressed(CSKeys.glfwKey(csKey));
+		return WINDOW.keyboardPressed(glfwKey);
 		
 	}
 	
-	public static boolean cs_keyboardStruck(byte csKey) { 
+	public static boolean keyboardStruck(int glfwKey) { 
 		
-		return WINDOW.keyboardStruck(CSKeys.glfwKey(csKey));
+		return WINDOW.keyboardStruck(glfwKey);
 		
 	}
 	
 	/*
 	 * Mouse state queriers
 	 */
-	public static boolean cs_mousePressed(byte csKey) { 
+	public static boolean mousePressed(int glfwKey) { 
 		
-		return WINDOW.mousePressed(CSKeys.glfwMouse(csKey));
+		return WINDOW.mousePressed(glfwKey);
 		
 	}
 
-	public static boolean cs_mouseStruck(byte csKey) {
+	public static boolean mouseStruck(int glfwKey) {
 		
-		return WINDOW.mouseStruck(CSKeys.glfwMouse(csKey));
+		return WINDOW.mouseStruck(glfwKey);
 		
 	}
 	
@@ -691,49 +673,6 @@ public class Engine {
 		
 	}
 	
-	public void g_loadSave(String selectedSaveNamePath) {
-		
-		fadeToBlack(2000);
-		GameRuntime.setState(GameState.BUSY);
-		
-		TemporalExecutor.onElapseOf(2400d , () -> {
-			
-			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
-				
-				PlayerCharacter player = gameRuntime.player();
-				
-				if(player == null) player = new PlayerCharacter();
-				player.load(reader);
-				player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
-				player.playersEntity().LID(0);
-				
-				CSTFParser cstf = new CSTFParser(reader);
-				cstf.rlist();
-				
-				g_loadClearDeploy(data + "macrolevels/" + cstf.rlabel("level") + ".CStf");
-				float[] playersPosition = new float[2];
-				cstf.rlabel("position" , playersPosition);
-				
-				cstf.endList();
-				
-				player.moveTo(playersPosition);
-				scene.entities().addStraightIn(player.playersEntity());
-								
-				GameRuntime.setState(player.isSingleplayer() ? GameState.GAME_RUNTIME_SINGLEPLAYER : GameState.GAME_RUNTIME_MULTIPLAYER);				
-				gameRuntime.player(player);
-								
-				fadeIn(1000);
-				
-			} catch (IOException e) {
-				
-				e.printStackTrace();
-				
-			}
-			
-		});
-		
-	}
-
 	public void g_loadSave(String selectedSaveNamePath , GameState targetState , boolean fade) {
 		
 		if(fade) {
@@ -986,6 +925,12 @@ public class Engine {
 		
 	}
 
+	public void mg_scrollCamera(float x , float y) {
+		
+		renderer.getCamera().moveCamera(x, y);
+		
+	}
+	
     /*
      * ______________________________________________________
      * |													|
@@ -1129,10 +1074,10 @@ public class Engine {
 		
 	}
 	
-	void e_returnConsole() {
+	void returnConsole() {
 		
 		if(STATE != RuntimeState.EDITOR) return;
-		editor.returnConsole();
+		engineConsole.enter();
 		
 	}
 	
@@ -1217,24 +1162,6 @@ public class Engine {
 
     	return framesThisSecond;
 
-    }
-
-    public static NkContext NuklearContext() {
-    	
-    	return NuklearContext;
-    	
-    }
-
-    public static NkBuffer NuklearDrawCommands() {
-    	
-    	return NuklearDrawCommands;
-    	
-    }
-    
-    public static MemoryStack UIAllocator() {
-    	
-    	return UI_ALLOCATOR;
-    	
     }
     
     public static EnginePython INTERNAL_ENGINE_PYTHON() {

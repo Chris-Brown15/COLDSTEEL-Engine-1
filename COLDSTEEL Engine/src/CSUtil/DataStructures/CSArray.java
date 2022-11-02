@@ -175,6 +175,8 @@ public class CSArray<T> {
 	
 	public void setIf(int index , T val , Predicate<T> condition) {
 		
+		if(condition.test(val)) arr[index] = val;
+		
 	}
 	
 	public boolean verify(int index) {

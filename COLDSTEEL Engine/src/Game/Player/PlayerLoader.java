@@ -7,17 +7,13 @@ import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
 
 import java.io.File;
 
-import org.lwjgl.nuklear.NkRect;
-
-import Core.NKUI;
+import CS.UserInterface;
 
 /**
  * 
@@ -25,28 +21,23 @@ import Core.NKUI;
  *
  *
  */
-public class PlayerLoader implements NKUI{
+public class PlayerLoader extends UserInterface {
 
 	private final File[] saves;	
-	private NkRect rect = NkRect.malloc(allocator).set(810, 540, 300, 400);
 	private boolean uiExpanded = false;
 	private String playerSavePath = null;
 	
 	public PlayerLoader(){
 		
+		super("Load" , 810, 540, 300, 400 , NK_WINDOW_BORDER|NK_WINDOW_TITLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE);
 		saves = new File(CS.COLDSTEEL.data + "saves/").listFiles();
 		
-	}
-		
-	public void layout() {
-		
-		if(nk_begin(context , "Load" , rect , NK_WINDOW_BORDER|NK_WINDOW_TITLE)) {
-
+		layoutBody((frame) -> {
+			
 			nk_layout_row_dynamic(context , 30 , 1);
-			allocator.push();			
-			if(nk_selectable_symbol_label(context , uiExpanded ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_UP , "Saves" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED , toByte(allocator , uiExpanded))) 
+						
+			if(nk_selectable_symbol_label(context , uiExpanded ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_UP , "Saves" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED , toByte(ALLOCATOR , uiExpanded))) 
 				uiExpanded = uiExpanded ? false : true;
-			allocator.pop();
 			
 			if(uiExpanded) for(int i = 0 ; i < saves.length ; i ++) {
 				
@@ -55,9 +46,8 @@ public class PlayerLoader implements NKUI{
 				
 			}
 			
-		}
-	
-		nk_end(context);
+			
+		});
 		
 	}
 	
@@ -67,7 +57,20 @@ public class PlayerLoader implements NKUI{
 	 */
 	public String load() {
 		
+		if(playerSavePath != null) show = false;
 		return playerSavePath;
+		
+	}
+	
+	public void show() {
+		
+		show = true;
+		
+	}
+
+	public void hide() {
+		
+		show = false;
 		
 	}
 	

@@ -43,16 +43,33 @@ import Renderer.Camera;
 import Renderer.Renderer;
 import Game.Projectiles.ProjectileIndices;
 import Game.Projectiles.Projectiles;
+import Networking.NetworkedEntities;
+import Networking.UserHostedServer.UserHostedServer;
 
 public class EntityLists extends AbstractGameObjectLists<Entities>{
-	
+
 	private static boolean playAnimations = true;
-	private final Camera camera;	
 	
+	private int numberTicks = 0;
+	private int ticksLastSecond;	
+	private float framesPerTick;
+	private int targetTicks = 60;
+	private float frameStep;
+
+	private boolean runSystems = true;
+	private final Camera camera;
+	private UserHostedServer server;
+		
 	public EntityLists(int renderOrder , Camera camera) {
 		
 		super(renderOrder , CSType.ENTITY);
 		this.camera = camera;
+		
+	}
+	
+	public void setServer(UserHostedServer server) {
+		
+		this.server = server;
 		
 	}
 	
@@ -2067,17 +2084,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 
-	public record hitboxScan(
-		
-		boolean collided ,
-		int callerHot , 
-		int callerCold , 
-		int callerActive ,
-		int targetHot , 
-		int targetCold ,
-		int targetActive
-				
-	) {
+	public record hitboxScan(boolean collided , int callerHot , int callerCold , int callerActive , int targetHot , int targetCold , int targetActive) {
 		
 		public String toString() {
 			
@@ -2470,20 +2477,13 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
-	private int numberTicks = 0;
-	public static int ticksLastSecond;
-	
 	public void startNumberTicks() {
 		
 		ticksLastSecond = numberTicks;
 		numberTicks = 0; 
 		
 	}
-	
-	float framesPerTick;
-	int targetTicks = 60;
-	private float frameStep;
-	
+
 	public float frameInterval() {
 		
 		return framesPerTick;
@@ -2514,6 +2514,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
+	public boolean isRunningSystems() {
+		
+		return runSystems;
+		
+	}
+	
+	public void runSystems(boolean run) {
+		
+		runSystems = run;
+		
+	}
+	
 	/**
 	 * Update function for use in the editor. We need to know the current frame rate because we want to ensure physics occurs
 	 * correctly even if the framerate is not 60 or some set-in-stone number.
@@ -2528,6 +2540,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 *  
 	 */
 	public void editorRunSystems(Executor start , Executor inbetween , Executor after) {
+		
+		if(!runSystems) return;
 		
 		if(secondPassed()) {
 			
@@ -2650,17 +2664,26 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	/**
 	 * The subject will move about the x axis the given speed according to the left and right move inputs. If collisions are enabled for
 	 * the subject, collisions will be scanned as well.
-	 * TODO : customizable controlls
 	 */
 	private void horizontalPlayerController(Object[] comps) {
 
 		if((boolean) comps[Entities.HCOFF + 1] == false) return;//if the entity has control
 		Entities E = ((Entities)comps[0]);
-		if(Engine.controlKeyPressed(Controls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
-		if(Engine.controlKeyPressed(Controls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
+		if(Engine.controlKeyPressed(Engine.clientControls.left)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
+		if(Engine.controlKeyPressed(Engine.clientControls.right)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
 				
 	}
-
+	
+	private void horizontalNetworkController(Object[] comps) {
+				
+		if((boolean) comps[Entities.HCOFF + 1] == false) return;//if the entity has control
+		Entities E = ((Entities)comps[0]);
+		NetworkedEntities networked = server.getNetworkedEntity(E);
+		if(networked.pressed(Controls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
+		if(networked.pressed(Controls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
+		
+	}
+	
 	/**
 	 * Applies a constant downward movement to its subject. The downward movement is given by the subject. If the subject
 	 * has collisions, they are calculated. 
@@ -2699,7 +2722,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		if(E.has(ECS.COLLISION_DETECTION , ECS.GRAVITY_CONSTANT , ECS.VERTICAL_DISPLACEMENT)) {				
 			
 			//fall through a platform
-			if(Engine.controlKeyPressed(Controls.DOWN) && Engine.controlKeyPressed(Controls.JUMP)) {
+			if(Engine.controlKeyPressed(Engine.clientControls.down) && Engine.controlKeyPressed(Engine.clientControls.jump)) {
 				
 				Tuple2<Colliders , Float> floorData = getFloorCollider(E);
 				if(floorData.getSecond() < 2.0f && floorData.getFirst().isPlatform()) {
@@ -2708,7 +2731,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}				
 				
-			} else if(Engine.controlKeyPressed(Controls.JUMP) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
+			} else if(Engine.controlKeyPressed(Engine.clientControls.jump) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
 				
 				comps[Entities.VCOFF] = comps[Entities.VCOFF + 1];
 				comps[Entities.VCOFF + 3] = true;
@@ -2743,13 +2766,67 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 
 		} else {
 
-			if(Engine.controlKeyPressed(Controls.UP)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
-			if(Engine.controlKeyPressed(Controls.DOWN)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
+			if(Engine.controlKeyPressed(Engine.clientControls.up)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
+			if(Engine.controlKeyPressed(Engine.clientControls.down)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
 
 		}
 	
 	}
+			
+	private void verticalNetworkController(Object[] comps) {
 		
+		if((boolean) comps[Entities.VCOFF + 4] == false) return;//if the entity does not have control
+		
+		Entities E = (Entities) comps[0];
+		NetworkedEntities networked = server.getNetworkedEntity(E);
+		
+		if(E.has(ECS.COLLISION_DETECTION , ECS.GRAVITY_CONSTANT , ECS.VERTICAL_DISPLACEMENT)) {				
+			
+			//fall through a platform
+			if(networked.pressed(Controls.DOWN) && networked.pressed(Controls.JUMP)) {
+				
+				Tuple2<Colliders , Float> floorData = getFloorCollider(E);
+				if(floorData.getSecond() < 2.0f && floorData.getFirst().isPlatform()) comps[Entities.VCOFF + 5] = floorData.getFirst();			
+				
+			} else if(networked.pressed(Controls.JUMP) && Math.round((float)comps[Entities.VCOFF]) <= 0f) {//start the jump
+				
+				comps[Entities.VCOFF] = comps[Entities.VCOFF + 1];
+				comps[Entities.VCOFF + 3] = true;
+				
+			}
+			
+			float jumpTimer = (float) comps[Entities.VCOFF];				
+			float jumpHeight = (float) comps[Entities.GCOFF] + (jumpTimer / (float) comps[Entities.VCOFF + 2]);				
+			boolean collided = moveVertChecked(E , jumpHeight);
+
+			if(!collided && jumpTimer > (-2 * (float)comps[Entities.VCOFF + 1])){//jump Timer max
+
+				comps[Entities.VCOFF] = (float) comps[Entities.VCOFF] - 1f;
+
+			} else if (collided){
+				//guess a number to find if it is the correct time offset for the time variable
+				//a value if it divided by the velocity constant of the jump is the negation of the gravity constant.
+				for(float i = 0f ; i > -(float)comps[Entities.VCOFF + 1] ; i--) 
+					if(i / (float) comps[Entities.VCOFF + 2] == -(float) comps[Entities.GCOFF]) {
+
+					comps[Entities.VCOFF] = i;
+					break;
+
+				}				
+
+			}
+
+			if((float)comps[Entities.VCOFF] < 0f) comps[Entities.VCOFF + 3] = false;
+
+		} else {
+
+			if(networked.pressed(Controls.UP)) moveVertChecked(E , (float) comps[Entities.VCOFF + 2]);
+			if(networked.pressed(Controls.DOWN)) moveVertChecked(E , -(float)comps[Entities.VCOFF + 2]);
+
+		}
+	
+	}
+	
 	/**
 	 * Subject will be controlled by the mouse and keyboard. 
 	 */
@@ -2757,8 +2834,21 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 		Entities E = (Entities)comps[0]; 
 		
-		if(E.has(ECS.HORIZONTAL_PLAYER_CONTROLLER)) horizontalPlayerController(comps);
-		if(E.has(ECS.VERTICAL_PLAYER_CONTROLLER)) verticalPlayerController(comps);					
+		if(E.has(ECS.HORIZONTAL_PLAYER_CONTROLLER)) { 
+		
+			//server controlled.
+			if((boolean)comps[Entities.HCOFF + 2]) horizontalNetworkController(comps);
+//			//not server controlled
+			else horizontalPlayerController(comps);
+			
+		}
+		
+		if(E.has(ECS.VERTICAL_PLAYER_CONTROLLER)) { 
+			
+			if((boolean)comps[Entities.VCOFF + 6]) verticalNetworkController(comps);
+			else verticalPlayerController(comps);
+			
+		}
 		
 	}
 

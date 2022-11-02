@@ -1,8 +1,7 @@
 Editor Backup
 macro_level -> 
-entities 2:
+entities 1:
 	Alucard -> 628,260.5
-	Warg -> 795.3334,266.93335
 statics_1 0:
 statics_2 0:
 items 0:
@@ -11,6 +10,6 @@ tile_set_2 -> null
 triggers 0:
 load_doors 0:
 colliders 1:
-	697,130,200,200,0
+	608,87,200,200,0
 quads_1 0:
 quads_2 0:

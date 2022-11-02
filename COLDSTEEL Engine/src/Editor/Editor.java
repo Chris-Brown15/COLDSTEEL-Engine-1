@@ -2,53 +2,71 @@ package Editor;
 
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
+import static CSUtil.BigMixin.changeColorTo;
 import static CSUtil.BigMixin.getJoints;
 import static CSUtil.BigMixin.toBool;
 import static CSUtil.BigMixin.toNamePath;
+import static Physics.MExpression.toNumber;
 import static Renderer.Renderer.loadTexture;
-import static org.lwjgl.Version.getVersion;
+import static org.lwjgl.system.MemoryUtil.memReport;
 
-import static CS.CSKeys.*;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_UP;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
+import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
+
 
 import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkImage;
 import org.lwjgl.nuklear.NkRect;
+import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
+import AudioEngine.SoundEngine;
+import AudioEngine.Sounds;
 import CS.Engine;
 import CS.RuntimeState;
+import CS.UserInterface;
+import CSUtil.RefInt;
 import CSUtil.DataStructures.CSArray;
 import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
+import Core.Console;
 import Core.Direction;
 import Core.ECS;
 import Core.Executor;
 import Core.GameFiles;
-import Core.NKUI;
+import Core.HitBoxSets;
 import Core.Quads;
 import Core.Scene;
 import Core.SpriteSets;
 import Core.TemporalExecutor;
-import Core.UIScriptingInterface;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
+import Core.Entities.EntityFlags;
 import Core.Entities.EntityHitBoxes;
 import Core.Entities.EntityScripts;
 import Core.Statics.Statics;
 import Core.TileSets.TileSets;
 import Core.TileSets.Tiles;
-import Editor.UI.NuklearUIElement;
 import Game.Items.Inventories;
 import Game.Items.ItemComponents;
 import Game.Items.Items;
 import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
+import Game.Levels.Triggers;
 import Physics.Colliders;
 import Physics.Joints;
 import Physics.Kinematics;
@@ -61,16 +79,18 @@ public class Editor {
 	private EditorState editorState = EditorState.GENERIC;
 	private CursorState cursorState = CursorState.SELECTABLE;
 
-	private EditorUI editorUI;
-
+	private ReentrantLock lock = new ReentrantLock();
+	private final CSQueue<Consumer<Editor>> events = new CSQueue<>();
+	
 	Camera cam;
 	Scene scene;
-
-	private EditorConsole console;
-
+	Console console;
+	UI_AAAManager uiManager;
+	private Engine engine;
 	// camera move speed
 	float moveSpeed = 0;
-
+	boolean renderDebug = false;
+	
 	boolean showPyUI = true;
 	SelectionArea selection;
 	Levels backupLevel = new Levels("Editor Backup");
@@ -86,35 +106,33 @@ public class Editor {
 
 	// Object used to mark up hitboxes with a quad. The active quad will be the quad referenced for the math relating to the hitboxset
 	Levels currentLevel;
+	MacroLevels currentMacroLevel;
+	Triggers currentTrigger;
+	Quads currentTriggerBound;
+	
 	Consumer<RuntimeState> switchStateCallback;
 
 	private Consumer<Levels> onLevelLoadEngine;
-	private Consumer<Levels> onLevelLoadNuklear;
 	Supplier<float[]> cursorWorldCoords;
-	Executor closeProgram;
 	
-	public void initialize(Renderer renderer, Scene scene, Levels currentLevel, Consumer<Levels> onLevelLoadEngine,
-			Consumer<RuntimeState> switchStateCallback , Supplier<float[]> cursorWorldCoords , Executor closeProgram) {
+	public void initialize(Engine engine , Renderer renderer, Scene scene, Levels currentLevel , Console console, Consumer<Levels> onLevelLoadEngine,
+			Consumer<RuntimeState> switchStateCallback , Supplier<float[]> cursorWorldCoords) {
 
+		this.engine = engine;
+		uiManager = new UI_AAAManager(this);
 		System.out.println("Beginning Editor initialization...");
-		console = new EditorConsole();
 		this.cam = renderer.getCamera();
-
+		this.console = console;
 		this.selection = new SelectionArea();
 		this.scene = scene;
 		
-		editorUI = new EditorUI(this);
 		this.currentLevel = currentLevel;
 		renderer.addToRawData(selection.vertices);
 		this.onLevelLoadEngine = onLevelLoadEngine;
-		onLevelLoadNuklear = editorUI.onLevelLoad;
 		this.switchStateCallback = switchStateCallback;
 		backupLevel.associate(data + "macrolevels/Editor/");
 		
 		this.cursorWorldCoords = cursorWorldCoords;
-		this.closeProgram = closeProgram;
-		
-		console.say("Welcome to the 1STEEL5 editor alpha undef, running LWJGL" + getVersion());
 		System.out.println("Editor initialization complete.");
 
 	}
@@ -125,9 +143,8 @@ public class Editor {
 				
 		if (mode == EditorMode.BUILD_MODE) {// switching into build mode
 			
-			editorUI.resetUIFirstTimeVariables();
+//			editorUI.resetUIFirstTimeVariables();TODO
 			backupLevel.deploy(scene);
-			UIScriptingInterface.getPyUIs().clear();
 
 		} else if (mode == EditorMode.TEST_MODE || mode == EditorMode.HYBRID_MODE) { // switching into test or hybrid mode
 
@@ -165,9 +182,9 @@ public class Editor {
 	public void run(Engine engine) {
 
 		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on		 
-		if (toBool(editorUI.renderDebugCheck)) renderDebug();
+		if (renderDebug) renderDebug();
 
-		if (toBool(editorUI.renderTileSheet)) {
+		if (toBool(uiManager.tilesetEditor.renderTileSheet)) {
 
 			if(scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
 			if(scene.tiles2().getTileSheet() != null) Renderer.draw_background(scene.tiles2().getTileSheet());
@@ -175,23 +192,23 @@ public class Editor {
 		}
 		
 		jointMarkers.forEach(Renderer::draw_foreground);
-		editorUI.hitboxMarker.hitboxes().forEach(Renderer::draw_foreground);
+		hitboxMarker.hitboxes().forEach(Renderer::draw_foreground);
 		
-		NuklearUIElement.layoutElements();
+		handleEvents();
 		
 		switch (mode) {
 
 		case BUILD_MODE:
 
-			editorUI.buildModeLayoutElements(engine);
+			uiManager.layoutElementsBuildMode();
 			scene.entities().resetScriptCount();
 
-			if (!(Engine.cs_keyboardPressed(CS_KEY_LEFT_SHIFT) || Engine.cs_keyboardPressed(CS_KEY_LEFT_CONTROL))) {
+			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.cs_keyboardPressed(CS_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(Engine.cs_keyboardPressed(CS_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(Engine.cs_keyboardPressed(CS_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);	
-				if(Engine.cs_keyboardPressed(CS_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);	
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -199,7 +216,7 @@ public class Editor {
 			TemporalExecutor.process();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			if(editorState == EditorState.EDITING_HITBOX && Engine.cs_mousePressed(CS_MOUSE_BUTTON_LEFT)) editorUI.dragHitBoxMarker(cursorWorldCoords.get());
+			if(editorState == EditorState.EDITING_HITBOX && Engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT)) dragHitBoxMarker(cursorWorldCoords.get());
 			engine.releaseKeys();
 			dragQuad();
 
@@ -207,25 +224,24 @@ public class Editor {
 
 		case TEST_MODE:
 
-			if (showPyUI)
-				for (int i = 0; i < UIScriptingInterface.getPyUIs().size(); i++) {
+//			if (showPyUI)
+//				for (int i = 0; i < UIScriptingInterface.getPyUIs().size(); i++) {
+//
+//					try {
+//
+//						UIScriptingInterface.getPyUIs().get(i).run();
+//
+//					} catch (Exception e) {
+//
+//						System.err.println("Error occurred calling UI script: " + UIScriptingInterface.getPyUIs().get(i).scriptName());
+//						e.printStackTrace();
+//						org.lwjgl.nuklear.Nuklear.nk_end(Engine.NuklearContext());
+//
+//					}
+//
+//				}
 
-					try {
-
-						UIScriptingInterface.getPyUIs().get(i).run();
-
-					} catch (Exception e) {
-
-						System.err.println("Error occurred calling UI script: "
-								+ UIScriptingInterface.getPyUIs().get(i).scriptName());
-						e.printStackTrace();
-						org.lwjgl.nuklear.Nuklear.nk_end(Engine.NuklearContext());
-
-					}
-
-				}
-
-			editorUI.testModeLayoutElements();
+			uiManager.layoutElementsTestMode();
 			scene.entities().resetScriptCount();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
@@ -252,14 +268,14 @@ public class Editor {
 
 		case HYBRID_MODE:
 
-			editorUI.buildModeLayoutElements(engine);
+			uiManager.layoutElementsBuildMode();
 
-			if (!(Engine.cs_keyboardPressed(CS_KEY_LEFT_SHIFT) || Engine.cs_keyboardPressed(CS_KEY_LEFT_CONTROL))) {
+			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.cs_keyboardPressed(CS_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(Engine.cs_keyboardPressed(CS_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(Engine.cs_keyboardPressed(CS_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
-				if(Engine.cs_keyboardPressed(CS_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -292,9 +308,9 @@ public class Editor {
 
 	private void renderDebug() {
 
-		boolean renderColliders = toBool(editorUI.renderDebugChoosers.get(0));
-		boolean renderHitBoxes = toBool(editorUI.renderDebugChoosers.get(1));
-		boolean renderJoints = toBool(editorUI.renderDebugChoosers.get(2));
+		boolean renderColliders = toBool(uiManager.editorEditor.renderDebugColliders);
+		boolean renderHitBoxes = toBool(uiManager.editorEditor.renderDebugHitBoxes);
+		boolean renderJoints = toBool(uiManager.editorEditor.renderDebugJoints);
 
 		cdNode<Entities> iter = scene.entities().iter();
 		Entities E;
@@ -416,7 +432,7 @@ public class Editor {
 	
 						boolean reselected = activeQuad == clicked;
 						activeQuad = clicked;
-						editorUI.currentTriggerBound = activeQuad;
+						currentTriggerBound = activeQuad;
 						return reselected;
 	
 					}
@@ -426,7 +442,7 @@ public class Editor {
 	
 						boolean reselected = activeQuad == clicked;
 						activeQuad = clicked;
-						editorUI.currentTriggerBound = activeQuad;
+						currentTriggerBound = activeQuad;
 						return reselected;
 	
 					}
@@ -437,10 +453,9 @@ public class Editor {
 	
 			case EDITING_STATIC -> {
 	
-				if (editorUI.activeAsStatic == null)
-					return false;
+				if (activeQuad == null) return false;
 	
-				if (editorUI.activeAsStatic.collidersFocused()) return editorUI.activeAsStatic.apply((colliders) -> {
+				if (((Statics)activeQuad).collidersFocused()) return ((Statics)activeQuad).apply((colliders) -> {
 	
 					for (int i = 0; i < colliders.size(); i++) if (colliders.get(i).selectOwnedCollider(x, y) != -1) {
 	
@@ -461,11 +476,11 @@ public class Editor {
 	
 			case EDITING_HITBOX -> {
 	
-				if (!toBool(editorUI.sliderSelect)) return false;
+				if (!toBool(uiManager.hitboxEditor.sliderSelect)) return false;
 	
-				for (int i = 0; i < editorUI.hitboxMarker.getSize(); i++) if (CSUtil.BigMixin.selectQuad(editorUI.hitboxMarker.hitboxes().get(i), x, y)) {
+				for (int i = 0; i < hitboxMarker.getSize(); i++) if (CSUtil.BigMixin.selectQuad(hitboxMarker.hitboxes().get(i), x, y)) {
 	
-					editorUI.hitboxMarker.active = i;
+					hitboxMarker.active = i;
 					return false;
 	
 				}
@@ -610,9 +625,9 @@ public class Editor {
 
 		Entities E = (Entities) activeQuad;
 		EntityAnimations anims = (EntityAnimations) E.components()[Entities.AOFF];
-		if (!anims.hasSpriteSet(editorUI.activeSet)) return;
+		if (!anims.hasSpriteSet(activeSpriteSet)) return;
 
-		float[] selectedSprite = editorUI.activeSet.getSprite(editorUI.activeSpriteID);
+		float[] selectedSprite = activeSpriteSet.getSprite(activeSpriteID);
 		if (selectedSprite.length < 6) return;
 		removeAllJoints();
 		float[] activeData = E.getData();
@@ -721,7 +736,6 @@ public class Editor {
 			Statics activeStatic = (Statics) activeQuad;
 			scene.statics1().remove(activeStatic);
 			scene.statics2().remove(activeStatic);
-			editorUI.activeAsStatic = null;
 
 		} else if (activeQuad instanceof Entities) {
 
@@ -879,19 +893,13 @@ public class Editor {
 
 	public void say(Object say) {
 
-		console.say(say);
+		console.sayln(say);
 
 	}
 
 	public void say(Object... say) {
 
-		console.say(say);
-
-	}
-
-	public void returnConsole() {
-
-		console.command();
+		console.sayln(say);
 
 	}
 
@@ -990,8 +998,7 @@ public class Editor {
 
 	public void loadItem() {
 
-		Supplier<String> filepaths = DialogUtils.newFileExplorer("Select one or more Entities", 5, 270, false, true,
-				data + "items/");
+		Supplier<String> filepaths = DialogUtils.newFileExplorer("Select one or more Items", 5, 270, false, true, data + "items/");
 		TemporalExecutor.onTrue(() -> filepaths.get() != null, () -> {
 
 			Items newItem;
@@ -1015,14 +1022,8 @@ public class Editor {
 	public void newItem() {
 
 		Supplier<String> itemName = DialogUtils.newInputBox("Input Item Name", 5, 270);
-		TemporalExecutor.onTrue(() -> itemName.get() != null, () -> scene.items().newItem(itemName.get()));
-
-	}
-
-	public EditorConsole getConsole() {
-
-		return console;
-
+		TemporalExecutor.onTrue(() -> itemName.get() != null, () -> scene.items().newItem(itemName.get()));			
+	
 	}
 
 	public Joints addJoint() {
@@ -1044,25 +1045,27 @@ public class Editor {
 
 	public void translateActive(float x, float y) {
 
-		if (editorState == EditorState.EDITING_STATIC)
-			editorUI.activeAsStatic.translate(x, y);
-		else if (editorState == EditorState.EDITING_JOINT)
-			translateActiveJoint(x, y);
+		if (editorState == EditorState.EDITING_STATIC) ((Statics)activeQuad).translate(x, y);
+		else if (editorState == EditorState.EDITING_JOINT) translateActiveJoint(x, y);
 		else {
 
-			if (activeQuad != null)
-				activeQuad.translate(x, y);
-			else if (activeJoint != null)
-				activeJoint.translate(x, y);
+			if (activeQuad != null) activeQuad.translate(x, y);
+			else if (activeJoint != null) activeJoint.translate(x, y);
 
 		}
 
 	}
 
-	void deleteItems(String path) {
+	void deleteItems() {
 
-		Items deleteThis = new Items((String) CSUtil.BigMixin.toNamePath(path));
-		deleteThis.delete();
+		
+		Supplier<String> loadPath = DialogUtils.newFileExplorer("Delete an Item", 5 , 270 , false , false);
+		TemporalExecutor.onTrue(() -> loadPath.get() != null , () -> {
+			
+			Items deleteThis = new Items((String) CSUtil.BigMixin.toNamePath(loadPath.get()));
+			deleteThis.delete();
+			
+		});
 
 	}
 
@@ -1079,11 +1082,10 @@ public class Editor {
 	 * 
 	 * @param name
 	 */
-	MacroLevels createMacroLevel(String name) {
+	void createMacroLevel(String name) {
 
-		MacroLevels newMacro = new MacroLevels(name);
-		newMacro.initialize();
-		return newMacro;
+		currentMacroLevel = new MacroLevels(name);
+		currentMacroLevel.initialize();		
 
 	}
 
@@ -1107,12 +1109,11 @@ public class Editor {
 			setupTileSetUIImages(scene.tiles2() , !background);
 			currentLevel = newLevel;
 			onLevelLoadEngine.accept(newLevel);
-			onLevelLoadNuklear.accept(newLevel);
 			Engine.TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);
 			say("Loaded level: " + newLevel.gameName());
-			editorUI.currentLoadDoor = null;
-			editorUI.currentTrigger = null;
-			editorUI.linkedLevel = null;
+			uiManager.loadDoorEditor.currentLoadDoor = null;
+			currentTrigger = null;
+			uiManager.loadDoorEditor.linkedLevel = null;
 
 		});
 
@@ -1128,12 +1129,11 @@ public class Editor {
 		currentLevel = newLevel;
 		currentLevel = newLevel;
 		onLevelLoadEngine.accept(newLevel);
-		onLevelLoadNuklear.accept(newLevel);
 		Engine.TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);
 		say("Loaded level: " + newLevel.gameName());
-		editorUI.currentLoadDoor = null;
-		editorUI.currentTrigger = null;
-		editorUI.linkedLevel = null;
+		uiManager.loadDoorEditor.currentLoadDoor = null;
+		currentTrigger = null;
+		uiManager.loadDoorEditor.linkedLevel = null;
 
 	}
 
@@ -1141,7 +1141,13 @@ public class Editor {
 
 		if(currentLevel != null && !currentLevel.empty()) scene.clear();
 		this.currentLevel = newCurrentLevel;
-		editorUI.currentLevel = currentLevel;
+
+	}
+	
+	public void newLevel(String name) {
+
+		if(currentLevel != null && !currentLevel.empty()) scene.clear();
+		this.currentLevel = new Levels(name);
 
 	}
 
@@ -1157,9 +1163,9 @@ public class Editor {
 
 		if(target.uninitialized()) return;
 		
-		NkImage tileSetSheet = background ? editorUI.backgroundTileSetSpriteSheet : editorUI.foregroundTileSetSpriteSheet;
+		NkImage tileSetSheet = background ? uiManager.tilesetEditor.backgroundTileSetSpriteSheet : uiManager.tilesetEditor.foregroundTileSetSpriteSheet;
 		
-		NKUI.image(target.textureInfo().path(), tileSetSheet);
+		UserInterface.image(target.textureInfo().path(), tileSetSheet);
 
 		Quads tileSheet = new Quads(-1);
 		tileSheet.setTexture(target.texture());
@@ -1175,17 +1181,17 @@ public class Editor {
 			short leftX = (short) (tileSheetWidth * tileSpecs[0]);
 			short topY = (short) (tileSheetHeight - (tileSheetHeight * tileSpecs[2]));
 
-			Tuple2<NkImage, NkRect> subRegionResult = NKUI.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
+			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
 																	(short) tileSpecs[4], (short) tileSpecs[5]);
 			
-			CSLinked<NkImage> tileIcons = background ? editorUI.backgroundTileIcons : editorUI.foregroundTileIcons;
+			CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
 			tileIcons.add(subRegionResult.getFirst());
 
 		});
 
 	}
 
-	public TileSets newTileSet(String name, String filepath) {
+	private TileSets newTileSet(String name, String filepath) {
 
 		TileSets target = background ? scene.tiles1() : scene.tiles2();
 		target.clear();
@@ -1218,19 +1224,19 @@ public class Editor {
 	public TileSets loadTileSet(String filepath) {
 
 		TileSets target = background ? scene.tiles1() : scene.tiles2();
-		NkImage tileSetSheet = background ? editorUI.backgroundTileSetSpriteSheet : editorUI.foregroundTileSetSpriteSheet;
+		NkImage tileSetSheet = background ? uiManager.tilesetEditor.backgroundTileSetSpriteSheet : uiManager.tilesetEditor.foregroundTileSetSpriteSheet;
 		
 		if (!target.uninitialized()) {
 
 			// if another tile set was already loaded and in use:
 			target.clear();
-			CSLinked<NkImage> tileIcons = background ? editorUI.backgroundTileIcons : editorUI.foregroundTileIcons;
+			CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
 			tileIcons.clear();
 
 		}
 
 		target.load(toNamePath(filepath));
-		NKUI.image(target.textureInfo().path(), tileSetSheet);
+		UserInterface.image(target.textureInfo().path(), tileSetSheet);
 
 		Quads tileSheet = new Quads(-1);
 		tileSheet.setTexture(target.texture());
@@ -1246,10 +1252,10 @@ public class Editor {
 			short leftX = (short) (tileSheetWidth * tileSpecs[0]);
 			short topY = (short) (tileSheetHeight - (tileSheetHeight * tileSpecs[2]));
 
-			Tuple2<NkImage, NkRect> subRegionResult = NKUI.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
+			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
 																	(short) tileSpecs[4], (short) tileSpecs[5]);
 			
-			CSLinked<NkImage> tileIcons = background ? editorUI.backgroundTileIcons : editorUI.foregroundTileIcons;
+			CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
 			tileIcons.add(subRegionResult.getFirst());
 
 		});
@@ -1263,7 +1269,8 @@ public class Editor {
 	public void leaveEditor() {
 
 		scene.clear();
-		switchStateCallback.accept(RuntimeState.GAME);
+		setState(EditorState.BUSY);
+		engine.switchState(RuntimeState.GAME);
 
 	}
 
@@ -1295,7 +1302,8 @@ public class Editor {
 		if (!state.allowsSelecting) cursorState = CursorState.FROZEN;
 		else if (!editorState.allowsSelecting && state.allowsSelecting) cursorState = CursorState.SELECTABLE;
 
-		editorState = state;
+		editorState = state;		
+		if(editorState == EditorState.BUSY) uiManager.hideAllElements();
 
 	}
 
@@ -1343,12 +1351,1246 @@ public class Editor {
 		}
 
 	}
+	
+	void schedule(Consumer<Editor> callback) {
+		
+		lock.lock();
+		events.enqueue(callback);
+		lock.unlock();
+		
+	}
+	
+	private void handleEvents() {
+		
+		lock.lock();
+		while(!events.empty())events.dequeue().accept(this);
+		lock.unlock();
+		
+	}
+	
+	void dragHitBoxMarker(float[] coords) { 
+		
+		if(hitboxMarker.editingName != null && hitboxMarker.active != -1) {
+			
+			hitboxMarker.drag(hitboxMarker.active, coords[0], coords[1]);
+			
+		}
+		
+	}
+	
+	void createScriptFile( ) {
 
-	public void shutDown() {
+		Supplier<String> strGetter = DialogUtils.newInputBox("Script Name" , 5 , 270);
+		
+		TemporalExecutor.onTrue(
+		() -> strGetter.get() != null , 
+		() -> {
+			
+			File newFile = new File(CS.COLDSTEEL.data + "scripts/" + strGetter.get() + ".py");
+			try {
 
-		editorUI.shutDown();
-		console.shutDown();
+				newFile.createNewFile();
+				if(Desktop.isDesktopSupported()) Desktop.getDesktop().open(newFile);
+				
+			} catch (IOException e) {
 
+				e.printStackTrace();
+				
+			}
+			
+		});
+	
 	}
 
+	void loadScriptFile() {
+				
+		if(!Desktop.isDesktopSupported()) say("ERROR: Desktop class not supported on your platform");
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select one or more script files" , 5 , 270 , false , true , data + "scripts/");
+		TemporalExecutor.onTrue(() -> filepath.get() != null , () -> {
+			
+			String fp = filepath.get();
+			try {
+				
+				if(fp.contains("|")) {//multiple files
+					
+					String[] splitFilePaths = fp.split("\\|");
+					for(String split : splitFilePaths) {
+						
+						if(!split.endsWith(".py")) throw new IOException("Script files not selected");
+						Desktop.getDesktop().open(new File(split));
+						
+					}
+					
+				} else {
+					
+					if(!fp.endsWith(".py")) throw new IOException("Script files not selected");
+					Desktop.getDesktop().open(new File(fp));
+					
+				}
+				
+			} catch(IOException e) {
+				
+				say("ERROR: Invalid file/s selected");					
+				e.printStackTrace();
+				
+			}			
+			
+		});
+		
+	}
+	
+	void setSelectionColorColor() {
+
+		Supplier<float[]> colors = DialogUtils.newColorChooser("Set Selection Area to this color" , 5 , 270);
+		TemporalExecutor.onTrue(() -> colors.get() != null , () -> changeColorTo(selection.vertices , colors.get()[0], colors.get()[1], colors.get()[2]));
+	
+	}
+	
+	void setSelectionColorOpacity() {
+	
+		Supplier<String> opacity = DialogUtils.newInputBox("Input Integer for Opacity Between 0 and 100", 5, 270, UserInterface.NUMBER_FILTER);
+		TemporalExecutor.onTrue(() -> opacity.get() != null , () -> selection.makeTranslucent((float) toNumber(opacity.get()) / 100));
+	
+	}
+	
+	void setMoveSpeed(float speed) {
+		
+		moveSpeed = speed;
+		
+	}
+
+	void moveCamera() {
+	
+		Supplier<String> xInput = DialogUtils.newInputBox("Input X Coordinate" , 5 , 270);
+		Supplier<String> yInput = DialogUtils.newInputBox("Input X Coordinate" , 360 , 120);
+		TemporalExecutor.onTrue(() -> xInput != null && yInput != null , () -> cam.lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get())));
+				
+	}
+	
+	void newLevel() {
+
+		Supplier<String> name = DialogUtils.newInputBox("Input Level Name" , 5 , 270);
+		TemporalExecutor.onTrue(() -> name.get() != null, () -> newLevel(name.get()));
+			
+	}
+
+	void renderLoadDoors() {
+
+		currentLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
+		if (currentTrigger != null) { 
+			
+			currentTrigger.forEachConditionArea(Renderer::draw_foreground);
+			currentTrigger.forEachEffectArea(Renderer::draw_foreground);
+			
+		}
+		
+	}
+	
+	void setLevelsMacroLevel() {
+		
+		Supplier<String> macroLevelPath = DialogUtils.newFileExplorer("Select a Macro Level archive" , 5 , 270 , false , true);
+		TemporalExecutor.onTrue(() -> macroLevelPath.get() != null, () -> currentLevel.associate(macroLevelPath.get()));
+			
+	}
+	
+	void saveLevel() {
+		
+		currentLevel.snapShotScene(scene);
+		
+	}
+	
+	void addLoadDoor() {
+				
+		Supplier<String> newLoadDoorName = DialogUtils.newInputBox("Input Load Door Name", 5, 270);
+		TemporalExecutor.onTrue(() -> newLoadDoorName.get() != null , () -> currentLevel.addLoadDoor(newLoadDoorName.get()));
+			
+	}
+	
+	void addTrigger() {
+			
+		Supplier<String> triggerName = DialogUtils.newInputBox("Trigger Name", 5, 270);
+		TemporalExecutor.onTrue(() -> triggerName.get() != null , () -> {
+			
+			currentLevel.addTrigger(triggerName.get());			
+			saveTriggerToScript(triggerName.get());
+			currentTrigger = null;
+			
+		});
+				
+	}
+	
+	void setCurrentTrigger(Triggers someTrigger) {
+		
+		currentTrigger = someTrigger;
+		
+	}
+
+	void renameActiveTrigger() {
+		
+		Supplier<String> input = DialogUtils.newInputBox("Input a Name for This Trigger" , 5 , 270);
+		TemporalExecutor.onTrue(() -> input.get() != null, () -> currentTrigger.name(input.get()));
+		
+	}
+	
+	void removeActiveTrigger() {
+		
+		removeActive();
+		currentLevel.removeTrigger(currentTrigger);
+		currentTrigger = null;
+		
+	}
+	
+	void removeCurrentTrigger() {
+		
+		currentTrigger.remove(currentTriggerBound);
+		currentTriggerBound = null;
+		activeQuad = null;
+		
+	}
+	
+	void newMacroLevel() {
+		
+		Supplier<String> macroLevelName = DialogUtils.newInputBox("Input Macro Level Name", 5 , 270);
+		TemporalExecutor.onTrue(() -> macroLevelName.get() != null , () -> {
+			
+			String macroLevelNameEdit = macroLevelName.get().replace(" ", "");
+			if(currentMacroLevel != null) currentMacroLevel.write();
+			createMacroLevel(macroLevelNameEdit);
+			
+		});
+						
+	}
+		
+	void loadMacroLevel() {
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select a Macro Level" , 5 , 270 , true, false);
+		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> currentMacroLevel = new MacroLevels((CharSequence)toNamePath(filepath.get())));
+		
+	}
+	
+	void deleteMacroLevel() {  
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select a Macro Level to delete", 5 , 270, true , false);
+		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
+			
+			MacroLevels newLevel = new MacroLevels((String) toNamePath(filepath.get()));
+			newLevel.delete();
+			if(currentMacroLevel.name().equals(newLevel.name())) currentMacroLevel = null;		
+			
+		});
+		
+	}
+	
+	void saveMacroLevel() {
+		
+		currentMacroLevel.write();
+		
+	}
+	
+	void addMacroLevelIntroOSTSegment() {
+		
+		Supplier<String> intro = DialogUtils.newFileExplorer("Select OST Intro", 5, 270, true , false , assets + "sounds/");
+		TemporalExecutor.onTrue(() -> intro.get() != null, () -> currentMacroLevel.addOSTIntroSegment(toNamePath(intro.get())));
+		
+	}
+	
+	void addMacroLevelLoopOSTSegment() {
+		
+		Supplier<String> loop = DialogUtils.newFileExplorer("Select OST Segment" , 5 , 270 , true , false , assets + "sounds/");
+		TemporalExecutor.onTrue(() -> loop.get() != null, () -> currentMacroLevel.addOSTLoopSegment(toNamePath(loop.get())));
+	
+	}
+	
+	cdNode<String> removeMacroLevelIntroOSTSegment(cdNode<String> iter) {
+		
+		return currentMacroLevel.safeRemoveIntroSegment(iter);
+		
+	}
+
+	cdNode<String> removeMacroLevelLoopOSTSegment(cdNode<String> iter) {
+		
+		return currentMacroLevel.safeRemoveLoopSegment(iter);
+		
+	}
+	
+	void getUIMemoryDetails() {
+		
+		UserInterface.printMemoryDetails(console);
+		
+	}
+	
+	void printEngineAllocations() {
+		
+		ArrayList<String> allocations = new ArrayList<String>();
+		
+		MemoryAllocationReport rep = (address , memory , threadID , threadName , element) -> {
+		
+			allocations.add("At " + address + ": " + memory + " bytes in " + threadName);
+		
+		};
+		
+		memReport(rep);		
+		for(int i = 0 ; i < allocations.size()  ; i ++) say(allocations.get(i));
+
+	}
+	
+	void printStackTraces() {
+		
+		MemoryAllocationReport rep = (address , memory , threadID , threadName , element) -> {
+			
+			System.err.println("At " + address + ": " + memory + " bytes in " + threadName);
+			for(StackTraceElement ste : element) System.err.println(ste);
+			
+		};
+		
+		memReport(rep);
+		
+	}
+	
+	void removeColor() {
+		
+		Supplier<float[]> colors = DialogUtils.newColorChooser("Remove Color" , 5 , 270);
+		TemporalExecutor.onTrue(() -> colors.get() != null , () -> removeActiveColor(colors.get()[0] , colors.get()[1] , colors.get()[2]));
+							
+	}
+	
+	void applyFilter() {
+		
+		Supplier<float[]> colors = DialogUtils.newColorChooser("Filter Color" , 5 , 270);
+		TemporalExecutor.onTrue(() -> colors.get() != null , () -> filterActiveColor(colors.get()[0] , colors.get()[1] , colors.get()[2]));
+		
+	}
+
+	SpriteSets activeSpriteSet;
+	int activeSpriteID = -1;
+	
+	void newSpriteSet() {
+		
+		Supplier<String> name = DialogUtils.newInputBox("Spriteset Name", 5 , 270);
+		TemporalExecutor.onTrue(() -> name.get() != null, () -> {
+
+			activeSpriteSet = new SpriteSets((CharSequence) name.get());
+			activeSpriteID = -1;
+			
+		});
+		
+	}
+	
+	void loadSpriteSet() {
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select a Sprite Set", 5 , 270 , false , false , data + "spritesets/");
+		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
+			
+			activeSpriteSet = new SpriteSets(toNamePath(filepath.get()));	
+			activeSpriteID = -1;
+			
+		});
+			
+	}
+	
+	boolean spriteSetEditorValidity() {
+		
+		return activeSpriteSet != null && activeQuad != null && activeQuad.isTextured();
+		
+	}
+	
+	void deleteActiveSpriteSet() {
+
+		activeSpriteSet.delete();
+		activeSpriteSet = null;
+		activeSpriteID = -1;
+		
+	}
+	
+	void saveSelectionAreaAsSpriteSetFrame() {
+
+		//gets the U and V coordinates from the proportion of the selection area's position  
+		//over the object divided by the total width or height of the quad.						
+		float[] vertices = activeQuad.getData();
+		float[] selection = this.selection.vertices;
+		
+		float leftUDistance = selection[27] - vertices[27];
+		float rightUDistance = selection[0] - vertices[27];
+		
+		float[] qDims = {activeQuad.getWidth() , activeQuad.getHeight()};
+		
+		float leftU = leftUDistance / qDims[0];
+		float rightU = rightUDistance / qDims[0];
+		
+		float bottomVDistance = selection[1] - vertices[1];
+		float topVDistance = selection[10] - vertices[1];
+		
+		float bottomV = bottomVDistance / qDims[1];
+		float topV = topVDistance / qDims[1];
+		
+		float[] selectionDims = this.selection.getDimensions();
+		
+		if(leftU < 0.0f) leftU = 0.0f;
+		if(rightU > 1.0f) rightU = 1.0f;
+		if(topV > 1.0f) topV = 1.0f;
+		if(bottomV < 0f) bottomV = 0f;
+		
+		activeSpriteSet.storeSprite(leftU, rightU , topV, bottomV , Math.round(selectionDims[0] / 2) , Math.round(selectionDims[1] / 2f));
+	
+	}
+	
+	void tryPlayActiveSpriteSet() {
+		
+		if(activeSpriteSet.getNumberSprites() > 0) activeSpriteSet.setRunSpriteSet(true);
+	
+	}
+	
+	void swapActiveAnimSprite() {
+
+		float[] currentValues = activeSpriteSet.swapSprite();
+		activeQuad.swapSprite(currentValues);
+	
+	}
+	
+	void forceStopPlayingActiveSpriteSet() {
+		
+		activeSpriteSet.setRunSpriteSet(false);
+		
+	}
+	
+	void deleteSpriteFromSet() {
+		
+		activeSpriteSet.deleteSprite(activeSpriteID);
+		activeSpriteID = -1;
+		
+	}
+	
+	void updateSpriteFromSet() {
+		
+		float[] activeSprite = activeSpriteSet.getSprite(activeSpriteID);
+		boolean modifiesHitBox = activeSprite.length % 3 != 0;
+		
+		float[] UV = activeQuad.getUVs();
+		float[] spriteData;
+		int size = 6;
+		int numberJoints = 0;
+		int hitboxActivatedIndex = -2;
+		//get the size of the sprite array
+		for(int i = 0 ; i < jointMarkers.length() ; i ++) if (jointMarkers.get(i) != null) numberJoints ++;
+		if(jointMarkers.size() > 0) size += (numberJoints * 3);
+		if(modifiesHitBox) { 
+			
+			size += 1;
+			hitboxActivatedIndex = (int) activeSprite[activeSprite.length - 1];
+		
+		}
+		
+		spriteData = new float [size];
+		
+		spriteData[0] = UV[0];		
+		spriteData[1] = UV[1];
+		spriteData[2] = UV[2];
+		spriteData[3] = UV[3];
+		spriteData[4] = activeSprite[4];
+		spriteData[5] = activeSprite[5];
+		
+		if(jointMarkers.size() > 0) {
+			
+			//i is iterator of joint markers, j is the offsetinth the sprite array
+			
+			Joints currentJoint = getJoint(0);
+			float[] jointMid;
+			float[] quadData = activeQuad.getData();
+			
+			for(int i = 0 , j = 6 ; i < jointMarkers.size() ; i ++ , currentJoint = getJoint(i)) {
+				
+				if(currentJoint == null) continue;
+				
+				jointMid = currentJoint.getMidpoint();
+				
+				//joint ID
+				spriteData[j] = currentJoint.getID();
+				//joint x offset
+				spriteData[j + 1] = jointMid[0] - quadData[9];
+				//joint y offset
+				spriteData[j + 2] = jointMid[1] - quadData[10];							
+				j += 3;
+				
+			}
+			
+		}
+		
+		if(modifiesHitBox) spriteData[size - 1] = hitboxActivatedIndex;
+		
+		activeSpriteSet.replaceSprite(activeSpriteID , spriteData);							
+		activeSpriteSet.write();
+		activeSprite = spriteData;					
+	
+	}
+	
+	void replaceSprite() {
+		
+		float[] vertices = activeQuad.getData();
+		float[] selection = this.selection.vertices;
+		
+		float leftUDistance = selection[27] - vertices[27];
+		float rightUDistance = selection[0] - vertices[27];
+		
+		float[] qDims = {activeQuad.getWidth() , activeQuad.getHeight()};
+		
+		float leftU = leftUDistance / qDims[0];
+		float rightU = rightUDistance / qDims[0];
+		
+		float bottomVDistance = selection[1] - vertices[1];
+		float topVDistance = selection[10] - vertices[1];
+		
+		float bottomV = bottomVDistance / qDims[1];
+		float topV = topVDistance / qDims[1];
+		
+		float[] selectionDims = this.selection.getDimensions();
+		
+		if(leftU < 0.0f) leftU = 0.0f;
+		if(rightU > 1.0f) rightU = 1.0f;
+		if(topV > 1.0f) topV = 1.0f;
+		if(bottomV < 0f) bottomV = 0f;
+		
+		activeSpriteSet.replaceSprite(activeSpriteID , leftU, rightU , topV, bottomV , Math.round(selectionDims[0] / 2) , Math.round(selectionDims[1] / 2f));
+		
+	}
+	
+	void activeSpriteActivateHitBox() {
+		
+		Supplier<String> hitboxToActivate = DialogUtils.newInputBox("Input an Integer Index of a HitBox to Activate", 5, 270, UserInterface.NUMBER_FILTER);
+		TemporalExecutor.onTrue(() -> hitboxToActivate.get() != null , () -> {
+			
+			try {
+				
+				int hitbox = (int)toNumber(hitboxToActivate.get());
+				float[] sprite = activeSpriteSet.getSprite(activeSpriteID);
+				int length = sprite.length % 3 == 0 ? sprite.length + 1 : sprite.length;
+				float[] newSprite = new float[length];
+				System.arraycopy(sprite, 0, newSprite, 0, sprite.length);
+				newSprite[newSprite.length -1] = hitbox;
+				activeSpriteSet.replaceSprite(activeSpriteID, newSprite);
+				
+			} catch(Exception e) {
+				
+				say(hitboxToActivate.get() + " not castable to int");
+				
+			}
+						
+		});
+		
+	}
+	
+	void addActiveSpriteSetToEntity() {
+		
+		if(!(activeQuad instanceof Entities)) return;
+		
+		Entities E = (Entities)activeQuad;		
+		((EntityAnimations)(E.components()[Entities.AOFF])).add(activeSpriteSet);
+		E.write();
+			
+	}
+	
+	void addJointMarkerForSprite() {
+		
+		addJoint();
+		int next = jointMarkers.size() - 1;
+		getJoint(next).moveTo(activeQuad);
+
+	}
+	
+	void setActiveColliderWidth() {
+		
+		Supplier<String> width = DialogUtils.newInputBox("Set Width", 5, 270, UserInterface.NUMBER_FILTER);
+		TemporalExecutor.onTrue(() -> width.get() != null , () -> ((Colliders)activeQuad).setWidth(Float.parseFloat(width.get())));
+		
+	}
+	
+	void setActiveColliderHeight() {
+		
+		Supplier<String> height = DialogUtils.newInputBox("Set Height", 5, 270, UserInterface.NUMBER_FILTER);
+		TemporalExecutor.onTrue(() -> height.get() != null , () -> ((Colliders)activeQuad).setHeight(Float.parseFloat(height.get())));
+		
+	}
+	
+	void activeStaticToggleColliders() {
+		
+		((Statics)activeQuad).toggleFocusColliders();
+		if(((Statics)activeQuad).collidersFocused()) uiManager.staticColliderEditor.show();
+		else uiManager.staticColliderEditor.hide();
+		
+	}
+	
+	void deleteEntityFilePath() {
+		
+		Supplier<String> filepathToDelete = DialogUtils.newFileExplorer("Select an Entity to Delete" , 5 , 270 , false , false , data + "entities/");
+		TemporalExecutor.onTrue(() -> filepathToDelete.get() != null , () -> {
+			
+			try {
+				
+				GameFiles.delete(filepathToDelete.get());
+				
+			} catch(Exception e) {
+			
+				System.err.println("Error occured tring to delete " + filepathToDelete.get() + ", terminating action");
+				
+			}					
+			
+		});
+		
+	}
+	
+	void toggleComponent(Entities E , ECS component) {
+		
+		scene.entities().toggleComponent(E, component);
+		
+	}
+	
+	void selectEntityScript() {
+		
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> scriptPath = DialogUtils.newFileExplorer("Select script", 5 , 270 , false , false , data + "scripts/");
+		TemporalExecutor.onTrue(() -> scriptPath.get() != null, () -> {
+			
+			tryCatch(() -> {
+
+				EntityScripts script = new EntityScripts((Entities)comps[0] , (String) toNamePath(scriptPath.get()));
+				comps[Entities.SOFF] = script;
+				
+			}, "Error loading script: " + scriptPath.get() + ", terminating action");
+			
+		});
+		
+	}
+	
+	void recompileEntityScript() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		try {
+			
+			EntityScripts interpreter = (EntityScripts) comps[Entities.SOFF];							
+			interpreter.recompile();
+			
+		} catch (Exception e) {
+			
+			e.printStackTrace();								
+			say("Entity Script Compilation Error");
+			scene.entities().toggleComponent((Entities)comps[0], ECS.SCRIPT);
+			
+		}
+			
+	}
+	
+	void addEntityAnimation() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> spriteSets = DialogUtils.newFileExplorer("Select one or more SpriteSets" , 5 , 270 , true , false , data + "spritesets/");
+		TemporalExecutor.onTrue(() -> spriteSets.get() != null, () -> {
+			
+			tryCatch(() -> {
+
+				EntityAnimations anims = (EntityAnimations)comps[Entities.AOFF];
+
+				if(spriteSets.get().contains("|")) {//split
+					
+					String[] splitSets = spriteSets.get().split("\\|");									
+					for(String split : splitSets) anims.add(new SpriteSets(toNamePath(split)));
+					
+				} else anims.add(new SpriteSets(spriteSets.get()));
+
+			}, "Error adding SpriteSets, terminating action.");							
+			
+		});
+		
+	
+	}
+	
+	void addEntityHitbox() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+
+		Supplier<String> hitboxes = DialogUtils.newFileExplorer("Select one or more HitBoxSets", 5 , 270 , true , false , data + "hitboxsets/");
+		TemporalExecutor.onTrue(() -> hitboxes.get() != null, () -> {
+			
+			tryCatch(() -> {
+				
+				EntityHitBoxes Ehitboxes = (EntityHitBoxes)comps[Entities.HOFF];
+				String res = hitboxes.get();
+				
+				if(res.contains("|")) {
+					
+					String [] hitboxSets = res.split("\\|");
+					for(String split : hitboxSets) Ehitboxes.addSet(new HitBoxSets(split));
+					
+				} else Ehitboxes.addSet(new HitBoxSets(res));
+				
+			}, "Error occurred adding hitbox, terminating action.");
+			
+		});
+		
+	}
+	
+	void setEntityMaxNumberBoxes() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+
+		Supplier<String> input = DialogUtils.newInputBox("Input Max Number of HitBoxes" , 5 , 270);
+		TemporalExecutor.onTrue(() -> input.get() != null, () -> {
+			
+			try {
+				
+				int numberBoxes = (int)toNumber(input.get());
+				comps[Entities.HOFF] = new EntityHitBoxes(numberBoxes);
+				
+			} catch(NumberFormatException e) {
+				
+				say("Invalid input for an integer; " + input);
+				
+			}
+			
+		});
+		
+	}
+	
+	void addItemToEntityInventory() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> items = DialogUtils.newFileExplorer("Select One or More Items", 5, 270, true , false, data + "items/");
+		TemporalExecutor.onTrue(() -> items.get() != null , () -> {
+			
+			String filepaths = items.get();
+			Inventories inv = ((Inventories) comps[Entities.IOFF]);
+			
+			if(filepaths.contains("|")) {
+				
+				String[] paths = filepaths.split("\\|");
+				for(String split : paths) inv.acquire(new Items(toNamePath(split)));
+				
+			} else inv.acquire(new Items(toNamePath(filepaths)));
+			
+		});
+	
+	}
+	
+	void equipItemOnEntity() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> item = DialogUtils.newFileExplorer("Select an Equippable Item", 5, 270, false , false, data + "items/");
+		TemporalExecutor.onTrue(() -> item.get() != null , () -> {
+
+			tryCatch(() -> ((Inventories) comps[Entities.IOFF]).equip(new Items(toNamePath( item.get()))) , 
+				"Error adding item to equip, terminating action");
+			
+		});
+		
+	}
+	
+	void addFlagToEntity() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> flagName = DialogUtils.newInputBox("Input Flag Name", 5 , 270);											
+		TemporalExecutor.onTrue(() -> flagName.get() != null , () -> ((EntityFlags)comps[Entities.FOFF]).add(flagName.get()));
+								
+	}
+	
+	void addSoundToEntity() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		
+		Supplier<String> soundFiles = DialogUtils.newFileExplorer("Select one or more Sounds", 5 , 270 , false , true);
+		TemporalExecutor.onTrue(() -> soundFiles.get() != null, () -> {
+			
+			String[] split = soundFiles.get().split("\\|");
+			@SuppressWarnings("unchecked") CSArray<Sounds> sounds = (CSArray<Sounds>)comps[Entities.AEOFF];
+			for(String file : split) sounds.add(SoundEngine.add(file));
+			
+		});
+
+	}
+	
+	void printEntityHitboxSets() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		ArrayList<HitBoxSets> list = ((EntityHitBoxes) comps[Entities.HOFF]).getSets();
+		for(HitBoxSets hb : list) {
+			
+			say(hb.name());
+			say(hb.size());
+			for(int i = 0 ; i < hb.size() ; i ++) say(hb.hitboxAsString(i));
+			
+		}
+	
+	}
+	
+	void printEntityAnimations() {
+
+		Object[] comps = ((Entities)activeQuad).components();		
+		EntityAnimations anims = (EntityAnimations)comps[Entities.AOFF];		
+		for(SpriteSets ss : anims.anims()) if(ss != null) say(ss.name());
+		
+	}
+	
+	void printEntityInventory() {
+		
+		Object[] comps = ((Entities)activeQuad).components();
+		Inventories inv = (Inventories) comps[Entities.IOFF];
+	
+		say("Inventory:");
+		cdNode<Tuple2<Items , RefInt>> iter = inv.iter();
+		for(int i = 0 ; i < inv.inventorySize() ; i ++ , iter = iter.next) say(iter.val.getFirst().name());
+			
+	}
+	
+	void printEntityEquippedItems() {
+
+		Object[] comps = ((Entities)activeQuad).components();
+		Inventories inv = (Inventories) comps[Entities.IOFF];
+
+		say("Equipped:");
+		CSArray<Items> equipped = inv.getEquipped();
+		for(int i = 0 ; i < equipped.size() ; i ++) if(equipped.get(i) != null) say(equipped.get(i).name());		
+	
+	}
+	
+	void printEntitySounds() {
+
+		Object[] comps = ((Entities)activeQuad).components();		
+		@SuppressWarnings("unchecked") CSArray<Sounds> sounds = (CSArray<Sounds>)comps[Entities.AEOFF];
+		for(int i = 0 ; i < sounds.length() ; i ++) say(sounds.get(i).name());
+	
+	}
+
+	//Object used to mark up hitboxes with a quad. The active quad will be the quad referenced for the math relating to the 
+	//hitboxset 
+	HitBoxSetMarker hitboxMarker = new HitBoxSetMarker();
+	
+	void newHitboxSet() {
+		
+		Supplier<String> nameInput = DialogUtils.newInputBox("Input HitBoxSet Name", 5 , 270);
+		TemporalExecutor.onTrue(() -> nameInput.get() != null , () -> {
+			
+			hitboxMarker.clear();
+			hitboxMarker.active = -1;				
+			hitboxMarker.editingName = nameInput.get();
+			
+		});
+					
+	}	
+	
+	void loadHitboxSet() {
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select a HitBoxSet File" , 5 , 270 , false , false);
+		TemporalExecutor.onTrue(() -> filepath.get() != null , () -> {
+			
+			hitboxMarker.clear();
+			hitboxMarker.active = -1;
+			
+		});
+		
+	}
+	
+	void deleteHitboxSet() {
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select a HitBoxSet File" , 5 , 270 , false , false);
+		TemporalExecutor.onTrue(() -> filepath.get() != null , () -> {
+
+			try {
+				
+				HitBoxSets hb = new HitBoxSets(filepath.get());
+				hb.delete();
+				
+			} catch(Exception e) {
+				
+				say("error: " + filepath.get() + " is not a valid hitboxset file");							
+				
+			}
+								
+		});
+		
+	}
+	
+	boolean isHitboxsetAlive() {
+		
+		return hitboxMarker.editingName != null;
+		
+	}
+	
+	void addHitbox() {
+		
+		hitboxMarker.addHitBox(activeQuad);
+		
+	}
+	
+	void removeHitbox() {
+		
+		hitboxMarker.removeHitBox(hitboxMarker.active);
+		
+	}
+	
+	void removeAllHitboxes() {
+		
+		hitboxMarker.clear();
+		hitboxMarker.active = -1;
+		
+	}
+	
+	boolean isHitboxSelected() {
+		
+		return hitboxMarker.active != -1;
+		
+	}
+	
+	void toggleActiveHitboxHot() {
+		
+		hitboxMarker.hotBoxes[hitboxMarker.active] = hitboxMarker.hotBoxes[hitboxMarker.active] != -1 ? -1 : hitboxMarker.active;
+		
+	}
+	
+	void toggleActiveHitboxCold() {
+		
+		hitboxMarker.coldBoxes[hitboxMarker.active] = hitboxMarker.coldBoxes[hitboxMarker.active] != -1 ? -1:hitboxMarker.active;
+		
+	}
+	
+	void saveHitboxSetAs() {
+
+		Supplier<String> fileName = DialogUtils.newInputBox("Input new HitBoxSet Name", 5 , 270);
+		TemporalExecutor.onTrue(() -> fileName.get() != null , () -> {
+			
+			HitBoxSetMarker newHitboxMarker = new HitBoxSetMarker();
+			newHitboxMarker.copy(hitboxMarker);
+			newHitboxMarker.editingName = fileName.get();
+			hitboxMarker = newHitboxMarker;
+			hitboxMarker.toHitBoxSet(activeQuad).write();
+			
+		});
+		
+	}
+	
+	void saveHitboxSet() {
+		
+		hitboxMarker.toHitBoxSet(activeQuad).write();
+		
+	}
+	
+	boolean activeQuadValidEntityForHitboxes() {
+		
+		return (activeQuad instanceof Entities) && ((Entities)activeQuad).has(ECS.ANIMATIONS , ECS.HITBOXES);
+		
+	}
+	
+	void addHitboxSetToEntity() {
+
+		Entities E = (Entities)activeQuad;
+		EntityAnimations anims = (EntityAnimations) E.components()[Entities.AOFF];
+		EntityHitBoxes entityHitboxes = (EntityHitBoxes) E.components()[Entities.HOFF];
+
+		entityHitboxes.addSet(hitboxMarker.toHitBoxSet(E));
+		E.write();
+	
+	}
+	
+	void resetActiveDims() { 
+
+		Items activeItem = (Items) activeQuad;
+		
+		activeItem.fitQuadToTexture();
+		activeItem.setLeftUCoords(0);
+		activeItem.setRightUCoords(1);
+		activeItem.setTopVCoords(1);
+		activeItem.setBottomVCoords(0);
+		
+	}
+	
+	void saveSelectionAreaAsItemIcon() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		float[] vertices = activeItem.getData();
+		float[] selection = this.selection.vertices;
+		
+		float leftUDistance = selection[27] - vertices[27];
+		float rightUDistance = selection[0] - vertices[27];
+		
+		float[] qDims = {activeItem.getWidth() , activeItem.getHeight()};
+		
+		float leftU = leftUDistance / qDims[0];
+		float rightU = rightUDistance / qDims[0];
+		
+		float bottomVDistance = selection[1] - vertices[1];
+		float topVDistance = selection[10] - vertices[1];
+		
+		float bottomV = bottomVDistance / qDims[1];
+		float topV = topVDistance / qDims[1];
+		
+		float[] selectionDims = this.selection.getDimensions();
+		
+		if(leftU < 0.0f) leftU = 0.0f;
+		if(rightU > 1.0f) rightU = 1.0f;
+		if(topV > 1.0f) topV = 1.0f;
+		if(bottomV < 0f) bottomV = 0f;
+		
+		activeItem.iconSprite(new float [] {leftU, rightU , topV, bottomV , Math.round(selectionDims[0] / 2) , Math.round(selectionDims[1] / 2f)});
+		
+	}
+	
+	void setItemMaxStackSize() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		Supplier<String> stackSize = DialogUtils.newInputBox("Max Size of a Stack in an Inventory", 5, 270, UserInterface.NUMBER_FILTER);
+		TemporalExecutor.onTrue(() -> stackSize.get() != null , () -> activeItem.maxStackSize((int)toNumber(stackSize.get())));
+		
+	}
+	
+	void setItemIconAnimation() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		Supplier<String> animation = DialogUtils.newFileExplorer("Select an Animation", 5, 270, data + "spritesets/");
+		TemporalExecutor.onTrue(() -> animation.get() != null , () -> activeItem.setIconAnimation(toNamePath(animation.get())));
+		
+	}
+	
+	void setItemComponent(ItemComponents component)  {
+
+		((Items) activeQuad).toggleComponents(component);
+	}
+	
+	void setItemEquipSlot() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		Supplier<String> slotNumber = DialogUtils.newInputBox("Equip Slot", 5 , 270 , UserInterface.DEFAULT_FILTER);
+		TemporalExecutor.onTrue(() -> slotNumber.get() != null , () -> {
+			
+			try {
+				
+				int slotInt = (int)toNumber(slotNumber.get());
+				if(slotInt < 0) throw new NumberFormatException();
+				activeItem.componentData().equipSlot(slotInt);
+												
+			} catch(NumberFormatException e) {
+				
+				say("Not a valid number: " + slotNumber);
+				
+			}
+			
+		});
+		
+	}
+	
+	void setItemUseScript() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		Supplier<String> scriptFile = DialogUtils.newFileExplorer("Select a Script to Execute on Item Use", 5 , 270 , false , false , data + "scripts/");
+		TemporalExecutor.onTrue(() -> scriptFile.get() != null, () -> {
+			
+			String scriptPath = (String) toNamePath(scriptFile.get());
+			if(scriptPath.endsWith(".py")) activeItem.componentData().onUse(scriptPath);
+			else say("Not a valid python script: " + scriptFile.get());			
+			
+		});
+												
+	}
+	
+	void recompileItemUseScript() {
+		
+		((Items) activeQuad).componentData().recompileUseScript();
+		
+	}
+	
+	void addItemHitboxSet() {
+
+		Items activeItem = (Items) activeQuad;
+		
+		Supplier<String> hitboxPaths = DialogUtils.newFileExplorer("Select one or more HitBoxSets" , 120,  120 , false , true);
+		TemporalExecutor.onTrue(() -> hitboxPaths.get() != null, () -> {
+			
+			String[] split = hitboxPaths.get().split("\\|");
+			for(String hb : split) activeItem.componentData().addHitBox(new HitBoxSets(hb));
+			
+		});			
+	
+	}
+	
+	void setItemChanceToConsume() {
+
+		Supplier<String> input = DialogUtils.newInputBox("Input a Number Between 1 and 100", 120, 120);
+    	TemporalExecutor.onTrue(() -> input.get() != null , () -> ((Items) activeQuad).componentData().chanceToConsume((int)toNumber(input.get())));
+    	
+	}
+	
+	void addFlagToItem() {
+		
+		Supplier<String> flagName = DialogUtils.newInputBox("Input Flag's Name" , 5 , 270);
+		TemporalExecutor.onTrue(() -> flagName.get() != null , () -> ((Items) activeQuad).componentData().addFlag(flagName.get()));
+	
+	}
+	
+	void removeFlagFromItem() {
+		
+		
+		
+	}
+	
+	void printItemHitboxSets() {
+		
+		EntityHitBoxes hb = ((Items) activeQuad).componentData().HitBoxable();
+		ArrayList<HitBoxSets> sets = hb.getSets();
+		for(int i = 0 ; i < sets.size() ; i ++) say(sets.get(i).name());
+		
+	}
+	
+	void newTileset() {
+		
+		Supplier<String> name = DialogUtils.newInputBox("Input Tile Set Name", 5, 270);
+		TemporalExecutor.onTrue(() -> name.get() != null, () -> {
+			
+			Supplier<String> texture = DialogUtils.newFileExplorer("Select a Texture", 5, 270, false, false , assets + "spritesheets/");
+			TemporalExecutor.onTrue(() -> texture.get() != null	, () -> {
+				
+				newTileSet(name.get() , texture.get());
+				
+			});
+
+		});
+		
+	}
+	
+	void loadTileset() {
+		
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Select Tile Set", 5 , 270, data + "tilesets/");
+		TemporalExecutor.onTrue(() -> filepath.get() != null , () -> loadTileSet(filepath.get()));
+		
+	}
+	
+	void deleteTileset() {
+		
+		Supplier<String> fileToDelete = DialogUtils.newFileExplorer("Delete a file", 5, 270, false, false, data + "tilesets/");
+		TemporalExecutor.onTrue(() -> fileToDelete.get() != null , () -> GameFiles.delete(fileToDelete.get()));
+		
+	}
+	
+	void renameTileset() {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		
+		Supplier<String> name = DialogUtils.newInputBox("Input Tile Set Name", 5, 270);
+		TemporalExecutor.onTrue(() -> name.get() != null , () -> currentTileSet.name(name.get()));
+		
+	}
+	
+	void clearTileset() {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();		
+		currentTileSet.clearInstances();
+			
+	}
+	
+	void removeColorFromTileset() {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		
+		Supplier<float[]> removedColor = DialogUtils.newColorChooser("Remove Color", 5, 270);
+		TemporalExecutor.onTrue(() -> removedColor.get() != null , () -> currentTileSet.remove(removedColor.get()));
+		
+	}
+	
+	void retextureTileset() {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		
+		Supplier<String> texturePath = DialogUtils.newFileExplorer("Select a Texture", 5, 270, false, false, assets + "spritesheets/");
+		TemporalExecutor.onTrue(() -> texturePath.get() != null , () -> currentTileSet.texture(texturePath.get()));
+		
+	}
+	
+	Tuple2<NkImage , NkRect> saveSelectionAreaAsTile(NkImage tilesImage) {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		
+		float[] vertices = currentTileSet.getTileSheet().getData();
+		float[] selection = this.selection.vertices;
+		
+		float leftUDistance = selection[27] - vertices[27];
+		float rightUDistance = selection[0] - vertices[27];
+		
+		float[] qDims = {currentTileSet.getTileSheet().getWidth() , currentTileSet.getTileSheet().getHeight()};
+		
+		float leftU = leftUDistance / qDims[0];
+		float rightU = rightUDistance / qDims[0];
+		
+		float bottomVDistance = selection[1] - vertices[1];
+		float topVDistance = selection[10] - vertices[1];
+		
+		float bottomV = bottomVDistance / qDims[1];
+		float topV = topVDistance / qDims[1];
+		
+		float[] selectionDims = this.selection.getDimensions();
+		
+		if(leftU < 0.0f) leftU = 0.0f;
+		if(rightU > 1.0f) rightU = 1.0f;
+		if(topV > 1.0f) topV = 1.0f;
+		if(bottomV < 0f) bottomV = 0f;
+		
+		currentTileSet.addSourceTile(new float[] {leftU , rightU , topV , bottomV , selectionDims[0] , selectionDims[1]});				
+		
+		Tuple2<NkImage , NkRect> subRegionResult = UserInterface.subRegion(
+				tilesImage , currentTileSet.textureInfo() , 
+				(short)leftUDistance , (short)(vertices[10] - selection[10]) , (short)selectionDims[0] , (short)selectionDims[1]);
+		
+		return subRegionResult;
+		
+	}
+	
+	void setTileName(Tiles tile) { 
+
+		Supplier<String> newName = DialogUtils.newInputBox("Rename Tile" , 5 , 270);
+		Tiles query = tile;
+		TemporalExecutor.onTrue(() -> newName.get() != null , () -> query.setName(newName.get()));
+		
+	}
+	
+	void removeTile(cdNode<Tiles> iter , cdNode<NkImage> iterImage) {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
+		
+		iter.val.forEachInstance(removeTile -> currentTileSet.removeInstance(removeTile));
+		iter.val.removeInstances();
+		iter = currentTileSet.safeRemoveSource(iter);
+		iterImage = tileIcons.safeRemove(iterImage);
+	}
+	
+	void setTileAnimation(Tiles tile) {
+
+		Supplier<String> animation = DialogUtils.newFileExplorer("Select Animation", 5, 270, data + "spritesets/");
+		TemporalExecutor.onTrue(() -> animation.get() != null , () -> tile.setAnimation(new SpriteSets(toNamePath(animation.get()))));	
+		
+	}
+	
+	void copyTile(Tiles tile , NkImage newTileImage) {
+
+//		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+//		
+//		Tiles deepCopy = tile.copy();
+//		currentTileSet.addSourceTile(deepCopy);
+//		NkImage iterImageCopy = NkImage.malloc(ALLOCATOR).set(tileIcon);
+//		tileIcons.add(iterImageCopy);
+		
+			
+	}
+	
+	void engineShutDown() {
+		
+		engine.closeOverride();
+		
+	}
+	
 }

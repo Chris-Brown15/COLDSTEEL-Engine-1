@@ -101,6 +101,7 @@ import org.lwjgl.system.MemoryStack;
 
 import CS.Engine;
 import CS.RuntimeState;
+import CS.UserInterface;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSStack;
@@ -235,7 +236,7 @@ public class Renderer {
 		
 	}
 	
-	public static final void handleTextureLoadRequests() {
+	private static final void handleTextureLoadRequests() {
 
 		assert Engine.isMainThread() : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
 		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> requests;
@@ -383,7 +384,7 @@ public class Renderer {
 
     }
 
-	public void initialize(Supplier<int[]> windowDims , Supplier<int[]> framebufferDims){
+	public void initialize(Supplier<int[]> windowDims , Supplier<int[]> framebufferDims , NkContext context , NkBuffer commands){
 		
 		this.windowDims = windowDims;
 		this.framebufferDims = framebufferDims;
@@ -397,7 +398,7 @@ public class Renderer {
 		initializeTextures();
 		initializeVertexAttribs();
 		setOpenGLState();
-		initializeNuklear();
+		initializeNuklear(context , commands);
 		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to initialize."); 
 		screenQuad.moveTo(camera.cameraPosition);		
 		screenQuad.setDimensions(windowDims.get());
@@ -625,6 +626,7 @@ public class Renderer {
     	switch(type) {
     		
 			case STATIC -> drawStatic((Statics)quad);			
+			case COLLIDER -> {}
 			default -> drawQuad(quad);
     	
     	}
@@ -656,7 +658,7 @@ public class Renderer {
     	
     	backgroundParticles.forEach(particle -> drawQuad(particle));
     	
-    	Engine.forEachObjectList(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
+    	Engine.forBoundScene(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
     	
     	if(renderOthers) {
     		
@@ -672,7 +674,9 @@ public class Renderer {
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
     	
+    	while(!UserInterface.ITERATED_ALL_ELEMENTS.get());
     	renderUI();
+    	UserInterface.ITERATED_ALL_ELEMENTS.set(false);
     	
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
@@ -734,8 +738,8 @@ public class Renderer {
     private static final int MAX_VERTEX_BUFFER  = 512 * 1024;
     private static final int MAX_ELEMENT_BUFFER = 128 * 1024;
 
-    private static NkContext context;
-    private static NkBuffer commands;
+    private NkContext context;
+    private NkBuffer commands;
     
     private static final NkDrawVertexLayoutElement.Buffer VERTEX_LAYOUT;
     static {
@@ -758,10 +762,10 @@ public class Renderer {
     private int width , height;
     private int display_width , display_height;
 
-    private void initializeNuklear(){
+    private void initializeNuklear(NkContext context , NkBuffer commands){
 
-        context = Engine.NuklearContext();
-        commands = Engine.NuklearDrawCommands();
+        this.context = context;
+        this.commands = commands;
         
     	// null texture setup
         int nullTexID = glGenTextures();

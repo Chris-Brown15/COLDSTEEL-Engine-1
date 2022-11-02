@@ -15,11 +15,9 @@ if not initialized:
     from Physics import MExpression
     from Renderer import ParticleEmitter
     from Game.Items import ItemComponents
-    from CS import CSKeys
-    from CS import Controls
-
+    
     print("Syncing controls in alucard script")
-    syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACKI , Controls.ATTACKII , Controls.POWERI])
+    syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACK1 , Controls.ATTACK2 , Controls.POWER1])
 
     isBackDashing = FALSE
 
@@ -27,13 +25,12 @@ if not initialized:
     hurtBloodEmitter = createParticleEmitter(160 , 2400 , hurtBloodExpr , hurtBloodExpr , 0.90 , 0.0 , 0.0 , 1.5 , 1.5 , TRUE) 
     hurtBloodEmitter.setEmissionRate(1)
 
-    HUD = UIScript("ui_AlucardInventory.py")
-    HUD.set("inventory" , inventory)
-    HUD.set("maxMana" , maxMana())
-    HUD.set("maxLife" , maxLife())
-    HUD.set("equipped" , inventory.getEquipped())
-    HUD.set("items" , inventory.getItems())
-    showHUD = FALSE
+    if not onServer():
+        HUD = UIScript("ui_AlucardUI.py")
+        HUD.set("inventory" , inventory)
+        HUD.set("equipped" , inventory.getEquipped())
+        HUD.set("items" , inventory.getItems())
+        HUD.run()
 
     '''
     Alucard can do a few moves:
@@ -158,7 +155,7 @@ if not initialized:
             actionState = 1
 
     def unarmed():
-        if struck(Controls.ATTACKI):
+        if struck(Controls.ATTACK1):
             global actionState            
             if isHungup():
                 endHangup()
@@ -205,6 +202,11 @@ if not initialized:
         isJumping = components[VCOFF + 3]
         isRunning = pressed(Controls.RIGHT) or pressed(Controls.LEFT)
         nearFloor = distanceToFloor() < 5
+        if not onServer():
+            HUD.set("maxMana" , maxMana())
+            HUD.set("maxLife" , maxLife())
+            HUD.set("life" , currentLife())
+            HUD.set("mana" , currentMana())
 
     def getActionState():
         global actionState
@@ -224,7 +226,7 @@ if not initialized:
         elif nearFloor and pressed(Controls.DOWN) :#crouching
             actionState = 2
 
-        elif nearFloor and (pressed(Controls.POWERI) or actionState == 4):#back dashing
+        elif nearFloor and (pressed(Controls.POWER1) or actionState == 4):#back dashing
             actionState = 4
 
         elif nearFloor:
@@ -234,10 +236,6 @@ if not initialized:
         hurtBloodEmitter.start()  
         TemporalExecutor.forMillis(1000 , lambda: hurtBloodEmitter.setPosition(xMid() , yMid()))  
 
-    def updateHUD():
-        HUD.set("life" , currentLife())
-        HUD.set("mana" , currentMana())
-    
     def useItem(slot):
         equipped = inventory.getEquippedItem(slot)
         if equipped != None and equipped.has(ItemComponents.USABLE):
@@ -258,16 +256,16 @@ if not initialized:
     initialized = TRUE
 
 updateVariables()
-updateHUD()
 findItems()
 
 #first set the action state, then call the correct bahavior
 getActionState()
 
+#should be impossible on server anyway
 if struck(Controls.INVENTORY):
     HUD.toggle()
 
-if actionState <= 3 and pressed(Controls.ATTACKI):
+if actionState <= 3 and pressed(Controls.ATTACK1):
     useSword()
     useItem(0)
 
@@ -282,7 +280,6 @@ else:
         airborn() 
     elif(actionState == 4):
         backDash()
-
 
 #handles unarmed attacks and accounts for state on its own
 unarmed()

@@ -1,34 +1,18 @@
 package CSUtil.Dialogs;
 
-import static CS.COLDSTEEL.assets;
-import static CS.COLDSTEEL.data;
-import static CS.COLDSTEEL.deleted;
-import static CS.COLDSTEEL.mods;
-import static org.lwjgl.system.MemoryUtil.nmemFree;
-
-import java.io.File;
 import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkPluginFilter;
-import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.system.MemoryStack;
-
 import CSUtil.DataStructures.CSLinked;
-import CSUtil.DataStructures.cdNode;
-import Core.NKUI;
 
-public abstract sealed class DialogUtils implements NKUI permits ColorChooser , FileExplorer , InputBox {
+public abstract class DialogUtils {
 
-	private static final CSLinked<DialogUtils> elements = new CSLinked<>();
-	
-	protected static final File DATA_FOLDER = new File(data);
-	protected static final File ASSETS_FOLDER = new File(assets);
-	protected static final File DELETED_FOLDER = new File(deleted);
-	protected static final File MODS_FOLDER = new File(mods);
+	private static final CSLinked<Acceptable> elements = new CSLinked<>();
 	
 	public static final Supplier<String> newInputBox(String title , int x , int y) {
 		
 		InputBox newInputBox = new InputBox(title , x , y);
+		elements.add(newInputBox);
 		return () -> newInputBox.result;
 		
 	}
@@ -36,6 +20,7 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<String> newInputBox(String title , int x , int y , NkPluginFilter filter) {
 		
 		InputBox newInputBox = new InputBox(title , x , y , filter);
+		elements.add(newInputBox);
 		return () -> newInputBox.result; 
 		
 	}
@@ -43,6 +28,7 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<String> newFileExplorer(String title , int x , int y , boolean allowMultiple , boolean allowFolders){
 	
 		FileExplorer newFileSelect = new FileExplorer(title , x , y , allowMultiple , allowFolders , null);
+		elements.add(newFileSelect);
 		return () -> newFileSelect.result;
 		
 	}
@@ -50,6 +36,7 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<String> newFileExplorer(String title , int x , int y){
 	
 		FileExplorer newFileSelect = new FileExplorer(title , x , y , false , false , null);
+		elements.add(newFileSelect);
 		return () -> newFileSelect.result;
 		
 	}
@@ -68,6 +55,7 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<String> newFileExplorer(String title , int x , int y , boolean allowMultiple , boolean allowFolders , String startingPath){
 	
 		FileExplorer newFileSelect = new FileExplorer(title , x , y , allowMultiple , allowFolders , startingPath);
+		elements.add(newFileSelect);
 		return () -> newFileSelect.result;
 		
 	}
@@ -75,6 +63,7 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<String> newFileExplorer(String title , int x , int y , String startingPath){
 	
 		FileExplorer newFileSelect = new FileExplorer(title , x , y , false , false , startingPath);
+		elements.add(newFileSelect);
 		return () -> newFileSelect.result;
 		
 	}
@@ -82,68 +71,9 @@ public abstract sealed class DialogUtils implements NKUI permits ColorChooser , 
 	public static final Supplier<float[]> newColorChooser(String title , int x , int y){
 		
 		ColorChooser chooser = new ColorChooser(title , x , y);
+		elements.add(chooser);
 		return () -> chooser.colors;
 		
 	}
-	
-	public static final void layoutDialogs() {
-		
-		cdNode<DialogUtils> iter = elements.get(0);
-		for(int i = 0 ; i < elements.size() ; i ++) {
-			
-			if(iter.val.finished) {
-				
-				iter.val.shutDown();
-				iter = elements.safeRemove(iter);
-				
-			} else {
-				
-				iter.val.layout();
-				iter = iter.next;
-				
-			}
-			
-		}
-		
-	}
-	
-	public static final void acceptLast() {
-		
-		if(elements.size() == 0) return;
-		cdNode<DialogUtils> last = elements.get(elements.size() - 1);
-		last.val.accept();
-		last.val.shutDown();
-		elements.safeRemove(last);
-		
-	}
-	
-	public static final void shutDownDialogs() {
-		
-		elements.forEachVal(x -> x.shutDown());
-		DEFAULT_FILTER.free();
-		NUMBER_FILTER.free();
-		
-	}
-
-	protected NkRect rect;
-	protected String title;
-	protected long UIMemory;
-	protected MemoryStack allocator;
-	protected boolean finished = false;
-
-	protected DialogUtils() {
-		
-		elements.add(this);
-		
-	}
-	
-	protected final void shutDown() {
-		
-		nmemFree(UIMemory);
-		
-	}	
-	
-	protected abstract void layout();
-	protected abstract void accept();
 	
 }

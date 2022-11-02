@@ -1,14 +1,10 @@
 package CSUtil;
 
-import static org.lwjgl.glfw.GLFW.glfwSetClipboardString;
-import static org.lwjgl.glfw.GLFW.nglfwGetClipboardString;
 import static org.lwjgl.nuklear.Nuklear.NK_UTF_INVALID;
 import static org.lwjgl.nuklear.Nuklear.nk_buffer_init;
 import static org.lwjgl.nuklear.Nuklear.nk_free;
 import static org.lwjgl.nuklear.Nuklear.nk_init;
 import static org.lwjgl.nuklear.Nuklear.nk_style_set_font;
-import static org.lwjgl.nuklear.Nuklear.nnk_strlen;
-import static org.lwjgl.nuklear.Nuklear.nnk_textedit_paste;
 import static org.lwjgl.nuklear.Nuklear.nnk_utf_decode;
 import static org.lwjgl.opengl.GL11C.GL_LINEAR;
 import static org.lwjgl.opengl.GL11C.GL_RGBA;
@@ -35,7 +31,6 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memAlloc;
-import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.system.MemoryUtil.nmemAlloc;
 import static org.lwjgl.system.MemoryUtil.nmemFree;
@@ -86,12 +81,9 @@ public class NkInitialize {
     private NkContext ctx = NkContext.create();
     private NkBuffer cmds = NkBuffer.create();
 	private ByteBuffer fontBytes;
-	private long glfw;
 	private NkUserFont NkFont = NkUserFont.create();
 		
-	public NkInitialize(long glfw){
-
-		this.glfw = glfw;
+	public NkInitialize(){
 		
         try {
 
@@ -212,40 +204,10 @@ public class NkInitialize {
 	        
 	    }
 
-	private void setupCopyPaste(long win){
-
-    	ctx.clip().copy((handle, text, len) -> {
-
-    		if (len == 0) return;
-
-    		try (MemoryStack stack = stackPush()) {
-
-    			ByteBuffer str = stack.malloc(len + 1);
-    			memCopy(text, memAddress(str), len);
-    			str.put(len, (byte)0);
-    			glfwSetClipboardString(win, str);
-
-    		}
-
-    	}).paste((handle, edit) -> {
-
-    		long text = nglfwGetClipboardString(win);
-
-    		if (text != NULL) {
-
-    			nnk_textedit_paste(edit, text, nnk_strlen(text));
-
-    		}
-
-    	});
-
-    }
-
 	public NkContext initNKGUI(){
 
 		setupFont();
     	nk_init(ctx, ALLOCATOR, null);
-    	setupCopyPaste(glfw);
     	nk_buffer_init(cmds, ALLOCATOR, BUFFER_INITIAL_SIZE);
 		nk_style_set_font(ctx, NkFont);
 
@@ -256,9 +218,6 @@ public class NkInitialize {
     public void shutDown() {
 
     	System.out.println("Shutting down Nuklear Initializer...");
-    
-        Objects.requireNonNull(ctx.clip().copy()).free();
-        Objects.requireNonNull(ctx.clip().paste()).free();
 
         glDeleteTextures(NkFont.texture().id());
         nk_free(ctx);
@@ -277,7 +236,7 @@ public class NkInitialize {
     	Objects.requireNonNull(ALLOCATOR.alloc()).free();
         Objects.requireNonNull(ALLOCATOR.mfree()).free();
 
-        System.out.println("Nuklaer Allocator shut down.");
+        System.out.println("Nuklear Allocator shut down.");
 
     }
 

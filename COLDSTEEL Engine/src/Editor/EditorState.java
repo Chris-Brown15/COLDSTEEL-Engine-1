@@ -9,7 +9,8 @@ public enum EditorState {
 	EDITING_TILESET(true),
 	EDITING_STATIC(true),
 	EDITING_JOINT(true),
-	EDITING_LEVEL(true)
+	EDITING_LEVEL(true),
+	BUSY(false)
 	
 	;
 	

@@ -1,6 +1,8 @@
 package Core;
 
 import java.util.function.Consumer;
+
+import CS.Engine;
 import Core.Entities.EntityLists;
 import Core.Statics.StaticLists;
 import Core.TileSets.TileSets;
@@ -19,6 +21,7 @@ public class Scene {
 	private final TileSets tiles2;
 	private final StaticLists statics2;
 	private final ColliderLists colliders;
+	public final int index;
 	
 	public Scene(
 		ObjectLists quads1 , TileSets tiles1 , StaticLists statics1 , 
@@ -39,20 +42,23 @@ public class Scene {
 		
 	}
 	
-	public Scene(int renderOrder , Camera camera) {
+	public Scene(Camera camera) {
 
 		this.quads1 = new ObjectLists(1);
 		this.tiles1 = new TileSets(2);
 		this.statics1 = new StaticLists(3);
-		this.entities = new EntityLists(renderOrder , camera);
-		this.items = new UnownedItems(4);
-		this.quads2 = new ObjectLists(5);
-		this.tiles2 = new TileSets(6);
-		this.statics2 = new StaticLists(7);
+		this.entities = new EntityLists(4 , camera);
+		this.items = new UnownedItems(5);
+		this.quads2 = new ObjectLists(6);
+		this.tiles2 = new TileSets(7);
+		this.statics2 = new StaticLists(8);
 		this.colliders = new ColliderLists();
 		
 	}
 	
+	{
+		index = Engine.addScene(this);
+	}
 	public void clear() {
 		
 		quads1.clear();

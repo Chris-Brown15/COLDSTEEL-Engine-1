@@ -11,8 +11,6 @@ import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MINIMIZABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
-import static org.lwjgl.nuklear.Nuklear.nk_begin;
-import static org.lwjgl.nuklear.Nuklear.nk_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
@@ -23,12 +21,11 @@ import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 
 import java.text.DecimalFormat;
 
-import org.lwjgl.nuklear.NkRect;
-
 import AudioEngine.SoundEngine;
 import CS.Engine;
+import CS.RuntimeState;
+import CS.UserInterface;
 import Core.ECS;
-import Core.NKUI;
 import Core.Entities.Entities;
 import Core.Entities.EntityLists;
 import Game.Player.PlayerCharacter;
@@ -39,37 +36,22 @@ import Game.Player.PlayerCharacter;
  * @author littl
  *
  */
-public class DebugInfo implements NKUI {
+public class DebugInfo extends UserInterface {
 	
-	public static boolean showDebug = false;
-	
-	private final NkRect rect = NkRect.malloc(allocator).set(1565 , 5, 350 , 600);
-	private final int options = NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE;
-	private final DecimalFormat decimalFormatter = new DecimalFormat();
-	private boolean showAllEntities = false;
-	private boolean showAllSounds = false;
-	
-	{
-		decimalFormatter.setMaximumFractionDigits(1);
-	}
-	
-	private boolean seeAllLoadDoors = false;	
-	private boolean freeze = false;
-	
-	public void layout(Engine engine , GameRuntime runtime) {
+	public DebugInfo(Engine engine , GameRuntime runtime) {
+
+		super("Game Debug", 1565 , 5, 350 , 600, NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE);
 		
-		if(!showDebug) return;
-		
-		allocator.push();
-		
-		if(nk_begin(context , "Debug" , rect , options)) {
+		layoutBody((frame) -> {
+			
+			if(Engine.STATE != RuntimeState.GAME || runtime.player() == null) return;
 			
 			PlayerCharacter player = runtime.player();
 			Entities playerEntity = player.playersEntity();
 			
 			nk_layout_row_dynamic(context , 20 , 2);
-			if(nk_checkbox_label(context , "Render Debug" , allocator.bytes(toByte(runtime.renderDebug())))) runtime.renderDebug(true);
-			if(nk_checkbox_label(context , "Freeze" , allocator.bytes(toByte(freeze)))) {
+			if(nk_checkbox_label(context , "Render Debug" , frame.bytes(toByte(runtime.renderDebug())))) runtime.renderDebug(true);
+			if(nk_checkbox_label(context , "Freeze" , frame.bytes(toByte(freeze)))) {
 				
 				freeze = freeze ? false:true;
 				playerEntity.freeze(freeze);
@@ -77,11 +59,11 @@ public class DebugInfo implements NKUI {
 			}
 			
 			nk_layout_row_dynamic(context , 20 , 2);
-			if(nk_checkbox_label(context , "Disable Player Gravity" , allocator.bytes(toByte(playerEntity.has(ECS.GRAVITY_CONSTANT))))) {
+			if(nk_checkbox_label(context , "Disable Player Gravity" , frame.bytes(toByte(playerEntity.has(ECS.GRAVITY_CONSTANT))))) {
 				
 				if(playerEntity.has(ECS.GRAVITY_CONSTANT)) {
 					
-					runtime.scene().entities().toggleComponent(playerEntity , ECS.GRAVITY_CONSTANT);
+					Engine.boundScene().entities().toggleComponent(playerEntity , ECS.GRAVITY_CONSTANT);
 					
 				}
 				
@@ -93,7 +75,7 @@ public class DebugInfo implements NKUI {
 			nk_layout_row_dynamic(context , 20 , 3);
 			nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
 			nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
-			nk_text(context , "TLS: " + EntityLists.ticksLastSecond , NK_TEXT_ALIGN_LEFT);
+			nk_text(context , "TLS: " + Engine.boundScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT);
 						
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);
@@ -133,7 +115,7 @@ public class DebugInfo implements NKUI {
 				
 				int symbol = seeAllLoadDoors ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
 				nk_layout_row_dynamic(context , 20 , 1);				
-				if(nk_selectable_symbol_text(context , symbol , "Load Doors" , NK_TEXT_ALIGN_CENTERED , toByte(allocator , seeAllLoadDoors)))
+				if(nk_selectable_symbol_text(context , symbol , "Load Doors" , NK_TEXT_ALIGN_CENTERED , toByte(frame , seeAllLoadDoors)))
 					seeAllLoadDoors = seeAllLoadDoors ? false : true;
 				
 				if(seeAllLoadDoors) {
@@ -159,12 +141,12 @@ public class DebugInfo implements NKUI {
 			
 			int symbol = showAllEntities ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
 			nk_layout_row_dynamic(context , 20 , 1);
-			if(nk_selectable_symbol_text(context , symbol , "Entities" , NK_TEXT_ALIGN_CENTERED , toByte(allocator , showAllEntities))) 
+			if(nk_selectable_symbol_text(context , symbol , "Entities" , NK_TEXT_ALIGN_CENTERED , toByte(ALLOCATOR , showAllEntities))) 
 				showAllEntities = toggle(showAllEntities);
 			
 			if(showAllEntities) {
 				
-				runtime.scene().entities().forEach(x -> {
+				Engine.boundScene().entities().forEach(x -> {
 					
 					nk_layout_row_dynamic(context , 20 , 1);
 					nk_text(context , x.toString() , NK_TEXT_ALIGN_LEFT);
@@ -175,7 +157,7 @@ public class DebugInfo implements NKUI {
 			
 			symbol = showAllSounds ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
 			nk_layout_row_dynamic(context , 20 , 1);
-			if(nk_selectable_symbol_text(context , symbol , "Sound Files" , NK_TEXT_ALIGN_CENTERED , toByte(allocator , showAllSounds))) 
+			if(nk_selectable_symbol_text(context , symbol , "Sound Files" , NK_TEXT_ALIGN_CENTERED , toByte(ALLOCATOR , showAllSounds))) 
 				showAllSounds = showAllSounds ? false : true;
 			
 			if(showAllSounds) {
@@ -192,11 +174,32 @@ public class DebugInfo implements NKUI {
 				});
 				
 			}
-			
-		}
 		
-		allocator.pop();
-		nk_end(context);
+			
+		});
+		
+	}
+
+	private final DecimalFormat decimalFormatter = new DecimalFormat();
+	private boolean showAllEntities = false;
+	private boolean showAllSounds = false;
+	
+	{
+		decimalFormatter.setMaximumFractionDigits(1);
+	}
+	
+	private boolean seeAllLoadDoors = false;	
+	private boolean freeze = false;
+	
+	public void show() {
+		
+		show = true;
+		
+	}
+
+	public void hide() {
+		
+		show = false;
 		
 	}
 	
