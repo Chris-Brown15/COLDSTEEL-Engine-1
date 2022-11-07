@@ -15,13 +15,14 @@ if not initialized:
 	SUB_WEAPON = 3
 	HURT = 4
 
-	HUD = UIScript("ui_TrevorHUD.py")
-	HUD.set("maxLife" , maxLife())
-	HUD.set("life" , currentLife())
-	HUD.set("hearts" , 0)
-	HUD.toggle()
-	gettingHurt = FALSE
+	if not onServer():
+		HUD = UIScript("ui_TrevorHUD.py")
+		HUD.set("maxLife" , maxLife())
+		HUD.set("life" , currentLife())
+		HUD.set("hearts" , 0)
+		HUD.toggle()
 
+	gettingHurt = FALSE
 	positionState = GROUNDED
 	previousPositionState = GROUNDED
 	actionState = IDLE
@@ -37,7 +38,8 @@ if not initialized:
 			if item.componentData().hasFlag("SUBWEAPON"):
 				if not inventory.has(item):
 					global subWeapon
-					addSubWeaponFunction = HUD.get("addSubWeapon")
+					if not onServer():
+						addSubWeaponFunction = HUD.get("addSubWeapon")
 					addSubWeaponFunction(item)
 					subWeapon = item
 
@@ -74,10 +76,10 @@ if not initialized:
 		if actionState == HURT:
 			actionState = HURT
 
-		elif pressed(Controls.ATTACKI):
+		elif pressed(Controls.ATTACK1):
 			actionState = ATTACKING
 
-		elif pressed(Controls.ATTACKII):
+		elif pressed(Controls.ATTACK2):
 			actionState = SUB_WEAPON
 		else:
 			actionState = IDLE
@@ -150,7 +152,7 @@ if not initialized:
 				if animations[e_TrevorDuck].lastFrameOfLastSprite():
 					animations[e_TrevorDuck].freeze = TRUE
 
-	def updateUI():
+	def updateUI():		
 		HUD.set("life" , currentLife())
 		HUD.set("hearts" , inventory.numberOfItem("Heart"))
 
@@ -161,7 +163,8 @@ getPositionState()
 getActionState()
 findItemsByFlag(["SUBWEAPON" , "AMMO"])
 getAnimation()
-updateUI()
+if not onServer():
+	updateUI()
 
 global previousPositionState
 previousPositionState = positionState

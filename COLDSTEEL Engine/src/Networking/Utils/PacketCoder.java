@@ -176,25 +176,8 @@ public final class PacketCoder {
 		//this is an array of bytes so read byte by byte, constructing an array of shorts representing them
 		int startingPos = bytes.position() , endingPos = bytes.position();
 		while(bytes.get(endingPos++) != CONTROL_KEY_STROKES);
-		byte[] expandedControlView = new byte[endingPos - 1 - startingPos];		
-		byte currentControlIDAndPressState;
-		for(int i = 0 ; i < expandedControlView.length ; i ++) {
-			
-//			//key is presed and therefore struck
-//			if(((currentControlIDAndPressState = bytes.get()) & CONTROL_PRESSED_MASK) != 0 ) {
-//				
-//				//sets the seventh bit to struck as well
-//				expandedControlView[i] = (byte) (currentControlIDAndPressState|CONTROL_STRUCK_MASK);
-//				
-//			} else {
-//		
-//				expandedControlView[i] = currentControlIDAndPressState;
-			
-//			}
-			
-				expandedControlView[i] = bytes.get();
-		}		
-		
+		byte[] expandedControlView = new byte[endingPos - 1 - startingPos];
+		for(int i = 0 ; i < expandedControlView.length ; i ++) expandedControlView[i] = bytes.get();		
 		bytes.position(endingPos + 1);
 		return expandedControlView;
 		

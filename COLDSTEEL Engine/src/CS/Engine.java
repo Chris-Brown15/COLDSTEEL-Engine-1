@@ -7,11 +7,7 @@ import static CSUtil.BigMixin.getSCToWCForY;
 import static org.lwjgl.Version.getVersion;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
 import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
-import static org.lwjgl.glfw.GLFW.glfwGetCursorPos;
-import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
-import static org.lwjgl.glfw.GLFW.glfwShowWindow;
-import static org.lwjgl.glfw.GLFW.glfwSwapBuffers;
 import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.nuklear.Nuklear.nk_input_begin;
@@ -20,9 +16,6 @@ import static org.lwjgl.nuklear.Nuklear.nk_window_is_any_hovered;
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11C.glClearColor;
-import static org.lwjgl.opengl.GL11C.glViewport;
-import static org.lwjgl.system.MemoryStack.stackPush;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,8 +25,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.lwjgl.opengl.GL;
-import org.lwjgl.system.MemoryStack;
-
 import AudioEngine.SoundEngine;
 import AudioEngine.Sounds;
 import CS.Controls.Control;
@@ -93,8 +84,9 @@ public class Engine {
 	private static final Thread MAIN_THREAD;
 	
 	/*engine static objects*/
+	
 	private static GLFWWindow WINDOW;
-	//layer manager. Array of lists of game objects
+	//layer manager. Array Scenes which contain sets of game objects
 	private static final CSArray<Scene> OBJECTS = new CSArray<>(CS.COLDSTEEL.NUMBER_LAYERS , 1);
 	//publicly accessable python interpreter
 	private static final EnginePython INTERNAL_ENGINE_PYTHON = new EnginePython();
@@ -104,6 +96,7 @@ public class Engine {
 	public static ItemScriptingInterface ITEM_SCRIPTING_INTERFACE;
 	public static TriggerScriptingInterface TRIGGER_SCRIPTING_INTERFACE;
 	public static ProjectileScriptingInterface PROJECTILE_SCRIPTING_INTERFACE;	
+	//whatever the client is currently using as their bound controls
 	public static Controls clientControls;
 	
 	static {
@@ -199,24 +192,16 @@ public class Engine {
     	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
     	GL.createCapabilities();
     	
-    	renderer.initialize(() -> WINDOW.getWindowDimensions() , () -> WINDOW.getFramebufferDimensions() , UserInterface.context , UserInterface.drawCommands); 
-    	
+    	renderer.initialize(WINDOW , UserInterface.context , UserInterface.drawCommands);    	
     	engineConsole = new Console();
     	
         // disable v-sync while loading
         glfwSwapInterval(0);
         
-    	WINDOW.setNuklearContext(UserInterface.context);   	        	
-    	
-        try(MemoryStack stack = stackPush()){
+    	WINDOW.setNuklearContext(UserInterface.context);  
 
-        	glfwGetFramebufferSize(WINDOW.glfwWindow , WINDOW.winWidth , WINDOW.winHeight);
-        	glViewport(0, 0, WINDOW.winWidth.get(0), WINDOW.winHeight.get(0));
-
-        }
+        WINDOW.show();
         
-        // Make the window visible
-		glfwShowWindow(WINDOW.glfwWindow);
 		System.out.println("Window initialization complete.");
 		
 		switch(STATE) {
@@ -319,10 +304,10 @@ public class Engine {
     
 	void run() {
 
-        glClearColor(WINDOW.r, WINDOW.g, WINDOW.b, 1);
+        glClearColor(WINDOW.r() , WINDOW.g() , WINDOW.b() , 1);
         glfwSwapInterval(1);
         System.out.println("Window running.");
-        //This is the main loop.
+
         while (!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
         	        	
 	    	nk_input_begin(UserInterface.context);
@@ -341,7 +326,6 @@ public class Engine {
         		iterRate = millisThisFrame / framesLastSecond;
         		millisThisFrame = 0;
         		framesThisSecond = 0;
-        		secondPassed = true;
         		totalNumberFrames += framesLastSecond;
         		runtimeSeconds++;
         		if(printFPS) System.out.println("Frames in second " + runtimeSeconds + ": " + framesLastSecond);
@@ -357,11 +341,12 @@ public class Engine {
 	        		editor.run(this);
 	        		if(!nk_window_is_any_hovered(UserInterface.context) && WINDOW.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !WINDOW.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
 	        			
-	        			glfwGetCursorPos(WINDOW.glfwWindow , WINDOW.newX , WINDOW.newY);
-	        			int[] windowDims = WINDOW.getWindowDimensions();
-	        			WINDOW.newX.put(0 , getSCToWCForX(WINDOW.newX.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));
-	        			WINDOW.newY.put(0 , getSCToWCForY(WINDOW.newY.get(0) , windowDims[0] , windowDims[1] , renderer.getCamera()));	        			
-	        			editor.resizeSelectionArea((float)WINDOW.newX.get(0), (float)WINDOW.newY.get(0));
+	        			double[] pos = WINDOW.getCursorPos();
+	        			int[] windowDims = WINDOW.getWindowDimensions();	        			
+	        			//make cursorPos in world coordinates
+	        			pos[0] = getSCToWCForX(pos[0] , windowDims[0] , windowDims[1] , renderer.getCamera());
+	        			pos[1] = getSCToWCForY(pos[1] , windowDims[0] , windowDims[1] , renderer.getCamera());	        			
+	        			editor.resizeSelectionArea((float) pos[0], (float) pos[1]);
 	        				        			
 	        		}
 	        			        		
@@ -377,9 +362,10 @@ public class Engine {
         	
         	renderer.run();
         	
-            glfwSwapBuffers(WINDOW.glfwWindow);
+        	WINDOW.swapBuffers();
             framesThisSecond++;
             millisThisFrame += frameTimer.getElapsedTimeMillis();
+            OBJECTS.forEach(scene -> scene.entities().incrementFrames());
 
         }
 
@@ -401,6 +387,25 @@ public class Engine {
 		
 	}
 	
+	public void windowifyWindow() {
+		
+		WINDOW.windowify();
+		
+	}
+	
+	public void fullscreenifyWindow() {
+		
+		WINDOW.fullscreenify();
+		
+	}
+	
+	void updateWorldOnWindowResize(int width , int height) {
+		
+		System.out.println("window resized");
+		renderer.setViewport(width , height);
+		
+	}
+	
 	void shutDown() {
     	
 		UserInterface.shutDown1();
@@ -419,12 +424,6 @@ public class Engine {
 	public void closeOverride() {
 		
 		WINDOW.overrideCloseWindow();
-		
-	}
-		
-	public static boolean secondPassed() {
-		
-		return secondPassed;
 		
 	}
 	
@@ -463,7 +462,7 @@ public class Engine {
 		return currentLevel;
 		
 	}
-	
+		
 	public MacroLevels currentMacroLevel() {
 		
 		return currentMacroLevel;
@@ -492,6 +491,12 @@ public class Engine {
 	public void releaseKeys() {
 		
 		WINDOW.releaseKeys();
+		
+	}
+	
+	public static boolean secondPassed() {
+		
+		return secondPassed;
 		
 	}
 

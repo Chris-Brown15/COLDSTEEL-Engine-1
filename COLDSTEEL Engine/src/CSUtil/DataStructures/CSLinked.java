@@ -9,7 +9,7 @@ import java.util.function.Predicate;
  * @author Chris Brown
  *
  */
-public class CSLinked<T>{
+public class CSLinked<T> {
 
 	private volatile cdNode<T> head;
 	private volatile cdNode<T> tail;
@@ -126,7 +126,7 @@ public class CSLinked<T>{
 		}		
 		
 	}
-				
+	
 	/**
 	 * Removes iter and returns the next element. Subsequent to this call, the accumulator or counter must be incremented.
 	 * If tail is removed, the element previous to tail is returned.
@@ -134,7 +134,7 @@ public class CSLinked<T>{
 	 * @param iter — a node to to remove
 	 * @return the subsequent node
 	 */
-	public cdNode<T> safeRemove(cdNode<T> iter){
+	public cdNode<T> safeRemove(cdNode<T> iter) {
 		
 		switch(size) {
 		

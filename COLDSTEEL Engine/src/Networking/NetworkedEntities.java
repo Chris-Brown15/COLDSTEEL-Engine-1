@@ -1,5 +1,7 @@
 package Networking;
 
+import static CSUtil.CSLogger.*;
+
 import static Networking.Utils.NetworkingConstants.*;
 
 import Core.ECS;
@@ -72,26 +74,27 @@ public class NetworkedEntities {
 		this.syncedControls = controlsStates;
 		
 		for(int i = 0 ; i < controlsStates.length ; i ++) {
+
+			if(LOGGING_ENABLED) { 
+				
+				if((syncedControls[i] & CONTROL_PRESSED_MASK) != 0 && (controlsStates[i] & CONTROL_PRESSED_MASK) == 0) {
+					
+					log("key un pressed");
+					
+				}
+				
+			}					
 			
-			//if this key was not pressed previously but now is
+			/*
+			 * If the incoming byte says it was pressed (its eighth bit is set) but {@code this}'s view of the key
+			 * is that it is not pressed (the eighth bit is unset), this will set the seventh and eighth bit. This  
+			 */
 			if((syncedControls[i] & CONTROL_PRESSED_MASK) == 0 && (controlsStates[i] & CONTROL_PRESSED_MASK) != 0) { 
 			
 				syncedControls[i] |= CONTROL_PRESSED_MASK|CONTROL_STRUCK_MASK;
 				
-			}
-			
-//			//key is presed and therefore struck
-//			if((syncedControls[i]) & CONTROL_PRESSED_MASK) != 0 ) {
-//				
-//				//sets the seventh bit to struck as well
-//				expandedControlView[i] = (byte) (currentControlIDAndPressState|CONTROL_STRUCK_MASK);
-//				
-//			} else {
-//		
-//				expandedControlView[i] = currentControlIDAndPressState;
-//				
-//			}
-			
+			} 
+				
 		}		
 		
 	}

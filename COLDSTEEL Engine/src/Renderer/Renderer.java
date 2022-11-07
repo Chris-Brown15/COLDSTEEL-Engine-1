@@ -48,6 +48,7 @@ import static org.lwjgl.opengl.GL11.glGetError;
 import static org.lwjgl.opengl.GL11.glScissor;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
+import static org.lwjgl.opengl.GL11C.glViewport;
 import static org.lwjgl.opengl.GL12.GL_UNSIGNED_INT_8_8_8_8_REV;
 import static org.lwjgl.opengl.GL13.GL_CLAMP_TO_BORDER;
 import static org.lwjgl.opengl.GL14.GL_FUNC_ADD;
@@ -84,7 +85,6 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -100,6 +100,7 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
 import CS.Engine;
+import CS.GLFWWindow;
 import CS.RuntimeState;
 import CS.UserInterface;
 import CSUtil.Timer;
@@ -146,14 +147,13 @@ public class Renderer {
 	private ArrayList<float[]> raw = new ArrayList<float[]>();
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
+	private GLFWWindow window;
+	
     private double renderMilliCounter = 0;
     private Timer renderTimer = new Timer();
 
     public final Quads screenQuad = new Quads(-1);
     
-    private Supplier<int[]> windowDims;
-    private Supplier<int[]> framebufferDims;
-        
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -384,10 +384,9 @@ public class Renderer {
 
     }
 
-	public void initialize(Supplier<int[]> windowDims , Supplier<int[]> framebufferDims , NkContext context , NkBuffer commands){
-		
-		this.windowDims = windowDims;
-		this.framebufferDims = framebufferDims;
+	public void initialize(GLFWWindow window , NkContext context , NkBuffer commands){
+
+		this.window = window;
 		
 		System.out.println("Beginning Renderer initialization...");
 		shader.initializeShader();
@@ -401,9 +400,11 @@ public class Renderer {
 		initializeNuklear(context , commands);
 		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to initialize."); 
 		screenQuad.moveTo(camera.cameraPosition);		
-		screenQuad.setDimensions(windowDims.get());
+		screenQuad.setDimensions(window.getWindowDimensions());
 		screenQuad.makeTranslucent(0.0f);
 		
+    	int[] winDims = window.getFramebufferDimensions();    	
+        glViewport(0, 0, winDims[0], winDims[1]);
 		System.out.println("Renderer initialization complete.");
 
 	}
@@ -702,6 +703,12 @@ public class Renderer {
 
 	}
 
+	public void setViewport(int widthPx , int heightPx) {
+		
+		glViewport(0 , 0 , widthPx , heightPx);
+		
+	}
+	
     /*
      * ______________________________________________________
      * |													|
@@ -773,9 +780,9 @@ public class Renderer {
         null_texture.texture().id(nullTexID);
         null_texture.uv().set(0.5f, 0.5f);
         
-        int[] dims = windowDims.get();
+        int[] dims = window.getWindowDimensions();
         width = dims[0]; height = dims[1];
-        int[] frameBuffer = framebufferDims.get();
+        int[] frameBuffer = window.getFramebufferDimensions();
         display_width = frameBuffer[0]; display_height = frameBuffer[1];
         
         glBindTexture(GL_TEXTURE_2D, nullTexID);
@@ -824,9 +831,9 @@ public class Renderer {
     	
     	try (MemoryStack stack = stackPush()) {
 
-            int[] dims = windowDims.get();
+            int[] dims = window.getWindowDimensions();
             width = dims[0]; height = dims[1];
-            int[] frameBuffer = framebufferDims.get();
+            int[] frameBuffer = window.getFramebufferDimensions();
             display_width = frameBuffer[0]; display_height = frameBuffer[1];
             
             glUniformMatrix4fv(uniform_view , false , viewBuffer);

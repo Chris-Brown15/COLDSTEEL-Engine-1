@@ -63,6 +63,7 @@ public class GameRuntime {
 		hostedServer = new UserHostedServer(engine);
 		engine.mg_propogateNewClientAndServer();		
 		Engine.boundScene().entities().setServer(hostedServer);
+		runEntitySystems = false;
 		
 	}
 	
@@ -94,7 +95,7 @@ public class GameRuntime {
 			case GAME_RUNTIME_SINGLEPLAYER -> {
 				
 				
-				if(runEntitySystems) Engine.boundScene().entities().editorRunSystems(() -> {				
+				if(runEntitySystems) Engine.boundScene().entities().entitySystems(() -> {				
 			        
 				} , () -> {
 				
@@ -113,7 +114,7 @@ public class GameRuntime {
 			
 			case GAME_RUNTIME_MULTIPLAYER -> {
 				
-				if(runEntitySystems) Engine.boundScene().entities().editorRunSystems(() -> {				
+				if(runEntitySystems) Engine.boundScene().entities().entitySystems(() -> {				
 			        
 				} , () -> {
 				

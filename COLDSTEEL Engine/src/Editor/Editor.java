@@ -245,7 +245,7 @@ public class Editor {
 			scene.entities().resetScriptCount();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			scene.entities().editorRunSystems(() -> {
+			scene.entities().entitySystems(() -> {
 
 			}, () -> {
 
@@ -284,7 +284,7 @@ public class Editor {
 			scene.entities().resetScriptCount();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			scene.entities().editorRunSystems(() -> {
+			scene.entities().entitySystems(() -> {
 
 			}, () -> {
 

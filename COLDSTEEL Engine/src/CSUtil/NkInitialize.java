@@ -124,7 +124,7 @@ public class NkInitialize {
 
 	        STBTTPackContext pc = STBTTPackContext.malloc(stack);
 	        stbtt_PackBegin(pc, bitmap, BITMAP_W, BITMAP_H, 0, 1, NULL);
-	        stbtt_PackSetOversampling(pc, 4, 4);
+	        stbtt_PackSetOversampling(pc, 1 , 1);
 	        stbtt_PackFontRange(pc, fontBytes, 0, FONT_HEIGHT, 32, cdata);
 	        stbtt_PackEnd(pc);
 
@@ -145,64 +145,64 @@ public class NkInitialize {
 
 	    }
 
-	        NkFont.width((handle, h, text, len) -> {
+	    NkFont.width((handle, h, text, len) -> {
 
-	            float text_width = 0;
+	        float text_width = 0;
 
-	            try (MemoryStack stack = stackPush()) {
+	        try (MemoryStack stack = stackPush()) {
 
-	            	IntBuffer unicode = stack.mallocInt(1);
-	                int glyph_len = nnk_utf_decode(text, memAddress(unicode), len);
-	                int text_len = glyph_len;
+	            IntBuffer unicode = stack.mallocInt(1);
+	            int glyph_len = nnk_utf_decode(text, memAddress(unicode), len);
+	            int text_len = glyph_len;
 
-	                if (glyph_len == 0) return 0;
+	            if (glyph_len == 0) return 0;
 
-	                IntBuffer advance = stack.mallocInt(1);
+	            IntBuffer advance = stack.mallocInt(1);
 
-	                while (text_len <= len && glyph_len != 0) {
+	            while (text_len <= len && glyph_len != 0) {
 
-	                	if (unicode.get(0) == NK_UTF_INVALID) break;
+	            	if (unicode.get(0) == NK_UTF_INVALID) break;
 
-	                     /* query currently drawn glyph information */
-	                     stbtt_GetCodepointHMetrics(fontInfo, unicode.get(0), advance, null);
-	                     text_width += advance.get(0) * scale;
+	                 /* query currently drawn glyph information */
+	                 stbtt_GetCodepointHMetrics(fontInfo, unicode.get(0), advance, null);
+	                 text_width += advance.get(0) * scale;
 
-	                     /* offset next glyph */
-	                     glyph_len = nnk_utf_decode(text + text_len, memAddress(unicode), len - text_len);
-	                     text_len += glyph_len;
-
-	                }
+	                 /* offset next glyph */
+	                 glyph_len = nnk_utf_decode(text + text_len, memAddress(unicode), len - text_len);
+	                 text_len += glyph_len;
 
 	            }
 
-	        return text_width;
+	        }
 
-	       }).height(FONT_HEIGHT).query((handle, font_height, glyph, codepoint, next_codepoint) -> {
+	    return text_width;
 
-	    	   try (MemoryStack stack = stackPush()) {
+	    }).height(FONT_HEIGHT).query((handle, font_height, glyph, codepoint, next_codepoint) -> {
 
-	    		   FloatBuffer x = stack.floats(0.0f);
-	               FloatBuffer y = stack.floats(0.0f);
-	               STBTTAlignedQuad q       = STBTTAlignedQuad.malloc(stack);
-	               IntBuffer        advance = stack.mallocInt(1);
+		    try (MemoryStack stack = stackPush()) {
+	
+		        FloatBuffer x = stack.floats(0.0f);
+		        FloatBuffer y = stack.floats(0.0f);
+		        STBTTAlignedQuad q       = STBTTAlignedQuad.malloc(stack);
+		        IntBuffer        advance = stack.mallocInt(1);
+	
+		        stbtt_GetPackedQuad(cdata, BITMAP_W, BITMAP_H, codepoint - 32, x, y, q, false);
+		        stbtt_GetCodepointHMetrics(fontInfo, codepoint, advance, null);
+	
+		        NkUserFontGlyph ufg = NkUserFontGlyph.create(glyph);
+	
+		        ufg.width(q.x1() - q.x0());
+		        ufg.height(q.y1() - q.y0());
+		        ufg.offset().set(q.x0(), q.y0() + (FONT_HEIGHT + descent));
+		        ufg.xadvance(advance.get(0) * scale);
+		        ufg.uv(0).set(q.s0(), q.t0());
+		        ufg.uv(1).set(q.s1(), q.t1());
+	
+		    }
 
-	               stbtt_GetPackedQuad(cdata, BITMAP_W, BITMAP_H, codepoint - 32, x, y, q, false);
-	               stbtt_GetCodepointHMetrics(fontInfo, codepoint, advance, null);
-
-	               NkUserFontGlyph ufg = NkUserFontGlyph.create(glyph);
-
-	               ufg.width(q.x1() - q.x0());
-	               ufg.height(q.y1() - q.y0());
-	               ufg.offset().set(q.x0(), q.y0() + (FONT_HEIGHT + descent));
-	               ufg.xadvance(advance.get(0) * scale);
-	               ufg.uv(0).set(q.s0(), q.t0());
-	               ufg.uv(1).set(q.s1(), q.t1());
-
-	            }
-
-	       }).texture(it -> it.id(fontTexID));
-	        
-	    }
+	    }).texture(it -> it.id(fontTexID));
+	     
+	}
 
 	public NkContext initNKGUI(){
 

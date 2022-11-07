@@ -1,5 +1,7 @@
 package Networking.UserHostedServer;
 
+import static CSUtil.CSLogger.*;
+
 import static org.lwjgl.system.MemoryUtil.memCalloc;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static CSUtil.BigMixin.toBool;
@@ -28,6 +30,7 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.Calendar;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -141,6 +144,12 @@ public class UserHostedServer implements NetworkedInstance {
 			
 		}
 		
+		if(LOGGING_ENABLED) {
+			
+			log("Server Launched");
+			
+		}
+		
 	}
 	
 	private void handleFlaggedPacket(DatagramPacket packet , int offset) {
@@ -222,6 +231,8 @@ public class UserHostedServer implements NetworkedInstance {
 						//if this is true, the entrant is in a level that is already in play
 						if(foundLevel.get() == 0 && (level.macroLevel() + "/" + level.gameName() + ".CStf").equals(entrantmacroLevelLevel)) { 
 																			
+							foundLevel.set(1);
+							
 							//this packet gets sent to people who are in the server and inside the level teh entrant connected from
 							PacketCoder toOthersInside = new PacketCoder()
 								.bflag(CLIENT_CONNECTED)
@@ -230,7 +241,6 @@ public class UserHostedServer implements NetworkedInstance {
 								.bposition(entrantPos)
 							;
 							
-							foundLevel.set(1);
 							toEntrant.brepitition((short) players.size(), (byte)2);
 							
 							players.forEachVal(player -> {
@@ -285,8 +295,6 @@ public class UserHostedServer implements NetworkedInstance {
 						Levels newLiveLevel = new Levels((CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
 						Scene newLevelScene = new Scene(engine.getCamera());
 						newLevelScene.entities().setServer(this);
-//						//server simulates at 30 ticks per second
-//						newLevelScene.entities().setTargetTicksPerSecond(30);
 						newLiveLevel.deploy(newLevelScene);
 						newLevelScene.entities().add(newClient.entity.networked());
 						liveLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(newClient));
@@ -430,8 +438,18 @@ public class UserHostedServer implements NetworkedInstance {
 			 */
 			liveLevels.forEach((levelSceneTuple , listOfConnections) -> {
 				
-				levelSceneTuple.getSecond().entities().editorRunSystems(
-					() -> {} ,
+				levelSceneTuple.getSecond().entities().entitySystems(
+					() -> {
+						
+						if(LOGGING_ENABLED) {
+							
+							Calendar c = Calendar.getInstance();							
+							log("server tick (" + c.get(Calendar.SECOND)  + "): " + levelSceneTuple.getSecond().entities().numberTicks());
+							
+						}
+						
+					} ,
+					
 					() -> {
 		
 						//serverside physics simulation

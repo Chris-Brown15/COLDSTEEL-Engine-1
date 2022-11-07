@@ -109,7 +109,7 @@ public class Quads{
 		vertexData[28] += ySpeed; 	//bottom left
 	
 		if(snapToPixels && !(type == CSType.ENTITY || type == CSType.STATIC_ENTITY || type == CSType.JOINT)) snapQuadToPixels();
-		
+	
 	}
 		
 	/**

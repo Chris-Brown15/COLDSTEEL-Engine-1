@@ -10,6 +10,7 @@ import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_LEFT;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MINIMIZABLE;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
@@ -27,7 +28,6 @@ import CS.RuntimeState;
 import CS.UserInterface;
 import Core.ECS;
 import Core.Entities.Entities;
-import Core.Entities.EntityLists;
 import Game.Player.PlayerCharacter;
 
 /**
@@ -37,10 +37,24 @@ import Game.Player.PlayerCharacter;
  *
  */
 public class DebugInfo extends UserInterface {
+
+	private static final int uiOptions = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE ;
 	
+	private final DecimalFormat decimalFormatter = new DecimalFormat();
+	private boolean showAllEntities = false;
+	private boolean showAllSounds = false;
+	
+	{
+		decimalFormatter.setMaximumFractionDigits(1);
+	}
+	
+	private boolean seeAllLoadDoors = false;	
+	private boolean freeze = false;
+	
+
 	public DebugInfo(Engine engine , GameRuntime runtime) {
 
-		super("Game Debug", 1565 , 5, 350 , 600, NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE);
+		super("Game Debug", 1565 , 5, 350 , 600, uiOptions , uiOptions);
 		
 		layoutBody((frame) -> {
 			
@@ -179,18 +193,6 @@ public class DebugInfo extends UserInterface {
 		});
 		
 	}
-
-	private final DecimalFormat decimalFormatter = new DecimalFormat();
-	private boolean showAllEntities = false;
-	private boolean showAllSounds = false;
-	
-	{
-		decimalFormatter.setMaximumFractionDigits(1);
-	}
-	
-	private boolean seeAllLoadDoors = false;	
-	private boolean freeze = false;
-	
 	public void show() {
 		
 		show = true;

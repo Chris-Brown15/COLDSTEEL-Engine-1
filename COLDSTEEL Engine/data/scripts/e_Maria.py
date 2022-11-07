@@ -14,6 +14,8 @@ if not initialized:
 	hurtBloodExpr = MExpression("srand ( 125 / x )" , TRUE)
 	hurtBloodEmitter = createParticleEmitter(160 , 2400 , hurtBloodExpr , hurtBloodExpr , 0.90 , 0.0 , 0.0 , 1.5 , 1.5 , TRUE) 
 	hurtBloodEmitter.setEmissionRate(1)
+	
+	syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACK1 , Controls.ATTACK2 , Controls.POWER1])
 
 	initialized = TRUE
 	'''
@@ -32,7 +34,7 @@ if not initialized:
 		global state
 		vertVel = vertDisplacement()
 
-		if kbStruck(GLFW_KEY_LEFT_SHIFT):
+		if struck(Controls.POWER1):
 			state = -1
 			activateAnim(e_MariaSlide)
 			startHangup(1)
@@ -47,7 +49,7 @@ if not initialized:
 		elif vertVel < 0:
 			state = 3
 
-		elif kbPressed(GLFW_KEY_A) or kbPressed(GLFW_KEY_D):
+		elif anyPressed([Controls.LEFT , Controls.RIGHT]):
 			state = 1
 
 		else:

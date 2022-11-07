@@ -8,13 +8,10 @@ import static CSUtil.BigMixin.getTrianglePointArea;
 import static CSUtil.BigMixin.getArrayMidpoint;
 import static CSUtil.BigMixin.toggle;
 
-import static CS.Engine.currentFrame;
-import static CS.Engine.secondPassed;
-import static CS.Engine.framesLastSecond;
-
 import CS.Controls;
 import CS.Engine;
 import CSUtil.QuadIndices;
+import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
@@ -51,11 +48,15 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	private static boolean playAnimations = true;
 	
 	private int numberTicks = 0;
-	private int ticksLastSecond;	
+	private int framesLastSecond = 0;
+	private int ticksLastSecond = 0;	
+	private int currentFrame = 0;
+
 	private float framesPerTick;
 	private int targetTicks = 60;
 	private float frameStep;
-
+	private Timer stepTimer = new Timer();
+	
 	private boolean runSystems = true;
 	private final Camera camera;
 	private UserHostedServer server;
@@ -64,6 +65,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 		super(renderOrder , CSType.ENTITY);
 		this.camera = camera;
+		stepTimer.start();		
 		
 	}
 	
@@ -2479,8 +2481,11 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	public void startNumberTicks() {
 		
+		stepTimer.start();
 		ticksLastSecond = numberTicks;
 		numberTicks = 0; 
+		framesLastSecond = currentFrame;
+		currentFrame = 0;
 		
 	}
 
@@ -2510,7 +2515,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	public boolean isTickingFrame() {
 	
-		return numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ;
+		return numberTicks == 0 || ((frameStep - currentFrame <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ;
 		
 	}
 	
@@ -2523,6 +2528,12 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	public void runSystems(boolean run) {
 		
 		runSystems = run;
+		
+	}
+	
+	public void incrementFrames() {
+		
+		currentFrame++;
 		
 	}
 	
@@ -2539,22 +2550,22 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 * @param after — a function to call after all entities have been processed.
 	 *  
 	 */
-	public void editorRunSystems(Executor start , Executor inbetween , Executor after) {
+	public void entitySystems(Executor start , Executor inbetween , Executor after) {
 		
 		if(!runSystems) return;
 		
-		if(secondPassed()) {
+		if(stepTimer.getElapsedTimeSecs() >= 1) {
 			
 			startNumberTicks();
-			framesPerTick = ((float)(framesLastSecond())  / targetTicks);//frames between a tick		
+			framesPerTick = (float) framesLastSecond / (float) targetTicks;//frames between a tick
 			
 		}
 		
 		float addativeTick = (1f / framesPerTick) % 1; //if the currentFrame is a multiple of this, subtract one from the frameStep
 		frameStep = numberTicks * framesPerTick;				
-		if(currentFrame() % addativeTick == 0) frameStep -= 1;
+		if(currentFrame % addativeTick == 0) frameStep -= 1;
 		
-		if(numberTicks == 0 || ((frameStep - currentFrame() <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ) {
+		if(numberTicks == 0 || ((frameStep - currentFrame <= 1) && numberTicks < targetTicks) ) {
 			
 			if(start != null) start.execute();
 			Object[] comps;

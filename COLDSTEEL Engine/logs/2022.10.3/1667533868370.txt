@@ -1,0 +1,8 @@
+LOGGER INITIALIZED
+Successfully initialized
+Candle 1 moved X: 134.9585, Y: -27.013672
+Candle 1 moved X: 103.520935, Y: -28.169205
+Candle 1 moved X: 660.39575, Y: -35.160873
+
+
+

@@ -1,5 +1,6 @@
 package Game.Core;
 
+import static CSUtil.BigMixin.put;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_NO_SCROLLBAR;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
@@ -13,6 +14,7 @@ import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_property_float;
 import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
+import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 
 import static org.lwjgl.system.MemoryUtil.memUTF8Safe;
 import static org.lwjgl.system.MemoryUtil.memCalloc;
@@ -50,6 +52,8 @@ public class MainMenu  {
 		OPTIONS;
 		
 	}
+
+	private static final int uiOptions = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR;
 	
 	MenuStates menuState = MenuStates.MAIN;
 	
@@ -153,7 +157,8 @@ public class MainMenu  {
 	
 	String getServerConnectionInfo() {
 		
-		return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
+		if(portAndInetAddrLength.get(0) == 0) return "25.68.228.205:32900";
+		else return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
 		
 	}
 	
@@ -168,7 +173,7 @@ public class MainMenu  {
 
 		public Main(Engine engine) {
 			
-			super("GAMEMAINMENU" , 760 , 540 , 400, 310, NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER , NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_BORDER);
+			super("GAMEMAINMENU" , 760 , 540 , 400, 310, uiOptions , uiOptions);
 			
 			layoutBody((frame) -> {
 				
@@ -264,8 +269,7 @@ public class MainMenu  {
 
 		public Multiplayer(Engine engine) {
 			
-			super("" , 810 , 540 , 300 , 310, NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE ,
-											  NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+			super("" , 810 , 540 , 300 , 310, uiOptions|NK_WINDOW_TITLE , uiOptions|NK_WINDOW_TITLE);
 			 
 			layoutBody((frame) -> {
 
@@ -325,8 +329,7 @@ public class MainMenu  {
 	class MultiplayerJoiner extends UserInterface {
 
 		public MultiplayerJoiner(Engine engine) {
-			super("" , 810 , 540 , 300 , 310, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE
-											, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+			super("" , 810 , 540 , 300 , 310, uiOptions , uiOptions);
 
 			layoutBody((frame) -> {
 				
@@ -367,10 +370,12 @@ public class MainMenu  {
 	
 	class Options extends UserInterface {
 
+		private ByteBuffer borderlessFullscreen = ALLOCATOR.bytes((byte) 1);
+		private ByteBuffer borderedNonfullscreen = ALLOCATOR.bytes((byte) 0);
+		
 		public Options(Engine engine) {
 			
-			super("" , 810 , 540 , 300 , 400, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE
-											, NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_TITLE);
+			super("" , 810 , 540 , 300 , 400, uiOptions , uiOptions);
 
 			layoutBody((frame) -> {
 
@@ -381,6 +386,35 @@ public class MainMenu  {
 				nk_property_float(context , "Sound Volume" , -999 , slider , 999 , 0.05f , 0.05f);
 				SoundEngine.setGlobalVolume(slider.get());
 				
+				nk_layout_row_dynamic(context, 20 , 1);
+				nk_text(context , "Window Options" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_CENTERED);
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_checkbox_label(context , "Borderless Fullscreen" , borderlessFullscreen)) { 
+				
+					if(borderlessFullscreen.get(0) == 1) { 
+						
+						engine.schedule(() -> engine.fullscreenifyWindow());
+						put(borderedNonfullscreen , (byte) 0);
+						
+					}
+					
+				}					
+
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_checkbox_label(context , "Bordered Non-Fullscreen" , borderedNonfullscreen)) { 
+				
+					if(borderedNonfullscreen.get(0) == 1) { 
+						
+						engine.schedule(() -> engine.windowifyWindow());
+						put(borderlessFullscreen , (byte) 0);
+						
+						
+					}
+					
+				}					
+								
+							
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
 				
