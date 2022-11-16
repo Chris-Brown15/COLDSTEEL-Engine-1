@@ -52,22 +52,17 @@ public class MultiplayerChatUI extends UserInterface {
 	private static final int options = NK_WINDOW_TITLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR|NK_WINDOW_MOVABLE;
 	
 	private final NkPluginFilter textFilter = NkPluginFilter.create(Nuklear::nnk_filter_default);
-	private final NetworkedInstance instance;
 	
 	private long chatInputMemory = nmemCalloc(1 , 1024);
 	private MemoryStack stack = MemoryStack.ncreate(chatInputMemory, 1024);
 	private ByteBuffer stringInputBuffer = stack.malloc(999);
 	private IntBuffer stringInputLength = stack.mallocInt(1);
 	private CSLinked<String> chatLog = new CSLinked<>();
-	private final String playerName;
 	
 	public MultiplayerChatUI(String playerName , NetworkedInstance instance) {
 		
 		super("Chat" , 1515 , 675 , 400 , 400 , options , options);
-		
-		this.instance = instance;
-		this.playerName = playerName;
-		
+				
 		layoutBody((frame) -> {
 
 			nk_layout_row_begin(context , NK_STATIC , 30 , 2);

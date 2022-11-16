@@ -221,13 +221,17 @@ public class GLFWWindow {
         
         setCallbacks();
         
-        // Make the OpenGL context current
-        glfwMakeContextCurrent(handle);
-
         System.out.println("Window initialization complete.");
 
     }
 
+    public void makeCurrent() {
+
+        // Make the OpenGL context current
+        glfwMakeContextCurrent(handle);
+
+    }
+    
     void show() {
 
 		glfwShowWindow(handle);    	
@@ -456,8 +460,7 @@ public class GLFWWindow {
 
 					case GLFW_PRESS:
 						
-						if(engine.debugInfo.showing()) engine.debugInfo.hide();
-						else engine.debugInfo.show();
+						engine.toggleDebugInfo();
 						break;
 						
 					case GLFW_RELEASE:break;
@@ -2163,8 +2166,9 @@ public class GLFWWindow {
     					case GLFW_PRESS:
             				
             				glfwGetCursorPos(handle, startingX , startingY);
-    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());		    			
+            				int[] windowDims = getWindowDimensions(); 
+    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());
+    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());		    			
 
         					isLMouseStruck = true;
     						if(!keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {

@@ -410,7 +410,7 @@ public class CSLinked<T> {
 	public boolean has(T val) {
 		
 		cdNode<T> iter = head;
-		for(int i = 0 ; i < size;  i ++ , iter = iter.next) if(iter.val.equals(val))return true;
+		for(int i = 0 ; i < size;  i ++ , iter = iter.next) if(iter.val.equals(val)) return true;
 		return false;
 		
 	}

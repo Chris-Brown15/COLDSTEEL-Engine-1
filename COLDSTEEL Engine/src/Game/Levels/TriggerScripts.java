@@ -42,7 +42,7 @@ public class TriggerScripts extends PythonScriptEngine {
 		code = comp("t_" + scriptNamePath);
 		python.set("initialized", initialized);
 		python.set("T", owner);
-		python.set("lib", Engine.TRIGGER_SCRIPTING_INTERFACE);
+		python.set("lib", owner.owningScene);
 		python.set("assets", CS.COLDSTEEL.assets);
 		python.set("data", CS.COLDSTEEL.data);
 		python.set("mods", CS.COLDSTEEL.mods);

@@ -6,18 +6,12 @@ import CSUtil.DataStructures.cdNode;
 
 public class ObjectLists extends AbstractGameObjectLists<Quads> {
 
-    public ObjectLists(int renderOrder){
+    public ObjectLists(Scene owner , int renderOrder){
     	
-    	super(renderOrder , CSType.GENERIC);
-    	
-    }
-    
-    public ObjectLists(){
-    	
-    	super(1 , CSType.GENERIC);
+    	super(owner , renderOrder , CSType.GENERIC);
     	
     }
-    
+        
 	public String toString() {
 		
 		return "Object List" + renderOrder;
@@ -27,7 +21,6 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
     private Quads add(float[] vertices , int id , CSType type){
 
     	Quads newQuad = new Quads(vertices , id , type);
-
 		return newQuad;
 
     }
@@ -41,7 +34,7 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
     	
     }
 
-    public void delete(Quads deleteThis){
+    public void delete(Quads deleteThis) {
     	
     	if(has(deleteThis)) {
     		
@@ -58,10 +51,10 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
 
     }
 
-    public Quads selectQuad(float cursorX , float  cursorY) {
+    public Quads selectQuad(float cursorX , float cursorY) {
     	
     	Quads x;
-		for(int i = list.size() -1 ; i >= 0 ; i--) if((x = list.getVal(i)).selectQuad(cursorX, cursorY) != -1) return x;		
+		for(int i = list.size() -1 ; i >= 0 ; i--) if((x = list.getVal(i)).selectQuad(cursorX, cursorY) != -1) return x;
 		return null;
 		
     }

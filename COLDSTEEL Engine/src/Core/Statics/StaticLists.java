@@ -6,23 +6,18 @@ import CSUtil.DataStructures.CSArray;
 import Core.AbstractGameObjectLists;
 import Core.CSType;
 import Core.Quads;
+import Core.Scene;
 import Physics.ColliderLists;
 import Physics.Colliders;
 
 public class StaticLists extends AbstractGameObjectLists<Statics>{
 
-	public StaticLists(int order) {
+	public StaticLists(Scene owningScene , int order) {
 	
-		super(order , CSType.STATIC);
+		super(owningScene , order , CSType.STATIC);
 	
 	}
 
-	public StaticLists() {
-		
-		super(1 , CSType.STATIC);
-	
-	}
-	
     private boolean removeAllStaticsColors = true;
     private Vector3f globalFilterColor = new Vector3f();
     
@@ -39,7 +34,8 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 		
 		addThis.setID(list.size());		
 		list.add(addThis);
-		addThis.addCollidersToCollisions();
+		ColliderLists colliderList = owningScene.colliders();
+		addThis.forEach(colliderList::add);
 		
 	}
 	
@@ -83,7 +79,14 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 	
 	public void remove(Statics removeThis) {
 		
-		removeThis.forEach(ColliderLists::deleteAppended);
+		ColliderLists colliderList = owningScene.colliders();
+		
+		removeThis.forEach((collider) -> {
+		
+			colliderList.delete(collider);
+			
+		});
+		
 		list.removeVal(removeThis);		
 		
 	}
@@ -173,12 +176,13 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 		
 	}
 	
-	public void removeTargetStatic(int ID){
+	public void removeTargetStatic(int ID){ 
 
-		if(list.size() != 0){
+		if(list.size() != 0) {
 
 			Statics removed = list.removeVal(ID);
-			removed.forEach(ColliderLists::deleteAppended);		
+			ColliderLists colliderList = owningScene.colliders();
+			removed.forEach((collider) -> colliderList.delete(collider));		
 			for(int i = ID ; i <= list.size()-1 ;  i++) list.getVal(i).decrementStaticID();
 			
 		}
@@ -262,25 +266,17 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 
 	}
 
-	public Colliders addColliderAtOrigin(int index){
-
-		Colliders newCollider = list.getVal(index).addCollider();
-		ColliderLists.addAppended(newCollider);
-		return newCollider;
-
-	}
-
 	public void addCollider(int index){
 
 		Colliders newCollider = list.getVal(index).addCollider();
-		ColliderLists.addAppended(newCollider);
+		owningScene.colliders().add(newCollider);
 
 	}
 
 	public void copyActiveCollider(int index){
 
 		Colliders newCollider = list.getVal(index).newColliderAndCopyActive();
-		ColliderLists.addAppended(newCollider);
+		owningScene.colliders().add(newCollider);
 
 	}
 
@@ -292,7 +288,7 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 
 	public void removeCollider(int index) {
 		
-		ColliderLists.deleteAppended(list.getVal(index).removeActiveCollider());
+		owningScene.colliders().delete(list.getVal(index).removeActiveCollider());
 		
 	}
 	
@@ -415,8 +411,8 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 		Statics loadedStatic = new Statics(namePath);
 		loadedStatic.setID(list.size());
 		loadedStatic.getColliders().forEach(c -> c.setOwnerID(loadedStatic.getID()));
-		list.add(loadedStatic);
-		loadedStatic.forEach(ColliderLists::addAppended);
+		list.add(loadedStatic);		
+		loadedStatic.forEach(owningScene.colliders()::add);
 		
 		return loadedStatic;
 		

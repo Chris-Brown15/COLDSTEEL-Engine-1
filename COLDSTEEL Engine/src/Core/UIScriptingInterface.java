@@ -26,10 +26,9 @@ public class UIScriptingInterface extends UserInterface{
 	private Console console;
 	public record ImageInfo(NkImage image , int width , int height , int bitsPP) {}
 	
-	public UIScriptingInterface(Engine engine , Console console) {
+	public UIScriptingInterface(Engine engine) {
 	
 		super("UIScriptingInterface" , 0 , 0 , 0 , 0 , 0 , 0);
-		this.console = console;
 		this.engine = engine;
 		
 	}

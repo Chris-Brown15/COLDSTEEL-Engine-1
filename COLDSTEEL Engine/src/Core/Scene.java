@@ -4,11 +4,16 @@ import java.util.function.Consumer;
 
 import CS.Engine;
 import Core.Entities.EntityLists;
+import Core.Entities.EntityScriptingInterface;
 import Core.Statics.StaticLists;
 import Core.TileSets.TileSets;
+import Game.Items.ItemScriptingInterface;
 import Game.Items.UnownedItems;
+import Game.Levels.TriggerScriptingInterface;
+import Game.Projectiles.ProjectileScriptingInterface;
 import Physics.ColliderLists;
-import Renderer.Camera;
+import Physics.Kinematics;
+import Renderer.Renderer;
 
 public class Scene {
 
@@ -21,44 +26,34 @@ public class Scene {
 	private final TileSets tiles2;
 	private final StaticLists statics2;
 	private final ColliderLists colliders;
-	public final int index;
+	private final Kinematics kinematics;
+	private final EntityScriptingInterface entityScriptingInterface;
+	private final UIScriptingInterface uiScriptingInterface;
+	private final ItemScriptingInterface itemScriptingInterface;
+	private final TriggerScriptingInterface triggerScriptingInterface;
+	private final ProjectileScriptingInterface projectileScriptingInterface;
 	
-	public Scene(
-		ObjectLists quads1 , TileSets tiles1 , StaticLists statics1 , 
-		EntityLists entities ,
-		UnownedItems items , 
-		ObjectLists quads2 , TileSets tiles2 , StaticLists statics2 ,
-		ColliderLists colliders) {
 		
-		this.quads1 = quads1;
-		this.tiles1 = tiles1;
-		this.statics1 = statics1;
-		this.entities = entities;
-		this.items = items;
-		this.quads2 = quads2;
-		this.tiles2 = tiles2;
-		this.statics2 = statics2;
-		this.colliders = colliders;
-		
-	}
-	
-	public Scene(Camera camera) {
+	public Scene(Renderer renderer , Engine engine) {
 
-		this.quads1 = new ObjectLists(1);
-		this.tiles1 = new TileSets(2);
-		this.statics1 = new StaticLists(3);
-		this.entities = new EntityLists(4 , camera);
-		this.items = new UnownedItems(5);
-		this.quads2 = new ObjectLists(6);
-		this.tiles2 = new TileSets(7);
-		this.statics2 = new StaticLists(8);
-		this.colliders = new ColliderLists();
+		this.quads1 = new ObjectLists(this , 1);
+		this.tiles1 = new TileSets(this , 2);
+		this.statics1 = new StaticLists(this , 3);
+		this.entities = new EntityLists(this , 4 , engine.getCamera());
+		this.items = new UnownedItems(this , 5);
+		this.quads2 = new ObjectLists(this , 6);
+		this.tiles2 = new TileSets(this , 7);
+		this.statics2 = new StaticLists(this , 8);
+		this.colliders = new ColliderLists(this);
+		this.kinematics = new Kinematics(this);
+		this.entityScriptingInterface = new EntityScriptingInterface(renderer , this , engine.getConsole());
+		this.uiScriptingInterface = new UIScriptingInterface(engine);                
+		this.itemScriptingInterface = new ItemScriptingInterface(this, engine.getConsole());            
+		this.triggerScriptingInterface = new TriggerScriptingInterface(this);      
+		this.projectileScriptingInterface = new ProjectileScriptingInterface(this);
 		
 	}
 	
-	{
-		index = Engine.addScene(this);
-	}
 	public void clear() {
 		
 		quads1.clear();
@@ -141,6 +136,42 @@ public class Scene {
 		
 	}	
 	
+	public Kinematics kinematics() {
+		
+		return kinematics;
+		
+	}
+	
+	public EntityScriptingInterface entityScriptingInterface() {
+		
+		return entityScriptingInterface;
+		
+	}
+
+	public UIScriptingInterface uiScriptingInterface() {
+		
+		return uiScriptingInterface;
+		
+	}
+
+	public ItemScriptingInterface itemScriptingInterface() {
+		
+		return itemScriptingInterface;
+		
+	}
+
+	public TriggerScriptingInterface triggerScriptingInterface() {
+		
+		return triggerScriptingInterface;
+		
+	}
+
+	public ProjectileScriptingInterface projectileScriptingInterface() {
+		
+		return projectileScriptingInterface;
+		
+	}
+	
 	public int numberObjects() {
 		
 		return quads1.size() + 
@@ -152,6 +183,12 @@ public class Scene {
 			   tiles2.size() + 
 			   statics2.size() + 
 			   colliders.size();
+		
+	}
+	
+	public int hashCode() {
+		
+		return super.hashCode() + numberObjects();
 		
 	}
 	

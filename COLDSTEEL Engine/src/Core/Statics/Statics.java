@@ -25,7 +25,6 @@ import CSUtil.DataStructures.Tuple4;
 import Core.CSType;
 import Core.GameFiles;
 import Core.Quads;
-import Physics.ColliderLists;
 import Physics.Colliders;
 
 public class Statics extends Quads implements GameFiles<Statics> {
@@ -313,12 +312,6 @@ public class Statics extends Quads implements GameFiles<Statics> {
 
 	}
 
-	void addCollidersToCollisions() {
-		
-		colliders.forEach(ColliderLists::addAppended); 
-		
-	}
-	
 	float getActiveColliderWidth(){
 
 		if(activeCollider != -1) return colliders.get(activeCollider).getWidth();

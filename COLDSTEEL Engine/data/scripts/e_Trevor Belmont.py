@@ -21,6 +21,8 @@ if not initialized:
 		HUD.set("life" , currentLife())
 		HUD.set("hearts" , 0)
 		HUD.toggle()
+	else:
+		syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACK1 , Controls.ATTACK2 , Controls.POWER1])
 
 	gettingHurt = FALSE
 	positionState = GROUNDED

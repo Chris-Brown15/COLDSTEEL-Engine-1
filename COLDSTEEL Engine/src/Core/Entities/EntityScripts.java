@@ -4,12 +4,13 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 
 import org.python.core.PyCode;
-import AudioEngine.Sounds;
-import CS.Engine;
+
+import Audio.Sounds;
 import CS.PythonScriptEngine;
 import CSUtil.DataStructures.CSArray;
 import Core.SpriteSets;
 import Core.ECS;
+import Core.Scene;
 import Game.Items.Inventories;
 
 /**
@@ -39,7 +40,7 @@ public class EntityScripts extends PythonScriptEngine{
 	 * @param E — reference to the entity to which this object belongs
 	 * @param scriptName — the name ONLY of the script to be used. This is essentially a final field.
 	 */
-	public EntityScripts(Entities E , String scriptName){
+	public EntityScripts(Scene owner , Entities E , String scriptName){
 		
 		try {
 			
@@ -73,7 +74,7 @@ public class EntityScripts extends PythonScriptEngine{
     		python.set("FOFF", Entities.FOFF);
     		python.set("AEOFF", Entities.AEOFF);
     		
-    		python.set("lib" , Engine.ENTITY_SCRIPTING_INTERFACE);
+    		python.set("lib" , owner.entityScriptingInterface());
     		
     		if(E.has(ECS.ANIMATIONS)) {
     			
@@ -112,6 +113,12 @@ public class EntityScripts extends PythonScriptEngine{
 			
 		}
 	
+	}
+	
+	public void resetLib(EntityScriptingInterface lib) {
+		
+		python.set("lib", lib);
+		
 	}
 	
 	public void recompile() {

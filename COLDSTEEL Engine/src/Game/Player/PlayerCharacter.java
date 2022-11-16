@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 
 import CSUtil.CSTFParser;
 import Core.GameFiles;
+import Core.Scene;
 import Core.Entities.Entities;
 import Game.Levels.LevelLoadDoors;
 import Game.Levels.Levels;
@@ -27,19 +28,21 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 	private int nextSave = 0;
 	private LevelLoadDoors previouslyUsedLoadDoor;
 	private boolean isSinglePlayerCharacter = true;
+	Scene scene;
 	
-	
-	public PlayerCharacter(String saveName , Entities playersEntity , boolean isSinglePlayerCharacter) {
+	public PlayerCharacter(Scene scene , String saveName , Entities playersEntity , boolean isSinglePlayerCharacter) {
 		
 		this.saveName = saveName;
 		this.playerEntity = playersEntity;
 		this.isSinglePlayerCharacter = isSinglePlayerCharacter;
+		this.scene = scene;
 		
 	}
 
-	public PlayerCharacter() {
+	public PlayerCharacter(Scene scene) {
 		
 		playerEntity = new Entities();
+		this.scene = scene;
 		
 	}
 	
@@ -167,7 +170,7 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 		CSTFParser cstf = new CSTFParser(reader);
 		saveName = cstf.rname();		
 		isSinglePlayerCharacter = cstf.rbooleanLabel("singleplayer");
-		playerEntity.load(reader);
+		playerEntity.load(scene , reader);
 		
 	}
 	

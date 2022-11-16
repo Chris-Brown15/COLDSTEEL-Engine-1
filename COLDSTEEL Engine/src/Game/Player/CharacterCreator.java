@@ -37,6 +37,7 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
 import Core.ECS;
+import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
 import Core.Entities.EntityRPGStats;
@@ -75,10 +76,12 @@ public class CharacterCreator {
 	private CharacterChooser characterChooser;
 	private CharacterStats stats;
 	private CharacterDetails details;
+	private Scene gameScene;
 	
-	public CharacterCreator(boolean isForSingleplayer) {
+	public CharacterCreator(Scene scene , boolean isForSingleplayer) {
 		
 		this.isForSingleplayer = isForSingleplayer;
+		gameScene = scene;
 
 		try {
 			
@@ -118,7 +121,7 @@ public class CharacterCreator {
 					String details = cstf.rlabel("details");	
 					NkImage imageStruct = NkImage.malloc(ALLOCATOR);
 					ImageInfo info = image(CS.COLDSTEEL.assets + image , imageStruct);
-					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , info , details , new Entities(entityName + ".CStf")));
+					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , info , details , new Entities(gameScene , entityName + ".CStf")));
 					cstf.endList();
 					
 				} catch (IOException e) {
@@ -160,6 +163,8 @@ public class CharacterCreator {
 				
 			});
 
+			show = true;
+			
 		}
 		
 		void hide() {
@@ -231,6 +236,8 @@ public class CharacterCreator {
 					
 				}			
 			});
+			
+			show = true;
 
 		}
 
@@ -259,15 +266,21 @@ public class CharacterCreator {
 					if(nk_button_label(context , "Finish")) {
 						
 						Supplier<String> saveName = DialogUtils.newInputBox("Name This Save" , (1920/2) - 175, 540);					
-						TemporalExecutor.onTrue(() -> saveName.get() != null , () -> newPlayer = new PlayerCharacter(saveName.get() , selectedCharacter.entity , isForSingleplayer));
-						
+						TemporalExecutor.onTrue(() -> saveName.get() != null , () -> {
+							
+							newPlayer = new PlayerCharacter(gameScene , saveName.get() , selectedCharacter.entity , isForSingleplayer);
+							
+						});						
 					}
 				
 					nk_layout_row_dynamic(context , 50 , 1);
 					if(nk_button_label(context , "Back")) GameRuntime.setState(GameState.MAIN_MENU);
 					
 				}
+				
 			});
+			
+			show = true;
 
 		}
 
@@ -304,5 +317,5 @@ public class CharacterCreator {
 		return startingDoor;
 		
 	}
-	
+		
 }

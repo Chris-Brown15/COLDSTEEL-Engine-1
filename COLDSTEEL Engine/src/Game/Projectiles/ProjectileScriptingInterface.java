@@ -7,6 +7,7 @@ import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
 import Core.Scene;
+import Core.Entities.EntityLists;
 import Core.Entities.EntityScanResult;
 
 /**
@@ -42,7 +43,7 @@ public class ProjectileScriptingInterface {
 			
 			var hitboxscan = scene.entities().checkHitBoxes(P, ent);
 			if(hitboxscan.isCallerHot() && hitboxscan.isTargetCold())
-				code.__call__(new ClassicPyObjectAdapter().adapt(scene.entities().getEnclosedEntity(ent)));
+				code.__call__(new ClassicPyObjectAdapter().adapt(EntityLists.getEnclosedEntity(ent)));
 			
 		}
 		

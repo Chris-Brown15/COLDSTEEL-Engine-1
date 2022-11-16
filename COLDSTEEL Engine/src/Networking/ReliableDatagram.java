@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import CSUtil.Timer;
 
 /**
- * Reliable Datagram Packet. When a packet is created, it is added to a list of DatagramPackets and will continue to send until an ACK packet is received.
+ * Reliable Datagram Packet. When a packet is created, it is added to a list of DatagramPackets and will continue to send until an ACK is received.
  * For a recipient to know if a DatagramPacket is a reliable packet, the first 4 bytes should contain a special value notating as much.
  * 
  * @author Chris Brown
@@ -98,8 +98,7 @@ public final class ReliableDatagram {
 		fixedData[1] = RELIABLE_DATAGRAM_KEY_BYTE;
 		fixedData[2] = RELIABLE_DATAGRAM_KEY_BYTE;
 		fixedData[3] = RELIABLE_DATAGRAM_KEY_BYTE;
-		
-		
+			
 		HASH_CODE_CONVERTER.putInt(0 , hash);
 		
 		fixedData[4] = HASH_CODE_CONVERTER.get(0);
@@ -134,8 +133,7 @@ public final class ReliableDatagram {
 		fixedData[0] = RELIABLE_DATAGRAM_KEY_BYTE;
 		fixedData[1] = RELIABLE_DATAGRAM_KEY_BYTE;
 		fixedData[2] = RELIABLE_DATAGRAM_KEY_BYTE;
-		fixedData[3] = RELIABLE_DATAGRAM_KEY_BYTE;
-		
+		fixedData[3] = RELIABLE_DATAGRAM_KEY_BYTE;		
 		
 		HASH_CODE_CONVERTER.putInt(0 , hash);
 		

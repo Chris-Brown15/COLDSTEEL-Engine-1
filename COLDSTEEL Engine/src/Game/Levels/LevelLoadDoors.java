@@ -19,19 +19,17 @@ import Core.Entities.Entities;
  */
 public class LevelLoadDoors {
 
-	Quads conditionArea = new Quads(getTriggerConditionFloatArray() , 0 , CSType.TRIGGER);
-	
-	{
-		conditionArea.makeTranslucent(0.5f);
-	}
-	
 	String thisLoadDoorName = "Unnamed Load Door";	
 	String linkedLevel = "null";
 	String linkedLoadDoorName = "null";
+	Quads conditionArea;
+	int owningScene;
 	
 	public LevelLoadDoors(String loadDoorName) {
 		
 		this.thisLoadDoorName = loadDoorName;
+		conditionArea = new Quads(getTriggerConditionFloatArray() , 0 , CSType.TRIGGER);
+		conditionArea.makeTranslucent(0.5f);
 		
 	}
 	

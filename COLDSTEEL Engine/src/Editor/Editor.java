@@ -3,7 +3,6 @@ package Editor;
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
 import static CSUtil.BigMixin.changeColorTo;
-import static CSUtil.BigMixin.getJoints;
 import static CSUtil.BigMixin.toBool;
 import static CSUtil.BigMixin.toNamePath;
 import static Physics.MExpression.toNumber;
@@ -31,8 +30,8 @@ import org.lwjgl.nuklear.NkImage;
 import org.lwjgl.nuklear.NkRect;
 import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
-import AudioEngine.SoundEngine;
-import AudioEngine.Sounds;
+import Audio.SoundEngine;
+import Audio.Sounds;
 import CS.Engine;
 import CS.RuntimeState;
 import CS.UserInterface;
@@ -44,7 +43,6 @@ import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
 import Core.Console;
-import Core.Direction;
 import Core.ECS;
 import Core.Executor;
 import Core.GameFiles;
@@ -57,6 +55,7 @@ import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityFlags;
 import Core.Entities.EntityHitBoxes;
+import Core.Entities.EntityLists;
 import Core.Entities.EntityScripts;
 import Core.Statics.Statics;
 import Core.TileSets.TileSets;
@@ -69,9 +68,8 @@ import Game.Levels.MacroLevels;
 import Game.Levels.Triggers;
 import Physics.Colliders;
 import Physics.Joints;
-import Physics.Kinematics;
-import Renderer.Camera;
 import Renderer.Renderer;
+import Renderer.Camera;
 
 public class Editor {
 
@@ -82,18 +80,17 @@ public class Editor {
 	private ReentrantLock lock = new ReentrantLock();
 	private final CSQueue<Consumer<Editor>> events = new CSQueue<>();
 	
-	Camera cam;
+	Renderer renderer;
 	Scene scene;
 	Console console;
 	UI_AAAManager uiManager;
 	private Engine engine;
 	// camera move speed
 	float moveSpeed = 0;
-	boolean renderDebug = false;
 	
 	boolean showPyUI = true;
 	SelectionArea selection;
-	Levels backupLevel = new Levels("Editor Backup");
+	Levels backupLevel = new Levels(scene , "Editor Backup");
 	// reference to any instance of quads that was selected
 	Quads activeQuad = null;
 	boolean background = true;
@@ -112,23 +109,21 @@ public class Editor {
 	
 	Consumer<RuntimeState> switchStateCallback;
 
-	private Consumer<Levels> onLevelLoadEngine;
 	Supplier<float[]> cursorWorldCoords;
 	
-	public void initialize(Engine engine , Renderer renderer, Scene scene, Levels currentLevel , Console console, Consumer<Levels> onLevelLoadEngine,
+	public void initialize(Engine engine , Renderer renderer, Levels currentLevel , Console console,
 			Consumer<RuntimeState> switchStateCallback , Supplier<float[]> cursorWorldCoords) {
 
 		this.engine = engine;
 		uiManager = new UI_AAAManager(this);
 		System.out.println("Beginning Editor initialization...");
-		this.cam = renderer.getCamera();
+		this.renderer = renderer;
 		this.console = console;
 		this.selection = new SelectionArea();
-		this.scene = scene;
+		this.scene = new Scene(renderer , engine);
 		
 		this.currentLevel = currentLevel;
 		renderer.addToRawData(selection.vertices);
-		this.onLevelLoadEngine = onLevelLoadEngine;
 		this.switchStateCallback = switchStateCallback;
 		backupLevel.associate(data + "macrolevels/Editor/");
 		
@@ -181,8 +176,7 @@ public class Editor {
 
 	public void run(Engine engine) {
 
-		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on		 
-		if (renderDebug) renderDebug();
+		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on
 
 		if (toBool(uiManager.tilesetEditor.renderTileSheet)) {
 
@@ -205,14 +199,14 @@ public class Editor {
 
 			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);	
-				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) renderer.getCamera().moveCamera(scene, moveSpeed, 0);	
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
 
 			}
 
-			Kinematics.process();
+			scene.kinematics().process();
 			TemporalExecutor.process();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
@@ -224,23 +218,6 @@ public class Editor {
 
 		case TEST_MODE:
 
-//			if (showPyUI)
-//				for (int i = 0; i < UIScriptingInterface.getPyUIs().size(); i++) {
-//
-//					try {
-//
-//						UIScriptingInterface.getPyUIs().get(i).run();
-//
-//					} catch (Exception e) {
-//
-//						System.err.println("Error occurred calling UI script: " + UIScriptingInterface.getPyUIs().get(i).scriptName());
-//						e.printStackTrace();
-//						org.lwjgl.nuklear.Nuklear.nk_end(Engine.NuklearContext());
-//
-//					}
-//
-//				}
-
 			uiManager.layoutElementsTestMode();
 			scene.entities().resetScriptCount();
 			scene.tiles1().animateTiles();
@@ -249,13 +226,13 @@ public class Editor {
 
 			}, () -> {
 
-				Kinematics.process();
+				scene.kinematics().process();
 				TemporalExecutor.process();
 
 			}, () -> {
 
 				engine.releaseKeys();
-
+				
 			});
 
 			if (currentLevel != null) {
@@ -272,15 +249,15 @@ public class Editor {
 
 			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.keyboardPressed(GLFW_KEY_UP)) cam.moveCamera(scene, 0, moveSpeed);
-				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) cam.moveCamera(scene, -moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) cam.moveCamera(scene, moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) cam.moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) renderer.getCamera().moveCamera(scene, moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
 
 			}
 
 
-			Kinematics.process();
+			scene.kinematics().process();
 			scene.entities().resetScriptCount();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
@@ -289,7 +266,7 @@ public class Editor {
 			}, () -> {
 
 				// run kinematics and executor
-				Kinematics.process();
+				scene.kinematics().process();
 				TemporalExecutor.process();
 
 			}, () -> {
@@ -301,93 +278,6 @@ public class Editor {
 
 			if (currentLevel != null) currentLevel.runScripts();
 			break;
-
-		}
-
-	}
-
-	private void renderDebug() {
-
-		boolean renderColliders = toBool(uiManager.editorEditor.renderDebugColliders);
-		boolean renderHitBoxes = toBool(uiManager.editorEditor.renderDebugHitBoxes);
-		boolean renderJoints = toBool(uiManager.editorEditor.renderDebugJoints);
-
-		cdNode<Entities> iter = scene.entities().iter();
-		Entities E;
-		Object[] comps;
-		Direction dir;
-		float[] EData;
-		for (int i = 0; i < scene.entities().size(); i++, iter = iter.next) {
-
-			E = iter.val;
-			EData = E.getData();
-			comps = E.components();
-
-			if (renderColliders && E.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) 
-				 Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
-			
-			dir = (Direction) comps[Entities.DOFF];
-
-			if (renderHitBoxes && E.has(ECS.HITBOXES)) {
-				// if an entity has hitboxes it has direction
-				EntityHitBoxes hitboxes = (EntityHitBoxes) comps[Entities.HOFF];
-				float[][] boxes = hitboxes.getActiveHitBoxes(E, dir);
-				if (boxes != null) for (int j = 0; j < boxes.length; j++) Renderer.draw_foreground(boxes[j]);
-
-			}
-
-			if (renderJoints && E.has(ECS.ANIMATIONS)) {
-
-				EntityAnimations anims = (EntityAnimations) comps[Entities.AOFF];
-				SpriteSets currentSet = anims.active();
-				float[] currentSprite = currentSet.getActiveSprite();
-				float[] joints = getJoints(currentSprite);
-				float jointXOffset, jointYOffset;
-				// if doesnt have at least a joint, we're done with this entity
-				if (currentSprite.length <= 7) continue;
-
-				// iterates over only x and y offset of the joints in the joints array
-				for (int j = 1; j < joints.length; j += 3) {
-
-					Joints newJ = new Joints();
-					if (dir == Direction.LEFT) {
-
-						jointXOffset = EData[9] + joints[j];
-						jointYOffset = EData[10] + joints[j + 1];
-						newJ.moveTo(-jointXOffset, jointYOffset);
-
-					} else {
-
-						jointXOffset = EData[18] - joints[j];
-						jointYOffset = EData[10] + joints[j + 1];
-						newJ.moveTo(-jointXOffset, jointYOffset);
-
-					}
-
-					Renderer.draw_foreground(newJ);
-
-				}
-
-			}
-
-			if (E.has(ECS.INVENTORY)) {
-
-				Inventories EInv = (Inventories) E.components()[Entities.IOFF];
-				CSArray<Items> equipped = EInv.getEquipped();
-				Items item;
-				for (int j = 0; j < equipped.size(); j++)
-					if ((item = equipped.get(j)) != null && item.getShouldRender() && renderHitBoxes
-							&& item.has(ItemComponents.HITBOXABLE)) {
-
-						EntityHitBoxes hitboxes = item.componentData().HitBoxable();
-						float[][] boxes = hitboxes.getActiveHitBoxes(item, dir);
-						if (boxes != null)
-							for (int k = 0; k < boxes.length; k++)
-								Renderer.draw_foreground(boxes[k]);
-
-					}
-
-			}
 
 		}
 
@@ -519,9 +409,11 @@ public class Editor {
 			}
 	
 			default -> {
-	
-				clicked = scene.colliders().selectCollider(x, y);			
+					
+				clicked = scene.colliders().selectCollider(x, y);
+				
 				if (clicked != null) {
+					
 	
 					boolean selectedSame = activeQuad == clicked;
 					activeQuad = clicked;
@@ -599,6 +491,18 @@ public class Editor {
 
 	}
 
+	Camera camera() {
+		
+		return renderer.getCamera();
+		
+	}
+	
+	public Scene scene() {
+		
+		return scene;
+		
+	}
+	
 	public Joints getJoint(int index) {
 
 		return jointMarkers.get(index);
@@ -705,6 +609,12 @@ public class Editor {
 
 	}
 
+	void toggleRenderDebug() {
+		
+		renderer.toggleRenderDebug(backupLevel);
+		
+	}
+	
 	public Quads addQuad() {
 
 		Quads added;
@@ -1062,7 +972,7 @@ public class Editor {
 		Supplier<String> loadPath = DialogUtils.newFileExplorer("Delete an Item", 5 , 270 , false , false);
 		TemporalExecutor.onTrue(() -> loadPath.get() != null , () -> {
 			
-			Items deleteThis = new Items((String) CSUtil.BigMixin.toNamePath(loadPath.get()));
+			Items deleteThis = new Items(scene , (String) CSUtil.BigMixin.toNamePath(loadPath.get()));
 			deleteThis.delete();
 			
 		});
@@ -1103,13 +1013,11 @@ public class Editor {
 				data + "macrolevels/");
 		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
 
-			Levels newLevel = new Levels((CharSequence) filepath.get());
+			Levels newLevel = new Levels(scene , (CharSequence) filepath.get());
 			newLevel.deploy(scene);
 			setupTileSetUIImages(scene.tiles1() , background);
 			setupTileSetUIImages(scene.tiles2() , !background);
 			currentLevel = newLevel;
-			onLevelLoadEngine.accept(newLevel);
-			Engine.TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);
 			say("Loaded level: " + newLevel.gameName());
 			uiManager.loadDoorEditor.currentLoadDoor = null;
 			currentTrigger = null;
@@ -1121,15 +1029,13 @@ public class Editor {
 
 	public void loadClearDeploy(String levelPath) {
 
-		Levels newLevel = new Levels((CharSequence) (CS.COLDSTEEL.data + "macrolevels\\" + levelPath));
+		Levels newLevel = new Levels(scene , (CharSequence) (CS.COLDSTEEL.data + "macrolevels\\" + levelPath));
 
 		scene.clear();
 		newLevel.deploy(scene);
 
 		currentLevel = newLevel;
 		currentLevel = newLevel;
-		onLevelLoadEngine.accept(newLevel);
-		Engine.TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);
 		say("Loaded level: " + newLevel.gameName());
 		uiManager.loadDoorEditor.currentLoadDoor = null;
 		currentTrigger = null;
@@ -1147,7 +1053,7 @@ public class Editor {
 	public void newLevel(String name) {
 
 		if(currentLevel != null && !currentLevel.empty()) scene.clear();
-		this.currentLevel = new Levels(name);
+		this.currentLevel = new Levels(scene , name);
 
 	}
 
@@ -1464,7 +1370,11 @@ public class Editor {
 	
 		Supplier<String> xInput = DialogUtils.newInputBox("Input X Coordinate" , 5 , 270);
 		Supplier<String> yInput = DialogUtils.newInputBox("Input X Coordinate" , 360 , 120);
-		TemporalExecutor.onTrue(() -> xInput != null && yInput != null , () -> cam.lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get())));
+		TemporalExecutor.onTrue(() -> xInput != null && yInput != null , () -> {
+			
+			renderer.getCamera().lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get()));
+			
+		});
 				
 	}
 	
@@ -1940,7 +1850,7 @@ public class Editor {
 	
 	void toggleComponent(Entities E , ECS component) {
 		
-		scene.entities().toggleComponent(E, component);
+		EntityLists.toggleComponent(E, component);
 		
 	}
 	
@@ -1953,7 +1863,7 @@ public class Editor {
 			
 			tryCatch(() -> {
 
-				EntityScripts script = new EntityScripts((Entities)comps[0] , (String) toNamePath(scriptPath.get()));
+				EntityScripts script = new EntityScripts(scene , (Entities)comps[0] , (String) toNamePath(scriptPath.get()));
 				comps[Entities.SOFF] = script;
 				
 			}, "Error loading script: " + scriptPath.get() + ", terminating action");
@@ -1975,7 +1885,7 @@ public class Editor {
 			
 			e.printStackTrace();								
 			say("Entity Script Compilation Error");
-			scene.entities().toggleComponent((Entities)comps[0], ECS.SCRIPT);
+			EntityLists.toggleComponent((Entities)comps[0], ECS.SCRIPT);
 			
 		}
 			
@@ -2066,9 +1976,9 @@ public class Editor {
 			if(filepaths.contains("|")) {
 				
 				String[] paths = filepaths.split("\\|");
-				for(String split : paths) inv.acquire(new Items(toNamePath(split)));
+				for(String split : paths) inv.acquire(new Items(scene , toNamePath(split)));
 				
-			} else inv.acquire(new Items(toNamePath(filepaths)));
+			} else inv.acquire(new Items(scene , toNamePath(filepaths)));
 			
 		});
 	
@@ -2081,7 +1991,7 @@ public class Editor {
 		Supplier<String> item = DialogUtils.newFileExplorer("Select an Equippable Item", 5, 270, false , false, data + "items/");
 		TemporalExecutor.onTrue(() -> item.get() != null , () -> {
 
-			tryCatch(() -> ((Inventories) comps[Entities.IOFF]).equip(new Items(toNamePath( item.get()))) , 
+			tryCatch(() -> ((Inventories) comps[Entities.IOFF]).equip(new Items(scene , toNamePath(item.get()))) , 
 				"Error adding item to equip, terminating action");
 			
 		});
@@ -2286,7 +2196,6 @@ public class Editor {
 	void addHitboxSetToEntity() {
 
 		Entities E = (Entities)activeQuad;
-		EntityAnimations anims = (EntityAnimations) E.components()[Entities.AOFF];
 		EntityHitBoxes entityHitboxes = (EntityHitBoxes) E.components()[Entities.HOFF];
 
 		entityHitboxes.addSet(hitboxMarker.toHitBoxSet(E));
@@ -2573,18 +2482,6 @@ public class Editor {
 		Supplier<String> animation = DialogUtils.newFileExplorer("Select Animation", 5, 270, data + "spritesets/");
 		TemporalExecutor.onTrue(() -> animation.get() != null , () -> tile.setAnimation(new SpriteSets(toNamePath(animation.get()))));	
 		
-	}
-	
-	void copyTile(Tiles tile , NkImage newTileImage) {
-
-//		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
-//		
-//		Tiles deepCopy = tile.copy();
-//		currentTileSet.addSourceTile(deepCopy);
-//		NkImage iterImageCopy = NkImage.malloc(ALLOCATOR).set(tileIcon);
-//		tileIcons.add(iterImageCopy);
-		
-			
 	}
 	
 	void engineShutDown() {

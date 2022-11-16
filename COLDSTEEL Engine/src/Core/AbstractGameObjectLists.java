@@ -9,12 +9,14 @@ import CSUtil.DataStructures.cdNode;
 public abstract class AbstractGameObjectLists<T extends Quads> {
 
 	protected CSLinked<T> list = new CSLinked<T>();
+	protected final Scene owningScene;
 	protected int renderOrder;
 	protected boolean render = true;
 	public final CSType TYPE;
 
-	protected AbstractGameObjectLists(int order , CSType type){
+	protected AbstractGameObjectLists(Scene owningScene , int order , CSType type){
 		
+		this.owningScene = owningScene;
 		renderOrder = order;
 		this.TYPE = type;
 		

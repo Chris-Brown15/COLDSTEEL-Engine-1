@@ -48,7 +48,7 @@ public class Quads{
     protected Matrix4f rotation = new Matrix4f().identity();
     protected Matrix4f translation = new Matrix4f().identity();
 	protected boolean shouldRender = true;
-	protected boolean snapToPixels = true;	
+	protected boolean snapToPixels = true;
 	
 	/**
 	 * 

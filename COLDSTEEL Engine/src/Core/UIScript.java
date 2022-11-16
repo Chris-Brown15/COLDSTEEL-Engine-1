@@ -6,7 +6,6 @@ import java.io.FileReader;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
 
-import CS.Engine;
 import CS.PythonScriptEngine;
 
 /**
@@ -29,12 +28,12 @@ public class UIScript extends PythonScriptEngine {
 	 * 
 	 * @param scriptName — name of a python script which will display this UI each frame.
 	 */
-	public UIScript(String scriptName) {
+	public UIScript(Scene owner , String scriptName) {
 			
 		this.scriptName = scriptName;
 		try {
 			
-			python.set("lib", Engine.UI_SCRIPTING_INTERFACE);
+			python.set("lib", owner.uiScriptingInterface());
 			python.set("initialized", initialized);
 			python.set("assets", CS.COLDSTEEL.assets);
 			python.set("data", CS.COLDSTEEL.data);

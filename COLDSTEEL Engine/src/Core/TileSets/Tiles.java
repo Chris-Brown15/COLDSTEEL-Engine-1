@@ -7,9 +7,9 @@ import java.util.function.Consumer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple4;
 import CSUtil.DataStructures.cdNode;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.Statics.Statics;
-import Physics.ColliderLists;
 import Physics.Colliders;
 import Renderer.Textures;
 
@@ -77,12 +77,12 @@ public class Tiles extends Statics {
 		
 	}
 	
-	public void hasCollider(boolean collider) {
+	void hasCollider(Scene owner , boolean collider) {
 		
 		if(hasCollider && !collider) {
 			
 			Colliders gotten = getCollider(0);
-			if(!isSource) ColliderLists.deleteAppended(gotten);
+			if(!isSource) owner.colliders().delete(gotten);
 			
 		} else if (!hasCollider && collider) {
 			
@@ -90,7 +90,7 @@ public class Tiles extends Statics {
 			added.setWidth(getWidth());
 			added.setHeight(getHeight());
 			added.moveTo(this);
-			if(!isSource) ColliderLists.addAppended(added);
+			if(!isSource) owner.colliders().add(added);
 			
 		}
 		
@@ -110,9 +110,9 @@ public class Tiles extends Statics {
 		
 	}
 	
-	public void toggleCollider() {
+	public void toggleCollider(Scene owner) {
 		
-		hasCollider(hasCollider ? false:true);		
+		hasCollider(owner , hasCollider ? false:true);		
 		
 	}
 	
@@ -321,13 +321,13 @@ public class Tiles extends Statics {
 	 * Used for copying a source tile in the editor.
 	 * 
 	 */
-	public Tiles copy() {
+	public Tiles copy(Scene owner) {
 		
 		float[] tileData = tileData();
 		Tiles newTile = new Tiles(tileData , texture , name + " copy" , -1);
 		newTile.isSource(isSource);
 		
-		newTile.hasCollider(this.hasCollider);
+		newTile.hasCollider(owner , this.hasCollider);
 		newTile.removeColor(removedColor.x , removedColor.y , removedColor.z);
 		
 		if(newTile.hasCollider()) {

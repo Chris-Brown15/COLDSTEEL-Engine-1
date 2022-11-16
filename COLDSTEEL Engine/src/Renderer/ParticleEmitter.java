@@ -7,9 +7,9 @@ import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
 import Core.Executor;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.TemporalExecutor;
-import Physics.Kinematics;
 import Physics.MExpression;
 
 /**
@@ -32,6 +32,7 @@ import Physics.MExpression;
  */
 public class ParticleEmitter {
 
+	private Scene owner;
 	Textures texture = new Textures();
 	private final Particle[] particles;
 	private final SpriteSets particleAnimation;
@@ -56,8 +57,10 @@ public class ParticleEmitter {
 	
 	private final Executor shutDown;
 	
-	public ParticleEmitter(Renderer renderer , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , String animNamePath , boolean foreground) {
+	
+	public ParticleEmitter(Renderer renderer , Scene owner , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , String animNamePath , boolean foreground) {
 		
+		this.owner = owner;
 		particles = new Particle[numberParticles];
 		Renderer.loadTexture(texture, textureAbsPath);
 		particleAnimation = new SpriteSets(animNamePath);
@@ -291,12 +294,12 @@ public class ParticleEmitter {
 		if(particleStartFunction != null) particleStartFunction.accept(startThis);
 		startThis.particleTimer.start();
 		startThis.started = true;
-		Kinematics.impulse(particleLife , xMoveFunction , yMoveFunction , startThis);		
+		owner.kinematics().impulse(particleLife , xMoveFunction , yMoveFunction , startThis);		
 		//will individually call finish after each particle has run out of time
 		//otherwise, it will be reset 
 		if(finishAtEnd) TemporalExecutor.onElapseOf(((startThis.getID() * emissionRate) + particleLife) - 50, () -> finishParticle(startThis));
 		//will finish all particles at once at the end of the last particle's time
-		else if(startThis.getID() == particles.length -1) Kinematics.onFinish(this::reset);
+		else if(startThis.getID() == particles.length -1) owner.kinematics().onFinish(this::reset);
 
 		//work around to ensure when a particle is updated it will not look wrong
 		startThis.animate();
@@ -375,7 +378,7 @@ public class ParticleEmitter {
 		
 		particle.particleTimer.start();
 		particle.moveToEmitter(this);
-		Kinematics.impulse(particleLife , xMoveFunction , yMoveFunction , particle);
+		owner.kinematics().impulse(particleLife , xMoveFunction , yMoveFunction , particle);
 		
 	}
 	

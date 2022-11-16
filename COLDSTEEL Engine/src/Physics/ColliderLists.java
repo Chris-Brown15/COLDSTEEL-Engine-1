@@ -2,33 +2,27 @@ package Physics;
 
 import static CSUtil.BigMixin.getColliderFloatArray;
 
-import java.util.function.Consumer;
-
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple4;
 import CSUtil.DataStructures.cdNode;
 import Core.AbstractGameObjectLists;
 import Core.CSType;
+import Core.Scene;
 
 public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 	
-	public ColliderLists() {
+	private static boolean SHOULD_RENDER = true;
+	
+	public ColliderLists(Scene owningScene) {
 
-		super(-1 , CSType.COLLIDER);
+		super(owningScene , -1 , CSType.COLLIDER);
 
 	}
-
-	private static final CSLinked<Colliders> appended = new CSLinked<Colliders>();  // managed externally and internally
-	private static final CSLinked<Colliders> composite = new CSLinked<Colliders>(); // viewed externally
-	private static boolean SHOULD_RENDER = true;
 
 	public void newCollider(){
 
 		Colliders newCollider = add();
 		list.add(newCollider);
-		
-		composite.add(newCollider);
-
 	}
 
 	public Colliders get(int index) {
@@ -41,7 +35,6 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		
 		Colliders newCollider = new Colliders(getColliderFloatArray() , list.size());
 		list.add(newCollider);
-		composite.add(newCollider);
 		return newCollider;
 
 	}
@@ -49,7 +42,6 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 	public void add(Colliders addThis) {
 		
 		list.add(addThis);
-		composite.add(addThis);
 		
 	}
 	
@@ -77,26 +69,6 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		
 	}
 	
-	public static void addAppended(Colliders addThis){
-
-		appended.add(addThis);
-		composite.add(addThis);
-		
-	}
-
-	public static void deleteAppended(Colliders shutDown) {
-
-		appended.removeVal(shutDown);
-		composite.removeVal(shutDown);
-		
-	}
-
-	public CSLinked<Colliders> getAppended(){
-
-		return appended;
-
-	}
-
 	public static boolean shouldRender(){
 
 		return SHOULD_RENDER;
@@ -210,7 +182,6 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		if(has(deleteThis)) {
     		
     		cdNode<Colliders> iter = list.removeVal(deleteThis);
-    		composite.removeVal(deleteThis);
     		for(int i = deleteThis.getID() ; i < list.size() ; i ++ , iter = iter.next) iter.val.decrementID();
     		
     	}
@@ -218,9 +189,8 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 	}
 	
 	public void deleteCollider(int index){
-		
-		list.removeVal(index);		
-		composite.removeVal(index);
+				
+		list.removeVal(index);
 		cdNode<Colliders> iter = list.get(index); 
 		for(int i = index ; i < list.size() ; i ++ , iter = iter.next) {
 			iter.val.decrementID();
@@ -249,26 +219,7 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		newCollider.setHeight(activeCollider.getHeight());
 
 		list.add(newCollider);
-		composite.add(newCollider);
 	
-	}
-
-	public CSLinked<Colliders> getAll(){
-		
-		return composite;
-		
-	}
-		
-	public static final CSLinked<Colliders> getComposite(){
-		
-		return composite;
-		
-	}
-	
-	public int getListSizeSum() {
-		
-		return list.size() + appended.size();
-		
 	}
 
 	public CSLinked<Colliders> getList() {
@@ -301,35 +252,16 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		
 	}
 	
-	public static void forAll(Consumer<Colliders> function) {
-		
-		composite.forEachVal(function);
-		
-	}
-	
 	public void clear() {
 				
 		if(list.size() > 0) {
 			
-			Colliders x = list.removeVal(0);
-			composite.removeVal(x);			
-			appended.removeVal(x);
+			list.removeVal(0);
 			clear();
 			
 		}
 		
 	}
 	
-	public static final void clearAppended() {
-		
-		appended.clear();
-		
-	}
-	
-	public static final void clearComposite() {
-		
-		composite.clear();
-		
-	}
 	
 }

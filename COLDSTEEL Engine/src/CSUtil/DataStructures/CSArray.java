@@ -199,8 +199,9 @@ public class CSArray<T> {
 	
 	@SuppressWarnings("unchecked") public String toString() {
 		
-		String str = "";		
-		for(int i = 0 ; i < current ; i ++) str += arr[i] != null ? ((T) arr[i]).toString() + "\n":"null\n";		
+		String str = "[";		
+		for(int i = 0 ; i < current - 1 ; i ++) str += ((T) arr[i]).toString() + ", ";
+		str += ((T)arr[current - 1]).toString() + "]";
 		return str;
 		
 	}

@@ -59,10 +59,12 @@ public class Levels implements GameFiles<Levels>{
 	
 	CSLinked<Triggers> triggers = new CSLinked<Triggers>();
 	CSLinked<LevelLoadDoors> loadDoors = new CSLinked<>();
+	Scene scene;
 	
-	public Levels(String name) {
+	public Levels(Scene scene , String name) {
 		
 		gameName = name;
+		this.scene = scene;
 		
 	}
 	
@@ -72,9 +74,10 @@ public class Levels implements GameFiles<Levels>{
 	 * 
 	 * @param filepath — a {@code CharSequence} filepath used to load a level.
 	 */
-	public Levels(CharSequence filepath) {
+	public Levels(Scene scene , CharSequence filepath) {
 		
-		load((String) filepath);
+		this.scene = scene;
+		load((String) filepath);		
 		
 	}
 
@@ -111,7 +114,7 @@ public class Levels implements GameFiles<Levels>{
 		if(!tileSetName.equals("null")) {
 			
 			//if the tileset of this level is not the one already present in the scene, load this level's one into the scene
-			if(!tileSetName.equals(deployingTo.tiles1().name())) deployingTo.tiles1().load(tileSetName + ".CStf");
+			if(!tileSetName.equals("Unnamed Tile Set.CStf") && !tileSetName.equals(deployingTo.tiles1().name())) deployingTo.tiles1().load(tileSetName + ".CStf");
 			
 			/*
 			 * This array is used to map an instance of Tiles to its ID, which represents when it should render
@@ -248,8 +251,6 @@ public class Levels implements GameFiles<Levels>{
 		
 		scene.quads1().forEach(quad -> {
 			
-			
-			
 			float[] topLeft = quad.getTopLeftVertexColor();
 			float[] topRight = quad.getTopLeftVertexColor();
 			float[] bottomLeft = quad.getTopLeftVertexColor();
@@ -280,7 +281,7 @@ public class Levels implements GameFiles<Levels>{
 	
 	public void addTrigger(String name) {
 		
-		triggers.add(new Triggers(name , triggers.size()));
+		triggers.add(new Triggers(scene , name , triggers.size()));
 		
 	}
 	
@@ -357,16 +358,7 @@ public class Levels implements GameFiles<Levels>{
 	public LevelLoadDoors getLoadDoorByName(String name) {
 		
 		cdNode<LevelLoadDoors> iter = loadDoors.get(0);
-		for(int i = 0 ; i < loadDoors.size() ; i ++ , iter = iter.next) { 
-			
-			if(iter.val.thisLoadDoorName.equals(name)) {
-				
-				return iter.val;
-				
-				
-			}
-			
-		}
+		for(int i = 0 ; i < loadDoors.size() ; i ++ , iter = iter.next) if(iter.val.thisLoadDoorName.equals(name)) return iter.val;		
 		return null;		
 		
 	}
@@ -633,6 +625,12 @@ public class Levels implements GameFiles<Levels>{
 		
 	}
 	
+	public int hashCode() {
+		
+		return macroLevelName.concat(gameName).hashCode();				
+		
+	}
+	
 	@Override public void delete() {
 
 		try {
@@ -759,7 +757,7 @@ public class Levels implements GameFiles<Levels>{
 			tileSet2 = readTileSet(cstf , foregroundTiles);
 						
 			int numberTriggers = cstf.rlist("triggers");
-			for(int i = 0 ; i < numberTriggers ; i ++) triggers.add(new Triggers(cstf.rlabel() , i));
+			for(int i = 0 ; i < numberTriggers ; i ++) triggers.add(new Triggers(scene , cstf.rlabel() , i));
 			
 			cstf.endList();
 			

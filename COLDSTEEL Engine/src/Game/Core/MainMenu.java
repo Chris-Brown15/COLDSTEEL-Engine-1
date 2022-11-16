@@ -1,38 +1,37 @@
 package Game.Core;
 
 import static CSUtil.BigMixin.put;
-import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_NO_SCROLLBAR;
-import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
-import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
-import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
-import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
+import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
+import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
-import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
-import static org.lwjgl.nuklear.Nuklear.nk_text;
-import static org.lwjgl.nuklear.Nuklear.nk_property_float;
-import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_NO_SCROLLBAR;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
 import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
-
-import static org.lwjgl.system.MemoryUtil.memUTF8Safe;
+import static org.lwjgl.nuklear.Nuklear.nk_edit_string;
+import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
+import static org.lwjgl.nuklear.Nuklear.nk_property_float;
+import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.system.MemoryUtil.memCalloc;
 import static org.lwjgl.system.MemoryUtil.memCallocInt;
 import static org.lwjgl.system.MemoryUtil.memFree;
+import static org.lwjgl.system.MemoryUtil.memUTF8Safe;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+
 import org.lwjgl.nuklear.NkRect;
-import AudioEngine.SoundEngine;
-import AudioEngine.Sounds;
+
+import Audio.SoundEngine;
+import Audio.Sounds;
 import CS.Engine;
 import CS.RuntimeState;
 import CS.UserInterface;
-import Core.Quads;
 import Core.TemporalExecutor;
-import Game.Player.CharacterCreator;
 
 /**
  * 
@@ -59,8 +58,6 @@ public class MainMenu  {
 	
 	public boolean menuReturned = false;	
 	NkRect rect;	
-	Quads mainMenuBillboard = new Quads(-1);
-	CharacterCreator multiplayerCharacterCreator = new CharacterCreator(false);	
 	ByteBuffer portAndInetAddrInput = memCalloc(1 , 23);
 	IntBuffer portAndInetAddrLength = memCallocInt(1);
 	private final Main main;
@@ -70,8 +67,6 @@ public class MainMenu  {
 	
 	public MainMenu(Engine engine) {
 		
-		Renderer.Renderer.loadTexture(mainMenuBillboard.getTexture() , CS.COLDSTEEL.assets + "ui/minecraft.png");
-		mainMenuBillboard.translate(0, 150);
 		main = new Main(engine);
 		multi = new Multiplayer(engine);
 		multiplayerJoin = new MultiplayerJoiner(engine); 
@@ -143,7 +138,7 @@ public class MainMenu  {
 			}
 						
 		}
-				
+		
 	}
 	
 	void hideAll() {

@@ -9,9 +9,10 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.cdNode;
 import Core.Executor;
 import Core.Quads;
+import Core.Scene;
 import Core.Tester;
 import Core.Entities.Entities;
-import Core.Entities.EntityLists;
+import Game.Items.Items;
 
 /**
  * An API for moving game objects with respect to time in linear and exponential growth and decay forms. Call {@code impulse()} passing in an
@@ -21,16 +22,24 @@ import Core.Entities.EntityLists;
  * @author Chris Brown
  *
  */
-public abstract class Kinematics {
+public class Kinematics {
 
 	public static float maxSpeed = 100f;
 	public static float minSpeed = -100f;
+	
+	Scene owner;
+	
+	public Kinematics(Scene owner){
+		
+		this.owner = owner;
+		
+	}
 	
 	/**
 	 * Holds a Queue of kinematic forces and an object they operate on
 	 *
 	 */
-	private static class Pair {
+	private class Pair {
 		
 		Quads obj;
 		CSLinked<KinematicForce> queue = new CSLinked<KinematicForce>();
@@ -71,9 +80,9 @@ public abstract class Kinematics {
 						
 	}
 			
-	private static final CSLinked<Pair> forces = new CSLinked<>();	
+	private CSLinked<Pair> forces = new CSLinked<>();	
 
-	public static float [] values = new float[2];	
+	public float [] values = new float[2];	
 	
 	/**
 	 * Creates a new managed impulse. This impulse will persist on the object until it's time has run out.
@@ -87,7 +96,7 @@ public abstract class Kinematics {
 	 * @param target — an entity who will be the subject of this  impulse
 	 * 
 	 */
-	public static final void impulse(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY , Quads target) {
+	public void impulse(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY , Quads target) {
 		
 		forces.add(new Pair(target , new KinematicForce(type , timeMillis , initialX , initialY , stepX , stepY)));
 		
@@ -104,7 +113,7 @@ public abstract class Kinematics {
 	 * @param YFunction — an MExpression whose output will be the applied target in the vertical plane
 	 * @param target — an object to subject to this impulse;
 	 */
-	public static final void impulse(double timeMillis , MExpression XFunction , MExpression YFunction , Quads target) {
+	public void impulse(double timeMillis , MExpression XFunction , MExpression YFunction , Quads target) {
 	
 		forces.add(new Pair(target , new KinematicForce(timeMillis , XFunction , YFunction)));
 		
@@ -116,7 +125,7 @@ public abstract class Kinematics {
 	 * @param impulse — an already made force to exert
 	 * @param target — an object to receive impulse
 	 */
-	public static final void impulse(KinematicForce impulse , Quads target) {
+	public void impulse(KinematicForce impulse , Quads target) {
 	
 		forces.add(new Pair(target , impulse));
 		
@@ -143,7 +152,7 @@ public abstract class Kinematics {
 	 * @param stepX — incremental horizontal step
 	 * @param stepY — incremental vertical step
 	 */
-	public static final void then(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY) {
+	public void then(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY) {
 		
 		forces.tail().val.queue.add(new KinematicForce(type , timeMillis , initialX , initialY , stepX , stepY));		
 		
@@ -160,7 +169,7 @@ public abstract class Kinematics {
 	 * @param XFunction — an MExpression whose output will be the applied target in the horizontal plane
 	 * @param YFunction — an MExpression whose output will be the applied target in the vertical plane
  	 */
-	public static final void then(double timeMillis , MExpression XFunction , MExpression YFunction) {
+	public void then(double timeMillis , MExpression XFunction , MExpression YFunction) {
 		
 		forces.tail().val.queue.add(new KinematicForce(timeMillis , XFunction , YFunction));
 		
@@ -169,7 +178,7 @@ public abstract class Kinematics {
 	/**
 	 * Shorthand for calling {@code then(...)}, passing in the exact same values as the very last call. 
 	 */
-	public static final void thenRepeat() {
+	public void thenRepeat() {
 		
 		CSLinked<KinematicForce> queue = forces.tail().val.queue;
 		queue.add(queue.get(queue.size() -1).val.copy());
@@ -181,7 +190,7 @@ public abstract class Kinematics {
 	 * 
 	 * @param callback — a SAM taking no arguments and returning nothing to call on the finishing of this force
 	 */
-	public static final void onFinish(Executor callback) {
+	public void onFinish(Executor callback) {
 	
 		forces.tail().val.queue.tail().val.onFinish(callback);		
 		
@@ -192,7 +201,7 @@ public abstract class Kinematics {
 	 * 
 	 * @param callback — callabe PyObject to execute on the finishing of this force
 	 */
-	public static final void onFinish(PyObject callback) {
+	public void onFinish(PyObject callback) {
 	
 		forces.tail().val.queue.tail().val.onFinish(() -> callback.__call__());		
 		
@@ -203,7 +212,7 @@ public abstract class Kinematics {
 	 * 
 	 * @param test — SAM function taking no input and returning a boolean
 	 */
-	public static final void stopIf(Tester test) {
+	public void stopIf(Tester test) {
 		
 		forces.tail().val.queue.tail().val.stopIf(test);
 		
@@ -214,7 +223,7 @@ public abstract class Kinematics {
 	 * 
 	 * @param test — callable PyObject representing a test that if true, removes the current Force from the queue of forces
 	 */
-	public static final void stopIf(PyObject test) {
+	public void stopIf(PyObject test) {
 		
 		forces.tail().val.queue.tail().val.stopIf(() -> (boolean)test.__call__().__tojava__(Boolean.TYPE));
 		
@@ -225,7 +234,7 @@ public abstract class Kinematics {
 	 * 
 	 * @param test — SAM taking no arguments and returning a boolean, that when true, removes the entire queue of forces associated with this call.
 	 */
-	public static final void killIf(Tester test) {
+	public void killIf(Tester test) {
 	
 		forces.tail().val.killIf(test);
 		
@@ -237,7 +246,7 @@ public abstract class Kinematics {
 	 * @param test — callable PyObject taking no arguments and returning a boolean, that when true, removes the entire queue of forces associated with this 
 					 kill condition
 	 */
-	public static final void killIf(PyObject test) {
+	public void killIf(PyObject test) {
 	
 		forces.tail().val.killIf(() -> (boolean) test.__call__().__tojava__(Boolean.TYPE));
 		
@@ -252,7 +261,7 @@ public abstract class Kinematics {
 	 * 
 	 * @return {@code java.util.function.Supplier} which will return true if a collision occurred the last time the most recent force was updated.
 	 */	
-	public static final Supplier<Boolean> collidedX(){
+	public Supplier<Boolean> collidedX(){
 		
 		KinematicForce currentTailForce = forces.tail().val.current().val;
 		return () -> currentTailForce.collidedX;
@@ -267,7 +276,7 @@ public abstract class Kinematics {
 	 * 
 	 * @return {@code java.util.function.Supplier} which will return true if a collision occurred the last time the most recent force was updated.
 	 */
-	public static final Supplier<Boolean> collidedY(){
+	public Supplier<Boolean> collidedY(){
 
 		KinematicForce currentTailForce = forces.tail().val.current().val;
 		return () -> currentTailForce.collidedY;
@@ -286,7 +295,7 @@ public abstract class Kinematics {
 	 * @param target — a quad or instanceof a quad who will be the subject of this  impulse
 	 * @return KinematicForce — force generated based on input params.
 	 */
-	public static final KinematicForce newImpulse(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY) {
+	public KinematicForce newImpulse(ForceType type , double timeMillis , float initialX , float initialY , float stepX , float stepY) {
 		
 		return new KinematicForce(type , timeMillis,  initialX , initialY , stepX , stepY);
 		
@@ -301,7 +310,7 @@ public abstract class Kinematics {
 	 * @param force — a Kinematic Force 
 	 * @param object — a Quad to act on
 	 */
-	public static final void process(KinematicForce force , Quads object) {
+	public void process(KinematicForce force , Quads object) {
 					
 		force.timerStart();
 		
@@ -314,15 +323,15 @@ public abstract class Kinematics {
 			case PROJECTILE: case ENTITY: 
 				
 				Entities E = (Entities)object;
-				force.collidedX = EntityLists.moveHorizChecked(E , values[0]);
-				force.collidedY = EntityLists.moveVertChecked(E , values[1]);
+				force.collidedX = owner.entities().moveHorizChecked(E , values[0]);
+				force.collidedY = owner.entities().moveVertChecked(E , values[1]);
 				
 				break;
 				
 			case ITEM:
 			
-				force.collidedX = EntityLists.moveHorizChecked(object , values[0]);
-				force.collidedY = EntityLists.moveVertChecked(object , values[1]);
+				force.collidedX = owner.entities().moveHorizChecked((Items) object , values[0]);
+				force.collidedY = owner.entities().moveVertChecked((Items) object , values[1]);
 				
 				break;				
 				
@@ -347,7 +356,7 @@ public abstract class Kinematics {
 				
 	}
 
-	public static final void process() {
+	public void process() {
 		
 		cdNode<Pair> iter = forces.get(0);
 		Pair currentPair;
@@ -388,15 +397,15 @@ public abstract class Kinematics {
 				case PROJECTILE: case ENTITY: 
 					
 					Entities E = (Entities)currentPair.obj;
-					EntityLists.moveHorizChecked(E , values[0]);
-					EntityLists.moveVertChecked(E , values[1]);
+					owner.entities().moveHorizChecked(E , values[0]);
+					owner.entities().moveVertChecked(E , values[1]);
 					
 					break;
 					
 				case ITEM:
 				
-					EntityLists.moveHorizChecked(currentPair.obj , values[0]);
-					EntityLists.moveVertChecked(currentPair.obj , values[1]);
+					owner.entities().moveHorizChecked((Items) currentPair.obj , values[0]);
+					owner.entities().moveVertChecked((Items) currentPair.obj , values[1]);
 					
 					break;				
 					
@@ -423,7 +432,7 @@ public abstract class Kinematics {
 				
 	}
 		
-	public static final int size() {
+	public int size() {
 		
 		return forces.size();
 		

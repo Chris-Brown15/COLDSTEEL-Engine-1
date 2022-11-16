@@ -3,12 +3,12 @@ package Game.Items;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
 
-import AudioEngine.Sounds;
-import CS.Engine;
+import Audio.Sounds;
 import CS.PythonScriptEngine;
 import CSUtil.DataStructures.CSArray;
 import Core.ECS;
 import Core.Executor;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
@@ -27,25 +27,27 @@ public class ItemUsable extends PythonScriptEngine{
 	
 	private boolean initialized = false;
 	
-	{
-		python.set("lib", Engine.ITEM_SCRIPTING_INTERFACE);
-		python.set("initialized", initialized);
-		python.exec(ItemScriptingInterface.ITEM_SCRIPTING_FACADE);
-	}
-	
-	ItemUsable(Items item , String scriptFile){
+	ItemUsable(Scene owner , Items item , String scriptFile){
 
 		super();
 		python.set("I", item);
+		python.set("lib", owner.itemScriptingInterface());
 		
 	}	
 	
-	ItemUsable(Items item){
+	ItemUsable(Scene owner , Items item){
 		
 		super();
 		onUse = () -> System.err.println("No script selected for " + toString());
 		python.set("I", item);
+		python.set("lib", owner.itemScriptingInterface());
 		
+	}
+
+	{
+		
+		python.set("initialized", initialized);
+		python.exec(ItemScriptingInterface.ITEM_SCRIPTING_FACADE);
 	}
 	
 	public void setVariable(String name , Object variable) {

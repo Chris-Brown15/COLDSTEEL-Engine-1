@@ -23,6 +23,7 @@ import Core.AbstractGameObjectLists;
 import Core.CSType;
 import Core.GameFiles;
 import Core.Quads;
+import Core.Scene;
 import Core.SpriteSets;
 import Renderer.Textures;
 import Renderer.Textures.ImageInfo;
@@ -44,17 +45,17 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	private String name = "Unnamed Tile Set";
 	private float[] remove = new float[3];
 	
-	public TileSets(String name , int renderOrder , Textures texture) {
+	public TileSets(Scene owningScene , String name , int renderOrder , Textures texture) {
 		
-		super(renderOrder , CSType.TILE);
+		super(owningScene , renderOrder , CSType.TILE);
 		this.name = name;
 		this.texture = texture;
 		
 	}
 	
-	public TileSets(int renderOrder) {
+	public TileSets(Scene owningScene , int renderOrder) {
 		
-		super(renderOrder , CSType.ENTITY);
+		super(owningScene , renderOrder , CSType.ENTITY);
 		
 	}
 	
@@ -63,13 +64,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 		return name.equals("Unnamed Tile Set") && sources.size() == 0;
 		
 	}
-	
-	public TileSets() {
 		
-		super(1 , CSType.TILE);
-		
-	}
-	
 	public void setTileSheet(Quads tileSheet) {
 		
 		this.tileSheet = tileSheet;
@@ -114,7 +109,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 		copied.setID(list.size());
 		list.add(copied);
 		
-		copied.hasCollider(copyThis.hasCollider());
+		copied.hasCollider(owningScene , copyThis.hasCollider());
 		copied.removeColor(remove[0] , remove[1], remove[2]);
 		if(copyThis.getAnimation() != null) copied.animation = copyThis.animation.copy();
 		if(copied.hasCollider()) {
@@ -142,7 +137,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 		copied.isSource(false);
 		copied.setID(list.size());
 		
-		copied.hasCollider(copyThis.hasCollider());
+		copied.hasCollider(owningScene , copyThis.hasCollider());
 		copied.removeColor(remove[0] , remove[1], remove[2]);
 		if(copyThis.getAnimation() != null) copied.animation = copyThis.animation.copy();
 		if(copied.hasCollider()) {
@@ -246,7 +241,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	public void removeInstance(Tiles remove) {
 		
 		cdNode<Tiles> next = list.removeVal(remove);
-		remove.hasCollider(false);
+		remove.hasCollider(owningScene , false);
 		for(int i = remove.getID() ; i < list.size() ; i ++ , next = next.next) next.val.decrementID();
 				
 	}
@@ -415,12 +410,6 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	 */
 	public void clearInstances() {
 		
-		list.forEachVal(tile -> {
-			
-			tile.hasCollider(false);
-			
-		});
-		
 		sources.forEachVal(Tiles::clearInstances);
 		
 		list.clear();
@@ -564,7 +553,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 				newTile.isSource(true);
 				newTile.setID(i);
 				
-				newTile.hasCollider(hasCollider);
+				newTile.hasCollider(owningScene , hasCollider);
 				sources.add(newTile);
 				
 				boolean additional = parser.rtest("data");

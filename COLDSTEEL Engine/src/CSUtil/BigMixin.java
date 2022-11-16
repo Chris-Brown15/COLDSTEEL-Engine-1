@@ -15,6 +15,8 @@ import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -33,6 +35,14 @@ import Core.TemporalExecutor;
 import Renderer.Camera;
 
 public abstract class BigMixin {
+	
+	private static final ExecutorService exe = Executors.newCachedThreadPool();
+	
+	public static final void async(Runnable r) {
+		
+		exe.execute(r);
+		
+	}
 	
 	public static final float[] getFloatArray(){
 
@@ -1206,6 +1216,27 @@ public abstract class BigMixin {
     public static final boolean isOnScreen(float[] vertexData) {
     	
     	return true;
+    	
+    }
+    
+    /**
+     * Utility method for reducing space in places with many try catch blocks. This will call some code via callback within
+     * a try-catch block, and if an exception occurs, the stack trace is printed and the program exits.
+     *  
+     * @param code — code which can throw an exception
+     */
+    public static final void TRY(DangerCode code) {
+    	
+    	try {
+    		
+    		code.call();
+    		
+    	} catch(Exception e) {
+    		
+    		e.printStackTrace();
+    		System.exit(-1);
+    		
+    	}
     	
     }
      

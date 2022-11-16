@@ -22,11 +22,10 @@ import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 
 import java.text.DecimalFormat;
 
-import AudioEngine.SoundEngine;
+import Audio.SoundEngine;
 import CS.Engine;
 import CS.RuntimeState;
 import CS.UserInterface;
-import Core.ECS;
 import Core.Entities.Entities;
 import Game.Player.PlayerCharacter;
 
@@ -51,7 +50,6 @@ public class DebugInfo extends UserInterface {
 	private boolean seeAllLoadDoors = false;	
 	private boolean freeze = false;
 	
-
 	public DebugInfo(Engine engine , GameRuntime runtime) {
 
 		super("Game Debug", 1565 , 5, 350 , 600, uiOptions , uiOptions);
@@ -64,22 +62,11 @@ public class DebugInfo extends UserInterface {
 			Entities playerEntity = player.playersEntity();
 			
 			nk_layout_row_dynamic(context , 20 , 2);
-			if(nk_checkbox_label(context , "Render Debug" , frame.bytes(toByte(runtime.renderDebug())))) runtime.renderDebug(true);
-			if(nk_checkbox_label(context , "Freeze" , frame.bytes(toByte(freeze)))) {
+			if(nk_checkbox_label(context , "Render Debug" , frame.bytes(toByte(engine.isRenderingDebug())))) engine.toggleRenderDebug(null);
+			if(nk_checkbox_label(context , "Freeze Scene" , frame.bytes(toByte(freeze)))) {
 				
 				freeze = freeze ? false:true;
 				playerEntity.freeze(freeze);
-				
-			}
-			
-			nk_layout_row_dynamic(context , 20 , 2);
-			if(nk_checkbox_label(context , "Disable Player Gravity" , frame.bytes(toByte(playerEntity.has(ECS.GRAVITY_CONSTANT))))) {
-				
-				if(playerEntity.has(ECS.GRAVITY_CONSTANT)) {
-					
-					Engine.boundScene().entities().toggleComponent(playerEntity , ECS.GRAVITY_CONSTANT);
-					
-				}
 				
 			}
 			
@@ -89,7 +76,7 @@ public class DebugInfo extends UserInterface {
 			nk_layout_row_dynamic(context , 20 , 3);
 			nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
 			nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
-			nk_text(context , "TLS: " + Engine.boundScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT);
+			if(runtime.gameScene() != null) nk_text(context , "TLS: " + runtime.gameScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT);
 						
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);
@@ -160,7 +147,7 @@ public class DebugInfo extends UserInterface {
 			
 			if(showAllEntities) {
 				
-				Engine.boundScene().entities().forEach(x -> {
+				runtime.gameScene().entities().forEach(x -> {
 					
 					nk_layout_row_dynamic(context , 20 , 1);
 					nk_text(context , x.toString() , NK_TEXT_ALIGN_LEFT);

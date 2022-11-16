@@ -15,9 +15,10 @@ import java.util.function.Function;
  */
 public class RingBuffer <T> {
 
-	private final Object[] buffer;
+	private Object[] buffer;
 	private int end = 0;
 	private int start = 0;	
+	private int size = 0;
 	
 	public RingBuffer(final int size) {
 		
@@ -28,6 +29,7 @@ public class RingBuffer <T> {
 	public void put(T element) {
 	
 		buffer[end++] = element;
+		if(end != buffer.length) size++;
 		end %= buffer.length;
 		
 	}	
@@ -37,6 +39,7 @@ public class RingBuffer <T> {
 		T got = (T) buffer[start];
 		buffer[start++] = null;
 		start %= buffer.length;
+		size--;
 		return got;
 
 	}
@@ -113,6 +116,18 @@ public class RingBuffer <T> {
 	public int startIndex() {
 		
 		return start;
+		
+	}
+	
+	public int capacity() {
+		
+		return buffer.length;
+		
+	}
+	
+	public boolean empty() {
+		
+		return size == 0;
 		
 	}
 	

@@ -1,7 +1,6 @@
 package Core.Entities;
 
 import static CS.Engine.INTERNAL_ENGINE_PYTHON;
-import static Networking.Utils.NetworkingConstants.*;
 
 import org.joml.Random;
 import org.python.core.PyCode;
@@ -14,6 +13,7 @@ import CS.RuntimeState;
 
 import CS.Controls;
 import Core.SpriteSets;
+import Core.UIScript;
 import Core.Entities.EntityLists.hitboxScan;
 import Core.ECS;
 import Core.Scene;
@@ -64,6 +64,18 @@ public class EntityScriptingInterface {
 		
 	}
 
+	public void server(UserHostedServer server) {
+		
+		this.server = server;
+		
+	}
+	
+	public void client(NetworkClient client) {
+		
+		this.client = client;
+		
+	}
+	
 	/**
 	 * Moves E x amount. This will perform the double pass collision detection if E has the collision detection component and horizontal displacement component.
 	 * 
@@ -73,7 +85,7 @@ public class EntityScriptingInterface {
 	 */
 	public boolean moveHzntl(Entities E , float x) {
 		
-		return EntityLists.moveHorizChecked(E, x);
+		return scene.entities().moveHorizChecked(E, x);
 		
 	}
 	
@@ -86,7 +98,7 @@ public class EntityScriptingInterface {
 	 */
 	public boolean moveVrtcl(Entities E , float y) {
 		
-		return EntityLists.moveVertChecked(E, y);
+		return scene.entities().moveVertChecked(E, y);
 		
 	}
 	
@@ -113,7 +125,7 @@ public class EntityScriptingInterface {
 	 */
 	public float distanceToFloor(Entities E) {
 
-		return EntityLists.getDistanceToFloor(E);		
+		return scene.entities().getDistanceToFloor(E);		
 		
 	}
 	
@@ -222,19 +234,6 @@ public class EntityScriptingInterface {
 		
 	}
 	
-	/**
-	 * Drops the specified item from E's inventory. <br><br>
-	 * More specifically, removes the item from E's inventory if it exists, and begins to render it, after moving it in front of E.
-	 * 
-	 * @param E — calling entity
-	 * @param drop — the item to be dropped
-	 */
-	public void dropItem() {
-		
-		EntityLists.dropItem();
-		
-	}
-
 	/**
 	 * Sets whether E can move itself horizontally with respect to the keyboard. 
 	 * 
@@ -529,7 +528,7 @@ public class EntityScriptingInterface {
 	 */
 	public ParticleEmitter createParticleEmitter(int number , double lifetime , MExpression xFunction , MExpression yFunction , String textureAbsPath , String animAbsPath , boolean foreground) {
 		
-		return new ParticleEmitter(renderer, number , lifetime , xFunction , yFunction , textureAbsPath , animAbsPath , foreground);
+		return new ParticleEmitter(renderer, scene , number , lifetime , xFunction , yFunction , textureAbsPath , animAbsPath , foreground);
 			
 	}
 	
@@ -717,9 +716,9 @@ public class EntityScriptingInterface {
 	 * 
 	 * @return True if this function was called from a server. False otherwise.
 	 */
-	public boolean onServer() {
+	public boolean onServer(Entities E) {
 	 		
-		return server != null;
+		return server != null || (client != null && client.networkedEntity().networked() != E);
 		
 	}
 	
@@ -729,9 +728,14 @@ public class EntityScriptingInterface {
 		
 	}
 	
+	public UIScript createUI(String scriptName) {
+		
+		return new UIScript(scene , scriptName);
+		
+	}
+	
 	public void shutDown() {
 		
-		internalInterpreter.cleanup();
 		internalInterpreter.close();
 		
 	}

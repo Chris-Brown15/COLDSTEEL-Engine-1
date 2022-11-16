@@ -21,8 +21,9 @@ import static java.nio.file.Files.newBufferedWriter;
 import java.nio.file.Paths;
 import java.util.BitSet;
 import org.joml.Vector3f;
-import AudioEngine.SoundEngine;
-import AudioEngine.Sounds;
+
+import Audio.SoundEngine;
+import Audio.Sounds;
 import CSUtil.CSTFParser;
 import CSUtil.RefInt;
 import CSUtil.DataStructures.CSArray;
@@ -32,6 +33,7 @@ import Core.ECS;
 import Core.GameFiles;
 import Core.HitBoxSets;
 import Core.Quads;
+import Core.Scene;
 import Core.SpriteSets;
 import Game.Items.Inventories;
 import Game.Items.Items;
@@ -63,7 +65,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 	boolean freeze = false;
 	private int LID = -1;
 	private float[] defaultSprite = new float[6]; 
-	
+		
 	{
 		this.comps[0] = this;
 	}
@@ -85,7 +87,21 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		addComponents(components);	
 				
 	}
+
+	public Entities() {
 		
+		super(getEntityFloatArray() , -1 , CSType.ENTITY);
+		comps[0] = this;
+		
+	}
+	
+	public Entities(Scene owner , String namePath) {
+		
+		super(getEntityFloatArray() , -1 , CSType.ENTITY);
+		load(owner , namePath);
+		
+	}
+	
 	public String toString() {
 	
 		return "Entity " + name + ", ID:  " + ID + " LID: " + LID;
@@ -106,20 +122,6 @@ public class Entities extends Quads implements GameFiles<Entities>{
 	public String namePath() {
 		
 		return name + ".CStf";
-		
-	}
-	
-	public Entities() {
-		
-		super(getEntityFloatArray() , -1 , CSType.ENTITY);
-		comps[0] = this;
-		
-	}
-	
-	public Entities(String namePath) {
-		
-		super(getEntityFloatArray() , -1 , CSType.ENTITY);
-		load(namePath);
 		
 	}
 	
@@ -578,7 +580,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		
 	}
 
-	private void readComponentByName(CSTFParser cstf , String name) throws IOException, AssertionError {
+	private void readComponentByName(Scene owner , CSTFParser cstf , String name) throws IOException, AssertionError {
 		
 		switch(name) {
 			
@@ -753,7 +755,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 				int numberItems = cstf.rlist("items");
 				for(int i = 0 ; i < numberItems ; i ++) {
 				
-					Items loaded = new Items(cstf.rvalue() + ".CStf");
+					Items loaded = new Items(owner , cstf.rvalue() + ".CStf");
 					inventory.acquire(loaded);
 					
 				}
@@ -763,7 +765,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 				int equipped = cstf.rlist("equipped");
 				for(int i = 0 ; i < equipped ; i ++) {
 					
-					Items newItem = new Items(cstf.rvalue() + ".CStf");					
+					Items newItem = new Items(owner , cstf.rvalue() + ".CStf");					
 					inventory.equip(newItem);
 					
 				}
@@ -799,7 +801,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 				
 				boolean noFile = cstf.rtestNull("script");
 				if(noFile) comps[SOFF] = null;
-				else comps[SOFF] = new EntityScripts(this , cstf.rlabel("script"));
+				else comps[SOFF] = new EntityScripts(owner , this , cstf.rlabel("script"));
 				
 			}
 			
@@ -810,6 +812,28 @@ public class Entities extends Quads implements GameFiles<Entities>{
 	@Override public void delete() {
 		
 		GameFiles.delete(data + "entities/" + name + ".CStf");
+		
+	}
+
+	@Override public void write(BufferedWriter writer , Object...additionalData) throws IOException {
+
+		CSTFParser cstf = new CSTFParser(writer);
+		
+		cstf.wname(name);
+		ImageInfo textureImageInfo = texture.imageInfo; 
+		if(textureImageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(textureImageInfo.path()));
+		else cstf.wnullLabel("texture");
+		cstf.wlabelValue("removed", removedColor.x , removedColor.y , removedColor.z);
+		cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);
+		//if there is no default label ->
+		if(defaultSprite[4] == 0 || defaultSprite[5] == 0) cstf.wnullLabel("default sprite");			
+		else cstf.wlabelValue("default sprite" , defaultSprite);
+		int numberComps = 0;
+		for(ECS x : ECS.values()) if(has(x)) numberComps++;
+		
+		cstf.wlist("components", numberComps);						
+		for(ECS x : ECS.values()) if(has(x) && x != ECS.SCRIPT) writeComp(cstf , comps , x);
+		if(has(ECS.SCRIPT)) writeComp(cstf , comps , ECS.SCRIPT);
 		
 	}
 
@@ -842,7 +866,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		
 	}
 
-	@Override public void load(String filepath) {
+	@Override public void load(Scene owner , String filepath) {
 		
 		try(BufferedReader reader = newBufferedReader(Paths.get(data + "entities/" + filepath))){
 			
@@ -875,7 +899,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 				
 				//read components			we know the top of this loop will always contain a list named the component whose data is in the list
 				componentName = cstf.rlist();
-				readComponentByName(cstf , componentName);
+				readComponentByName(owner , cstf , componentName);
 				cstf.endList();
 				
 			}
@@ -902,29 +926,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		
 	}
 
-	@Override public void write(BufferedWriter writer , Object...additionalData) throws IOException {
-
-		CSTFParser cstf = new CSTFParser(writer);
-		
-		cstf.wname(name);
-		ImageInfo textureImageInfo = texture.imageInfo; 
-		if(textureImageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(textureImageInfo.path()));
-		else cstf.wnullLabel("texture");
-		cstf.wlabelValue("removed", removedColor.x , removedColor.y , removedColor.z);
-		cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);
-		//if there is no default label ->
-		if(defaultSprite[4] == 0 || defaultSprite[5] == 0) cstf.wnullLabel("default sprite");			
-		else cstf.wlabelValue("default sprite" , defaultSprite);
-		int numberComps = 0;
-		for(ECS x : ECS.values()) if(has(x)) numberComps++;
-		
-		cstf.wlist("components", numberComps);						
-		for(ECS x : ECS.values()) if(has(x) && x != ECS.SCRIPT) writeComp(cstf , comps , x);
-		if(has(ECS.SCRIPT)) writeComp(cstf , comps , ECS.SCRIPT);
-		
-	}
-
-	@Override public void load(BufferedReader reader) {
+	@Override public void load(Scene owner , BufferedReader reader) {
 
 		try {
 			
@@ -957,7 +959,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 				
 				//read components			we know the top of this loop will always contain a list named the component whose data is in the list
 				componentName = cstf.rlist();
-				readComponentByName(cstf , componentName);
+				readComponentByName(owner , cstf , componentName);
 				cstf.endList();
 				
 			}
@@ -980,6 +982,18 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			e.printStackTrace();
 			
 		}		
+		
+	}
+
+	@Override public void load(String filepath) {
+		
+		throw new UnsupportedOperationException("ENTITY ERROR: Loading entities requires a scene object, none provided.");
+		
+	}
+
+	@Override public void load(BufferedReader reader) {
+		
+		throw new UnsupportedOperationException("ENTITY ERROR: Loading entities requires a scene object, none provided.");
 		
 	}
 

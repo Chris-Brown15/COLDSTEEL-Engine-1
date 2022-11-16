@@ -103,7 +103,7 @@ public class UI_EditorEditor extends UserInterface {
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Camera Position" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_LEFT);
-			var cameraPos = editor.cam.cameraPosition;			
+			var cameraPos = editor.camera().cameraPosition;			
 			nk_text(context , cameraPos.x + ", " + cameraPos.y , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_RIGHT);
 			
 			nk_layout_row_dynamic(context , 20 , 2);
@@ -123,11 +123,7 @@ public class UI_EditorEditor extends UserInterface {
 			if(nk_checkbox_label(context , "Spawn Quads At Cursor" , quadsAtCursorCheck)) editor.schedule(Editor::toggleSpawnAtCursor);			
 			
 			nk_layout_row_dynamic(context , 20 , 1);
-			if(nk_checkbox_label(context , "Render Debug" , renderDebugCheck)) { 
-				
-				editor.schedule((edi) -> editor.renderDebug = editor.renderDebug ? false : true);
-				
-			}
+			if(nk_checkbox_label(context , "Render Debug" , renderDebugCheck)) editor.schedule(Editor::toggleRenderDebug);
 			
 			if(toBool(renderDebugCheck)) {
 				

@@ -38,6 +38,7 @@ public class Textures {
 	private ByteBuffer data;	
 	public ImageInfo imageInfo;
 	private boolean initialized = false;
+	private Consumer<Integer> onInitialize;
 	
 	String filepath() {
 	
@@ -94,10 +95,31 @@ public class Textures {
 		this.textureID = textureID;
 		this.imageInfo = image;
 		
+		if(onInitialize != null) onInitialize.accept(textureID);		
+		
 		initialized = true;
 		
 	}
 	
+	void initialize() {
+
+		if(onInitialize != null) onInitialize.accept(textureID);
+		
+	}
+	
+	public void onInitialize(Consumer<Integer> initializeCallback) {
+		
+		this.onInitialize = (ID) -> {
+
+			textureID = glGenTextures();
+			glBindTexture(GL_TEXTURE_2D, textureID);
+			initializeCallback.accept(ID);			
+			glBindTexture(GL_TEXTURE_2D , 0);
+			
+		};
+				
+	}
+		
 	int textureID() {
 		
 		return textureID;

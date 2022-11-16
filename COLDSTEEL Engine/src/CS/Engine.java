@@ -16,54 +16,41 @@ import static org.lwjgl.nuklear.Nuklear.nk_window_is_any_hovered;
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11C.glClearColor;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.lwjgl.opengl.GL;
-import AudioEngine.SoundEngine;
-import AudioEngine.Sounds;
+
+import Audio.SoundEngine;
+import Audio.Sounds;
 import CS.Controls.Control;
 import CSUtil.CSLogger;
 import CSUtil.CSTFParser;
 import CSUtil.Timer;
-import CSUtil.DataStructures.CSArray;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
-import Core.AbstractGameObjectLists;
 import Core.Console;
 import Core.Executor;
-import Core.ObjectLists;
-import Core.Quads;
 import Core.Scene;
 import Core.TemporalExecutor;
-import Core.UIScriptingInterface;
-import Core.Entities.EntityLists;
-import Core.Entities.EntityScriptingInterface;
-import Core.Statics.StaticLists;
-import Core.TileSets.TileSets;
 import Editor.CursorState;
 import Editor.Editor;
 import Editor.EditorMode;
 import Game.Core.DebugInfo;
 import Game.Core.GameRuntime;
 import Game.Core.GameState;
-import Game.Items.ItemScriptingInterface;
-import Game.Items.UnownedItems;
 import Game.Levels.LevelLoadDoors;
 import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
-import Game.Levels.TriggerScriptingInterface;
 import Game.Player.PlayerCharacter;
-import Game.Projectiles.ProjectileScriptingInterface;
-import Networking.NetworkedInstance;
-import Physics.ColliderLists;
+import Networking.NetworkClient;
 import Renderer.Camera;
 import Renderer.Renderer;
 
@@ -78,24 +65,16 @@ import Renderer.Renderer;
  * @author Chris Brown
  *
  */
-public class Engine {
+public final class Engine {
 	
-	public static RuntimeState STATE;	
+	public static RuntimeState STATE;
 	private static final Thread MAIN_THREAD;
 	
 	/*engine static objects*/
 	
 	private static GLFWWindow WINDOW;
-	//layer manager. Array Scenes which contain sets of game objects
-	private static final CSArray<Scene> OBJECTS = new CSArray<>(CS.COLDSTEEL.NUMBER_LAYERS , 1);
 	//publicly accessable python interpreter
 	private static final EnginePython INTERNAL_ENGINE_PYTHON = new EnginePython();
-	//scripting singletons, static so that anything that wants to have a script does not need a reference to the engine
-	public static EntityScriptingInterface ENTITY_SCRIPTING_INTERFACE;
-	public static UIScriptingInterface UI_SCRIPTING_INTERFACE;
-	public static ItemScriptingInterface ITEM_SCRIPTING_INTERFACE;
-	public static TriggerScriptingInterface TRIGGER_SCRIPTING_INTERFACE;
-	public static ProjectileScriptingInterface PROJECTILE_SCRIPTING_INTERFACE;	
 	//whatever the client is currently using as their bound controls
 	public static Controls clientControls;
 	
@@ -105,55 +84,18 @@ public class Engine {
 		
 	}
 		
-	public static final int addScene(Scene newScene) {
-		
-		int sceneIndex = OBJECTS.size();
-		OBJECTS.add(newScene);
-		return sceneIndex;
-		
-	}
-	
-	public static final Scene boundScene() {
-		
-		return OBJECTS.get(0);
-		
-	}
-	
-	public static final void bindScene(Scene bindThis) {
-		
-		Scene oldBound = OBJECTS.get(0);
-		int newBoundOldIndex = bindThis.index;
-		OBJECTS.set(0 , bindThis);
-		OBJECTS.set(newBoundOldIndex , oldBound);
-		
-	}
-	
-	public static final void forBoundScene(Consumer<AbstractGameObjectLists<? extends Quads>> function) {
-		
-		OBJECTS.get(0).forEach(function);
-		
-	}
-	
 	private ReentrantLock lock = new ReentrantLock();
 	private final CSQueue<Executor> events = new CSQueue<>();
-	final Editor editor = new Editor();
-	final GameRuntime gameRuntime = new GameRuntime();
 	
-	Renderer renderer;
 	private Levels currentLevel;
 	private MacroLevels currentMacroLevel;
-	
 	private Console engineConsole;
-	DebugInfo debugInfo;
 	
-	/**
-	 * The Scene is the star of the show. It holds references to game object manager classes, which are typically named
-	 * [name of object type]List. A Scene is made up of a background and a foreground which is why there are copies of objects.
-	 * 
-	 */
-	private Scene scene;	
+	final Editor editor = new Editor();
+	final GameRuntime gameRuntime = new GameRuntime();	
+	final Renderer renderer = new Renderer();
 	
-	private Consumer<Levels> onLevelLoad = newLevel -> currentLevel = newLevel;	
+	private DebugInfo debugInfo;
 	
 	public Engine(RuntimeState state) {
 	
@@ -164,35 +106,21 @@ public class Engine {
 	void initialize() {
 		
 		System.out.println("END STATIC\n");
-
-		System.out.println("Welcome to the COLDSTEEL editor alpha undef, running LWJGL " + getVersion());
-		
+		System.out.println("Welcome to the COLDSTEEL Engine alpha undef, running LWJGL " + getVersion());		
 		System.out.println("Initializing Engine...");		
-		System.out.println("Engine Initialization Complete.");
 		
-		renderer = new Renderer();
 		SoundEngine.initialize();
 		
 		WINDOW = new GLFWWindow();	
 		
-		scene = new Scene(
-			new ObjectLists(1) , 
-			new TileSets(3) , 
-			new StaticLists(2) , 
-			new EntityLists(4 , renderer.getCamera()) , 
-			new UnownedItems(5) ,
-			new ObjectLists(6) ,
-			new TileSets(7) ,
-			new StaticLists(8) , 
-			new ColliderLists()	
-		);
-				
-    	WINDOW.intialize(this);
-    	
+		WINDOW.intialize(this);
+		
+    	WINDOW.makeCurrent();
+    	    	
     	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
     	GL.createCapabilities();
     	
-    	renderer.initialize(WINDOW , UserInterface.context , UserInterface.drawCommands);    	
+    	renderer.initialize(null , WINDOW , UserInterface.context , UserInterface.drawCommands);    	
     	engineConsole = new Console();
     	
         // disable v-sync while loading
@@ -201,36 +129,31 @@ public class Engine {
     	WINDOW.setNuklearContext(UserInterface.context);  
 
         WINDOW.show();
-        
-		System.out.println("Window initialization complete.");
-		
+        		
 		switch(STATE) {
 			
 			case EDITOR:
 				
-	    		editor.initialize(this , renderer , scene , currentLevel , engineConsole , onLevelLoad ,
-	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());	    		
+	    		editor.initialize(this , renderer , currentLevel , engineConsole , 
+	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());
+	    		
+	    		renderer.toggleRenderDebug(null);	    		
 				break;
 				
 			case GAME:
 				
-				gameRuntime.initialize();								
+				gameRuntime.initialize(this , renderer);
+				renderer.renderScene(gameRuntime.gameScene());				
 				break;
-				
+								
 			default:
 	
 				System.out.println("Fatal Error in initialization, closing program");
-				closeOverride();
+				System.exit(-1);
 				break;
 	
 		}
-		
-		ENTITY_SCRIPTING_INTERFACE = new EntityScriptingInterface(renderer, scene , engineConsole);
-		UI_SCRIPTING_INTERFACE = new UIScriptingInterface(this , engineConsole);
-		ITEM_SCRIPTING_INTERFACE = new ItemScriptingInterface(engineConsole , renderer , scene.entities());
-		TRIGGER_SCRIPTING_INTERFACE = new TriggerScriptingInterface(scene , currentLevel);
-		PROJECTILE_SCRIPTING_INTERFACE = new ProjectileScriptingInterface(scene);
-		
+	
 		debugInfo = new DebugInfo(this , gameRuntime);
 		clientControls = new Controls();
 		
@@ -256,6 +179,8 @@ public class Engine {
 		UserInterface.threadSpinup();
 		System.gc();
 		CSLogger.log("Successfully initialized");
+		System.out.println("Engine Initialization Complete.");
+		
 	}
 	
 	/**
@@ -268,16 +193,19 @@ public class Engine {
 			
 			case EDITOR:
 
-	    		editor.initialize(this , renderer , scene, currentLevel , engineConsole , onLevelLoad , 
+	    		editor.initialize(this , renderer, currentLevel , engineConsole , 
 	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());
+
+	    		renderer.toggleRenderDebug(null);
+	    		
+	    		renderer.renderScene(editor.scene());
 	    		
 				break;
 				
 			case GAME:
 				
-				scene.clear();
 				GameRuntime.setState(GameState.MAIN_MENU);
-				gameRuntime.initialize();
+				gameRuntime.initialize(this , renderer);
 				
 				break;
 				
@@ -297,7 +225,6 @@ public class Engine {
     private static final Timer engineTimer = new  Timer();
     private static double iterRate;
 	private static double millisThisFrame;
-	private static boolean secondPassed;
 	private static long totalNumberFrames = 0;
 	private static int runtimeSeconds = 0;
     public static boolean printFPS = true;
@@ -314,13 +241,12 @@ public class Engine {
 	        glfwPollEvents();
 	        nk_input_end(UserInterface.context);
 	        
-	        handleEvents();
+	        handleEvents();        
 	        
 	        frameTimer.start();
 
         	if(engineTimer.getElapsedTimeMillis() >= 1000) {
 
-        		secondPassed = true;
         		engineTimer.start();
         		framesLastSecond = framesThisSecond;
         		iterRate = millisThisFrame / framesLastSecond;
@@ -330,7 +256,7 @@ public class Engine {
         		runtimeSeconds++;
         		if(printFPS) System.out.println("Frames in second " + runtimeSeconds + ": " + framesLastSecond);
         		
-        	} else secondPassed = false;
+        	} 
 
         	glClear(GL_COLOR_BUFFER_BIT); //wipe out previous frame
     		
@@ -357,7 +283,7 @@ public class Engine {
 	        		gameRuntime.run(this);
 	        		
 	        		break;
-
+	        	
         	}
         	
         	renderer.run();
@@ -365,7 +291,6 @@ public class Engine {
         	WINDOW.swapBuffers();
             framesThisSecond++;
             millisThisFrame += frameTimer.getElapsedTimeMillis();
-            OBJECTS.forEach(scene -> scene.entities().incrementFrames());
 
         }
 
@@ -405,7 +330,7 @@ public class Engine {
 		renderer.setViewport(width , height);
 		
 	}
-	
+
 	void shutDown() {
     	
 		UserInterface.shutDown1();
@@ -414,7 +339,6 @@ public class Engine {
 		UserInterface.shutDown2();
 		SoundEngine.shutDown();
 		WINDOW.shutDown();
-		ENTITY_SCRIPTING_INTERFACE.shutDown();
 		gameRuntime.shutDown();
 		CSLogger.shutDown();
     	System.out.println("Program shut down, until next time...");    	
@@ -457,6 +381,13 @@ public class Engine {
 		
 	}
 	
+	void toggleDebugInfo() {
+		
+		if(debugInfo.showing()) debugInfo.hide();
+		else debugInfo.show();		
+		
+	}
+	
 	public Levels currentLevel() {
 		
 		return currentLevel;
@@ -494,12 +425,24 @@ public class Engine {
 		
 	}
 	
-	public static boolean secondPassed() {
+	public void setRenderScene(Scene renderScene) {
 		
-		return secondPassed;
+		renderer.renderScene(renderScene);
+		
+	}
+	
+	public void toggleRenderDebug(Levels levelToDebugRender) {
+		
+		renderer.toggleRenderDebug(levelToDebugRender);
 		
 	}
 
+	public boolean isRenderingDebug() {
+		
+		return renderer.isRenderingDebug();
+		
+	}
+	
 	/**
 	 * True if the key referenced by {@code query} is pressed.
 	 * 
@@ -653,15 +596,16 @@ public class Engine {
 			player.previouslyUsedLoadDoor(currentLevel.getLoadDoorByName(loadDoor.linkedLoadDoorName()));
 			float[] doorPos = player.previouslyUsedLoadDoor().getConditionArea().getMidpoint();
 			player.moveTo(doorPos);
-			scene.entities().addStraightIn(player.playersEntity());
+			gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
 
-			NetworkedInstance multiplayer = gameRuntime.server();
-			if(multiplayer != null) { 
+			NetworkClient playerAsClient = gameRuntime.client();
+			
+			if(playerAsClient != null) { 
 				
 				try {
 					
-					multiplayer.onLevelLoad(currentLevel , doorPos);
+					playerAsClient.onLevelLoad(currentLevel , doorPos);
 					
 				} catch (IOException e) {
 					
@@ -691,7 +635,7 @@ public class Engine {
 					
 					PlayerCharacter player = gameRuntime.player();
 					
-					if(player == null) player = new PlayerCharacter();
+					if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
 					player.load(reader);
 					player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
 					player.playersEntity().LID(0);
@@ -706,7 +650,7 @@ public class Engine {
 					cstf.endList();
 					
 					player.moveTo(playersPosition);
-					scene.entities().addStraightIn(player.playersEntity());
+					gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 									
 					GameRuntime.setState(targetState);				
 					gameRuntime.player(player);
@@ -729,7 +673,7 @@ public class Engine {
 				
 				PlayerCharacter player = gameRuntime.player();
 				
-				if(player == null) player = new PlayerCharacter();
+				if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
 				player.load(reader);
 				player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
 				player.playersEntity().LID(0);
@@ -744,7 +688,7 @@ public class Engine {
 				cstf.endList();
 				
 				player.moveTo(playersPosition);
-				scene.entities().addStraightIn(player.playersEntity());
+				gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 								
 				GameRuntime.setState(targetState);				
 				gameRuntime.player(player);
@@ -834,7 +778,7 @@ public class Engine {
 	 */
 	public void g_loadClearDeploy(String filepath) {
 				
-		Levels newLevel = new Levels((CharSequence)(filepath));
+		Levels newLevel = new Levels(gameRuntime.gameScene() , (CharSequence)(filepath));
 		MacroLevels macroLevel = newLevel.associatedMacroLevel();
 		
 		if(currentMacroLevel == null) setupMacroLevelOST(macroLevel); 
@@ -848,38 +792,10 @@ public class Engine {
 		
 		currentMacroLevel = macroLevel;
 		
-		scene.clear();
-		newLevel.deploy(scene);
+		gameRuntime.gameScene().clear();
+		newLevel.deploy(gameRuntime.gameScene());
 		
 		currentLevel = newLevel;
-
-		onLevelLoad.accept(newLevel);
-		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(newLevel);		
-		
-	}
-
-	public void g_clearDeploy(Levels level , Scene scene) {
-		
-		MacroLevels macroLevel = level.associatedMacroLevel();
-		
-		if(currentMacroLevel == null) setupMacroLevelOST(macroLevel);
-		else if(currentMacroLevel != null && !macroLevel.equals(currentMacroLevel)) {
-			
-			Renderer.freeMacroLevel(currentMacroLevel);
-			SoundEngine.freeMacroLevel(currentMacroLevel);
-			setupMacroLevelOST(macroLevel);
-		
-		}
-		
-		currentMacroLevel = macroLevel;
-		
-		this.scene.clear();
-		this.scene = scene;
-		
-		currentLevel = level;
-		
-		onLevelLoad.accept(level);
-		TRIGGER_SCRIPTING_INTERFACE.onLevelLoad.accept(level);		
 	
 	}
 
@@ -902,7 +818,7 @@ public class Engine {
 	
 	public void mg_startHostedServer() {
 		
-		gameRuntime.startUserHostedServer(this);
+		gameRuntime.startUserHostedServer(this , renderer);
 		
 	}
 	
@@ -924,12 +840,6 @@ public class Engine {
 		
 	}
 	
-	public void mg_propogateNewClientAndServer() {
-		
-		ENTITY_SCRIPTING_INTERFACE.setNetworkingVariables(gameRuntime.client() , gameRuntime.server());
-		
-	}
-
 	public void mg_scrollCamera(float x , float y) {
 		
 		renderer.getCamera().moveCamera(x, y);
@@ -1086,6 +996,12 @@ public class Engine {
 		
 	}
 	
+	public Console getConsole() {
+		
+		return engineConsole;
+		
+	}
+	
 	boolean e_isNothingSelected() {
 		
 		if(STATE != RuntimeState.EDITOR) return false;
@@ -1123,7 +1039,7 @@ public class Engine {
 	void e_newEntity() {
 
 		if(STATE != RuntimeState.EDITOR) return;
-		scene.entities().newEntity();
+		editor.addEntity();
 		
 	}
 	

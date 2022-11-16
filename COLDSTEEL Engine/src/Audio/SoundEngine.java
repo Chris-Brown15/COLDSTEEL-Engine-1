@@ -1,4 +1,4 @@
-package AudioEngine;
+package Audio;
 
 import static org.lwjgl.openal.ALC10.ALC_DEFAULT_DEVICE_SPECIFIER;
 import static org.lwjgl.openal.AL10.AL_GAIN;

@@ -265,6 +265,4 @@ public class HitBoxSets implements GameFiles<HitBoxSets>{
 		
 	}
 
-	@Override public void load(BufferedReader reader) {}
-	
 }

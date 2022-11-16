@@ -44,10 +44,46 @@ public interface GameFiles <T> {
 		
 	}
 	
-	public void delete();	
-	public void write(Object... additionalData);
-	public void write(BufferedWriter writer , Object... additionalData) throws IOException;
-	public void load(String namePath);
-	public void load(BufferedReader reader) throws IOException;	
+	public default void delete() {	
+		
+		throw new UnsupportedOperationException();
+		
+	}
+	
+	public default void write(Object... additionalData) { 
+
+		throw new UnsupportedOperationException();
+		
+	}
+	
+	public default void write(BufferedWriter writer , Object... additionalData) throws IOException {
+
+		throw new UnsupportedOperationException();
+			
+	}
+	
+	public default void load(String namePath) {
+
+		throw new UnsupportedOperationException();
+			
+	}
+	
+	public default void load(BufferedReader reader) throws IOException {
+
+		throw new UnsupportedOperationException();
+		
+	}
+	
+	public default void load(Scene owningScene , String namePath) {
+
+		throw new UnsupportedOperationException();
+				
+	}
+	
+	public default void load(Scene owningScene , BufferedReader reader) throws IOException {
+
+		throw new UnsupportedOperationException();
+				
+	}
 	
 }

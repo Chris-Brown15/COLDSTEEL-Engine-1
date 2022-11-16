@@ -7,8 +7,6 @@ import CSUtil.DataStructures.CSOHashMap;
 import CSUtil.DataStructures.Tuple3;
 import Core.Scene;
 import Physics.ForceType;
-import Physics.Kinematics;
-
 /**
  * Loot tables provide a way to control what items an entity will drop on its death. Items are added into the loot table with an accompanying float
  * representing the items drop chance out of 100. 
@@ -36,10 +34,12 @@ public class LootTables {
 		
 	UnownedItems items;
 	float worldX , worldY;
+	Scene owner;
 	
 	public LootTables(Scene scene) {
 		
 		items = scene.items();
+		owner = scene;
 		
 	}
 	
@@ -96,19 +96,19 @@ public class LootTables {
 							int randomAmount = random.nextInt(tuple.getThird()) + 1;
 							for(int i = 0 ; i < randomAmount ; i ++) {
 
-								Items newItem = new Items(tuple.getFirst() + ".CStf");
+								Items newItem = new Items(owner , tuple.getFirst() + ".CStf");
 								newItem.moveTo(worldX, worldY);
 								items.acquire(newItem);
-								Kinematics.impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
+								owner.kinematics().impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
 								
 							}
 							
 						} else {
 							
-							Items newItem = new Items(tuple.getFirst() + ".CStf");
+							Items newItem = new Items(owner , tuple.getFirst() + ".CStf");
 							newItem.moveTo(worldX, worldY);
 							items.acquire(newItem);
-							Kinematics.impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
+							owner.kinematics().impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
 							
 						}						
 						
@@ -154,19 +154,19 @@ public class LootTables {
 							int randomAmount = random.nextInt(tuple.getThird()) + 1;
 							for(int i = 0 ; i < randomAmount ; i ++) {
 
-								Items newItem = new Items(tuple.getFirst() + ".CStf");
+								Items newItem = new Items(owner , tuple.getFirst() + ".CStf");
 								newItem.moveTo(worldX, worldY);
 								items.acquire(newItem);
-								Kinematics.impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
+								owner.kinematics().impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
 								
 							}
 							
 						} else {
 							
-							Items newItem = new Items(tuple.getFirst() + ".CStf");
+							Items newItem = new Items(owner , tuple.getFirst() + ".CStf");
 							newItem.moveTo(worldX, worldY);
 							items.acquire(newItem);
-							Kinematics.impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
+							owner.kinematics().impulse(ForceType.LINEAR_GROW , 9999d , 0.0f , -1.0f , 0.0f , 0.025f, newItem);
 							
 						}						
 						

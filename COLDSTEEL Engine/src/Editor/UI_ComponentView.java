@@ -9,24 +9,13 @@ import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
 
-import java.util.ArrayList;
-
-import AudioEngine.Sounds;
 import CS.UserInterface;
-import CSUtil.RefInt;
-import CSUtil.DataStructures.CSArray;
-import CSUtil.DataStructures.Tuple2;
-import CSUtil.DataStructures.cdNode;
 import Core.Direction;
 import Core.ECS;
-import Core.HitBoxSets;
-import Core.SpriteSets;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityFlags;
 import Core.Entities.EntityHitBoxes;
-import Game.Items.Inventories;
-import Game.Items.Items;
 
 public class UI_ComponentView extends UserInterface {
 

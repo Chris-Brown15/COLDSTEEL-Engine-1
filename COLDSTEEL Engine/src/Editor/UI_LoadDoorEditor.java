@@ -80,7 +80,7 @@ public class UI_LoadDoorEditor extends UserInterface {
 					Supplier<String> targetLevelGetter = DialogUtils.newFileExplorer("Select Level to Link To" , 5 , 270 , false , false);
 					TemporalExecutor.onTrue(() -> targetLevelGetter.get() != null ,	() -> {
 						
-						linkedLevel = new Levels((CharSequence)targetLevelGetter.get());
+						linkedLevel = new Levels(editor.scene , (CharSequence)targetLevelGetter.get());
 						currentLoadDoor.linkToLevel((String)toLocalDirectory(targetLevelGetter.get()));	
 							
 					});

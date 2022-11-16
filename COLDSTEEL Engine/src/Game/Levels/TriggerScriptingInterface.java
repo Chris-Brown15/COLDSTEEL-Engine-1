@@ -2,12 +2,10 @@ package Game.Levels;
 
 import static CS.Engine.INTERNAL_ENGINE_PYTHON;
 
-import java.util.function.Consumer;
-
 import org.python.core.PyCode;
 
-import AudioEngine.SoundEngine;
-import AudioEngine.Sounds;
+import Audio.SoundEngine;
+import Audio.Sounds;
 import CSUtil.DataStructures.cdNode;
 import Core.Direction;
 import Core.ECS;
@@ -27,13 +25,11 @@ import Game.Core.EntityHurtData;
 public class TriggerScriptingInterface {
 	
 	static final PyCode TRIGGER_SCRIPTING_FACADE = INTERNAL_ENGINE_PYTHON().compile("CS_triggerScriptingFunctions.py");
-	
-	Levels currentLevel;	
+		
 	Scene scene;
 	
-	public TriggerScriptingInterface(Scene scene , Levels currentLevel){
+	public TriggerScriptingInterface(Scene scene) {
 		
-		this.currentLevel = currentLevel;
 		this.scene = scene;
 		
 	}
@@ -115,12 +111,6 @@ public class TriggerScriptingInterface {
 		
 	}
 	
-	public void removeTrigger(Triggers T) {
-		
-		currentLevel.removeTrigger(T);
-		
-	}
-
 	public int numberEntities() {
 		
 		return scene.entities().size();
@@ -149,7 +139,5 @@ public class TriggerScriptingInterface {
 		return SoundEngine.add(filepath);
 		
 	}
-		
-	public Consumer<Levels> onLevelLoad = (newLevel) -> currentLevel = newLevel;
-		
+				
 }

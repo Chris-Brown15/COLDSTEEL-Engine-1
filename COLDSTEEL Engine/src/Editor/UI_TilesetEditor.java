@@ -1,11 +1,8 @@
 package Editor;
 
-import static CS.COLDSTEEL.assets;
-import static CS.COLDSTEEL.data;
 import static CSUtil.BigMixin.alloc1;
 import static CSUtil.BigMixin.put;
 import static CSUtil.BigMixin.toByte;
-import static CSUtil.BigMixin.toNamePath;
 import static CSUtil.BigMixin.toggle;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_LEFT;
@@ -30,15 +27,11 @@ import java.util.function.Supplier;
 
 import org.lwjgl.nuklear.NkImage;
 import org.lwjgl.nuklear.NkRect;
-import org.lwjgl.system.MemoryStack;
-
 import CS.UserInterface;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
-import Core.GameFiles;
-import Core.SpriteSets;
 import Core.TemporalExecutor;
 import Core.TileSets.TileSets;
 import Core.TileSets.Tiles;
@@ -211,7 +204,7 @@ public class UI_TilesetEditor extends UserInterface {
 						nk_layout_row_dynamic(context , 30 , 2);
 						if(nk_button_label(context , "Copy")) {
 							
-							Tiles deepCopy = iter.val.copy();
+							Tiles deepCopy = iter.val.copy(editor.scene);
 							currentTileSet.addSourceTile(deepCopy);
 							NkImage iterImageCopy = NkImage.malloc(ALLOCATOR).set(tileIcon);
 							tileIcons.add(iterImageCopy);
@@ -233,7 +226,7 @@ public class UI_TilesetEditor extends UserInterface {
 						
 						nk_layout_row_dynamic(context , 20 , 1);
 						
-						if(nk_checkbox_label(context , "Has Collider" , toByte(frame , tile.hasCollider()))) tile.toggleCollider();
+						if(nk_checkbox_label(context , "Has Collider" , toByte(frame , tile.hasCollider()))) tile.toggleCollider(editor.scene);
 						
 						if(tile.hasCollider()) {
 															

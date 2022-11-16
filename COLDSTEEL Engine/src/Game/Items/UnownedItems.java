@@ -4,6 +4,7 @@ import CSUtil.DataStructures.cdNode;
 import Core.AbstractGameObjectLists;
 import Core.CSType;
 import Core.Quads;
+import Core.Scene;
 
 /**
  * 
@@ -15,28 +16,22 @@ import Core.Quads;
  */
 public class UnownedItems extends AbstractGameObjectLists<Items> implements ItemOwner {
 
-	public UnownedItems(int order) {
+	public UnownedItems(Scene owningScene , int order) {
 
-		super(order , CSType.ITEM);
+		super(owningScene , order , CSType.ITEM);
 
-	}
-
-	public UnownedItems() {
-		
-		super(1 , CSType.ITEM);
-		
 	}
 	
 	public void newItem(String name) {
 		
-		Items newItem = new Items(name , list.size());
+		Items newItem = new Items(owningScene , name , list.size());
 		list.add(newItem);
 		
 	}
 	
 	public Items load(String namePath) {
 		
-		Items loaded = new Items(namePath);
+		Items loaded = new Items(owningScene , namePath);
 		list.add(loaded);
 		loaded.setID(list.size() - 1);
 		return loaded;

@@ -15,6 +15,7 @@ import Core.CSType;
 import Core.GameFiles;
 import Core.HitBoxSets;
 import Core.Quads;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.Entities.Entities;
 
@@ -60,25 +61,26 @@ public class Items extends Quads implements GameFiles<Items>{
 	//84 109 142
 		
 	private final int hashCode;
+	Scene owningScene;
 	
-	public Items(String name , int ID) {
+	public Items(Scene owningScene , String name , int ID) {
 		
-		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);	
+		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);
 		this.name = name;
 		hashCode = name.hashCode();
 		
 	}
 	
-	public Items(String name , int ID , ItemComponents...components) {
+	public Items(Scene owningScene , String name , int ID , ItemComponents...components) {
 		
-		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);		
+		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);
 		toggleComponents(components);
 		this.name = name;
 		hashCode = name.hashCode();
 		
 	}
 		
-	public Items(String namePath){
+	public Items(Scene owningScene , String namePath){
 		
 		super(CSUtil.BigMixin.getItemFloatArray() , -1 , CSType.ITEM);
 		load(namePath);

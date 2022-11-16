@@ -4,21 +4,15 @@ import static CS.COLDSTEEL.data;
 
 import java.io.IOException;
 import CS.Engine;
-import Core.Direction;
-import Core.ECS;
+import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
-import Core.Entities.EntityHitBoxes;
 import Core.Entities.EntityScripts;
-import Game.Items.Inventories;
-import Game.Items.ItemComponents;
 import Game.Player.CharacterCreator;
 import Game.Player.PlayerCharacter;
 import Game.Player.PlayerLoader;
 import Networking.NetworkClient;
 import Networking.UserHostedServer.UserHostedServer;
-import Physics.ColliderLists;
-import Physics.Kinematics;
 import Renderer.Renderer;
 
 /**
@@ -51,18 +45,26 @@ public class GameRuntime {
 	private PlayerCharacter player;
 	private UserHostedServer hostedServer;
 	private NetworkClient client;
-	private boolean renderDebug = false;
 	private boolean runEntitySystems = true;
+	private Scene gameScene;
 	
 	public GameRuntime() {}	
 	
-	public void initialize() {}
-	
-	public void startUserHostedServer(Engine engine) {
+	public void initialize(Engine engine , Renderer renderer) {
 		
-		hostedServer = new UserHostedServer(engine);
-		engine.mg_propogateNewClientAndServer();		
-		Engine.boundScene().entities().setServer(hostedServer);
+		this.gameScene = new Scene(renderer , engine);
+		
+	}
+	
+	public Scene gameScene() {
+		
+		return gameScene;
+		
+	}
+	
+	public void startUserHostedServer(Engine engine , Renderer renderer) {
+		
+		hostedServer = new UserHostedServer(engine , renderer);
 		runEntitySystems = false;
 		
 	}
@@ -87,19 +89,17 @@ public class GameRuntime {
 	
 	public void run(Engine engine) {
 		
-		if(renderDebug) renderDebug(engine);
 //		if(showPyUI) for(int i = 0 ; i < UIScriptingInterface.getPyUIs().size() ; i ++) UIScriptingInterface.getPyUIs().get(i).run();		
 		
 		switch(STATE) {
 		
 			case GAME_RUNTIME_SINGLEPLAYER -> {
 				
-				
-				if(runEntitySystems) Engine.boundScene().entities().entitySystems(() -> {				
+				if(runEntitySystems) gameScene.entities().entitySystems(() -> {				
 			        
 				} , () -> {
 				
-					Kinematics.process();
+					gameScene.kinematics().process();
 					TemporalExecutor.process();
 				
 				} , () -> {
@@ -114,11 +114,12 @@ public class GameRuntime {
 			
 			case GAME_RUNTIME_MULTIPLAYER -> {
 				
-				if(runEntitySystems) Engine.boundScene().entities().entitySystems(() -> {				
+				//only called on clients, where there will aways be exactly one scene which will always be bound
+				if(runEntitySystems) gameScene.entities().entitySystems(() -> {				
 			        
 				} , () -> {
 				
-					Kinematics.process();
+					gameScene.kinematics().process();
 					TemporalExecutor.process();
 				
 				} , () -> {
@@ -181,7 +182,13 @@ public class GameRuntime {
 			case NEW_SINGLEPLAYER -> {
 				
 				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(true);
+				mainMenu.hideAll();
+				if(creator == null) { 
+					
+					creator = new CharacterCreator(gameScene , true);
+										
+				}
+				
 				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
 				if(createdPlayer != null) {
 					
@@ -192,12 +199,13 @@ public class GameRuntime {
 					TemporalExecutor.onElapseOf(1000d , () -> {
 						
 						player = createdPlayer;
-						Engine.boundScene().entities().addStraightIn(player.playersEntity());
+						
 						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
+						gameScene.entities().addStraightIn(player.playersEntity());
 						player.write(engine.currentLevel());
-						Engine.boundScene().entities().addStraightIn(player.playersEntity());
 						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
 						setState(GameState.GAME_RUNTIME_SINGLEPLAYER);
+						creator.hideElements();
 						engine.fadeIn(250d);
 						
 					});
@@ -209,7 +217,7 @@ public class GameRuntime {
 			case NEW_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(false);				
+				if(creator == null) creator = new CharacterCreator(gameScene , false);				
 				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
 				if(createdPlayer != null) {
 
@@ -221,7 +229,7 @@ public class GameRuntime {
 
 						player = createdPlayer;
 						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());						
-						Engine.boundScene().entities().addStraightIn(player.playersEntity());
+						gameScene.entities().addStraightIn(player.playersEntity());
 						player.write(engine.currentLevel());
 						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
 						engine.fadeIn(250d);
@@ -230,8 +238,8 @@ public class GameRuntime {
 						//multiplayer here
 						try {
 						
-							client = new NetworkClient(Engine.boundScene() , engine.currentLevel());							
-							engine.mg_propogateNewClientAndServer();
+							client = new NetworkClient(gameScene , engine.currentLevel());
+							clientSideUpdateMultiplayerVariables();
 							engine.fadeIn(1000);
 							
 						} catch (IOException e) {
@@ -258,8 +266,8 @@ public class GameRuntime {
 				//multiplayer here
 				try {
 				
-					client = new NetworkClient(Engine.boundScene() , engine.currentLevel());
-					engine.mg_propogateNewClientAndServer();
+					client = new NetworkClient(gameScene , engine.currentLevel());
+					clientSideUpdateMultiplayerVariables();
 					((EntityScripts)player.playersEntity().components()[Entities.SOFF]).recompile();
 					
 				} catch (IOException e) {
@@ -277,61 +285,10 @@ public class GameRuntime {
 			
 	}
 	
-	public void renderDebug(boolean render) {
+	private void clientSideUpdateMultiplayerVariables() {
 		
-		renderDebug = render;
-		
-	}
-
-	public boolean renderDebug() {
-		
-		return renderDebug;
-		
-	}
-	
-	/**
-	 * Renders colliders, load doors, and entity and item collision bounds and hitboxes 
-	 * 
-	 */
-	private void renderDebug(Engine engine) {
-
-		ColliderLists.getComposite().forEachVal(Renderer::draw_foreground);
-		Engine.boundScene().entities().forEach(entity -> {
-			
-			Object[] comps = entity.components();
-			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
-			if(entity.has(ECS.HITBOXES)) {
-				
-				EntityHitBoxes entityHitBoxes = (EntityHitBoxes) comps[Entities.HOFF];
-				float[][] boxes = entityHitBoxes.getActiveHitBoxes(entity, (Direction)comps[Entities.DOFF]);
-				if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
-				
-			}
-			
-			if(entity.has(ECS.INVENTORY)) {
-				
-				((Inventories)comps[Entities.IOFF]).getEquipped().forEach(item -> {
-					
-					if(item.has(ItemComponents.HITBOXABLE)) {
-						
-						float[][] boxes = item.componentData().getActiveHitBoxes();
-						for(float[] x : boxes) Renderer.draw_foreground(x);
-						
-					}
-					
-				});
-				
-			}
-			
-			engine.currentLevel().forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
-			engine.currentLevel().forEachTrigger(trigger -> {
-				
-				trigger.forEachConditionArea(Renderer::draw_foreground);
-				trigger.forEachEffectArea(Renderer::draw_foreground);
-				
-			});
-			
-		});
+		gameScene.entityScriptingInterface().setNetworkingVariables(client(), server());
+		gameScene.entities().setNetworkInstance(server());
 		
 	}
 	
@@ -349,6 +306,7 @@ public class GameRuntime {
 		if(client != null) client.shutDown();
 		if(hostedServer != null) hostedServer.shutDown();
 		mainMenu.shutDown();
+		gameScene.entityScriptingInterface().shutDown();
 		
 	}
 	

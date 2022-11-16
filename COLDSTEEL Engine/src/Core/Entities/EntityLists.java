@@ -1,12 +1,16 @@
 package Core.Entities;
 
-import static Renderer.Renderer.loadTexture;
+import static CSUtil.BigMixin.getArrayMidpoint;
 import static CSUtil.BigMixin.getCoordinateRectangleArea;
 import static CSUtil.BigMixin.getLowerTriangleArea;
 import static CSUtil.BigMixin.getTriangleArea;
 import static CSUtil.BigMixin.getTrianglePointArea;
-import static CSUtil.BigMixin.getArrayMidpoint;
 import static CSUtil.BigMixin.toggle;
+
+import java.util.ArrayList;
+import java.util.function.Supplier;
+
+import org.joml.Math;
 
 import CS.Controls;
 import CS.Engine;
@@ -16,65 +20,256 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
-import Core.Executor;
-import Core.Quads;
-import Core.SpriteSets;
-import Core.TemporalExecutor;
-import Core.ECS;
 import Core.AbstractGameObjectLists;
 import Core.CSType;
 import Core.Direction;
+import Core.ECS;
+import Core.Executor;
+import Core.Quads;
+import Core.Scene;
+import Core.SpriteSets;
+import Core.TemporalExecutor;
 import Game.Items.Inventories;
 import Game.Items.Items;
 import Game.Items.UnownedItems;
-
-import java.util.ArrayList;
-import java.util.function.Supplier;
-
-import org.joml.Math;
-import org.joml.Vector3f;
-
-import Physics.ColliderLists;
-import Physics.Colliders;
-import Renderer.Camera;
-import Renderer.Renderer;
 import Game.Projectiles.ProjectileIndices;
 import Game.Projectiles.Projectiles;
 import Networking.NetworkedEntities;
-import Networking.UserHostedServer.UserHostedServer;
+import Networking.NetworkedInstance;
+import Physics.Colliders;
+import Renderer.Camera;
 
-public class EntityLists extends AbstractGameObjectLists<Entities>{
+public class EntityLists extends AbstractGameObjectLists<Entities> {
 
 	private static boolean playAnimations = true;
 	
-	private int numberTicks = 0;
-	private int framesLastSecond = 0;
-	private int ticksLastSecond = 0;	
-	private int currentFrame = 0;
+	public static final void toggleHorizontalControl(Entities E) {
+		
+		Object[] comps = E.components();
+		if(E.has(ECS.HORIZONTAL_PLAYER_CONTROLLER)) comps[Entities.HCOFF + 1] = (int)comps[Entities.HCOFF + 1] == 1 ? 0:1;
+		
+	}
 
-	private float framesPerTick;
-	private int targetTicks = 60;
-	private float frameStep;
-	private Timer stepTimer = new Timer();
+	public static final void toggleVerticalControl(Entities E) {
+
+		Object[] comps = E.components();
+		if(E.has(ECS.VERTICAL_PLAYER_CONTROLLER)) comps[Entities.VCOFF + 4] = (int) comps[Entities.VCOFF + 4] == 1 ? 0:1;
+		
+	}
+	
+	public static final void setHorizontalControl(Entities E , boolean state) {
+		
+		E.components()[Entities.HCOFF + 1] = state;
+	
+	}
+	
+	public static final void setVerticalControl(Entities E , boolean state) {
+		
+		E.components()[Entities.VCOFF + 4] = state;
+		
+	}
+	
+	public static boolean getPlayAnimations() {
+		
+		return playAnimations;
+		
+	}
+
+	/**
+	 * 
+	 * @param E
+	 * @param dir
+	 * @param index
+	 */
+	public static final void animate(Entities E , Direction dir , int index) {
+		
+		if(E.type == CSType.ENTITY) E.animate(index ,  dir);
+		else if (E.type == CSType.PROJECTILE) ((Projectiles)E).animate(dir);
+		
+	}
+	
+	public static final SpriteSets getActiveAnim(Entities E) {
+		
+		if(E.has(ECS.ANIMATIONS)) return ((EntityAnimations)E.components()[Entities.AOFF]).active();		
+		return null;
+		
+	}
+	
+	public static final int activeAnim(Entities E) {
+		
+		if(E.has(ECS.ANIMATIONS)) return ((EntityAnimations)E.components()[Entities.AOFF]).activeIndex();
+		else return -1;
+		
+	}
+	
+	public static final void setActiveAnim(Entities E , int index) {
+		
+		((EntityAnimations)E.components()[Entities.AOFF]).activate(index);
+		
+	}
+	
+	/**
+	 * Returns a direction representing what target is with respect to caller. If target is to the left of caller, left is retured, else
+	 * right is returned.
+	 * 
+	 * @param caller — the entity to orient the check around
+	 * @param target — an entity who is either right or left of caller
+	 * @return — a direction enum, left or right
+	 */
+	public static Direction horizontally(Entities caller , Entities target) {
+		
+		float[] callerMid = caller.getMidpoint();
+		float[] targetMid = target.getMidpoint();
+		if(callerMid[0] > targetMid[0]) return Direction.LEFT;
+		else if (callerMid[0] < targetMid[0]) return Direction.RIGHT;		
+		return null;
+		
+	}
+	
+	/**
+	 * 
+	 * Returns a direction representing what target is with respect to caller. If target is below caller, down is returned, else up is returned.
+	 * 
+	 * @param caller — the entity to orient the check around
+	 * @param target — an entity who is either above or below of caller
+	 * @return — a direction enum, up or down
+	 */
+	public static Direction vertically(Entities caller , Entities target) {
+		
+		if(caller.getMidpoint()[1] > target.getMidpoint()[1]) return Direction.DOWN;
+		else return Direction.UP;
+		
+	}
+	
+	public static final void toggleAutoOrient(Entities E) {
+		
+		if(E.has(ECS.DIRECTION)) {
+			
+			Object[] comps = E.components();
+			comps[Entities.DOFF + 2] = toggle((boolean)comps[Entities.DOFF + 2]);
+			
+		}
+		
+	}
+	
+	public static final void setAutoOrient(Entities E , boolean state) {
+		
+		if(E.has(ECS.DIRECTION)) E.components()[Entities.DOFF + 2] = state;	
+		
+	}	
+
+	public static void toggleAnimations() {
+		
+		playAnimations = playAnimations ? false:true;
+		
+	}
+	
+	public static void toggleComponent(Entities E , ECS component) {
+		
+		if(E.has(component)) E.removeComponents(component);
+		else E.addComponents(component);
+			
+	}	
+
+	public static final void activateHitBox(Entities E , int index) {
+		
+		if(E.has(ECS.HITBOXES)) ((EntityHitBoxes)E.components()[ECS.HITBOXES.offset]).activate(index);
+		
+	}
+
+	public static void updateHitBoxes(Entities E) {
+		
+		if(E.has(ECS.HITBOXES))((EntityHitBoxes)E.components()[Entities.HOFF]).setupActive(E , (Direction)E.components()[Entities.DOFF]);
+		
+	}
+	
+	public static void overrideEntityAnimation(Entities E , int animIndex , int frameIndex , Direction animDirection) {
+		
+		if(E.has(ECS.ANIMATIONS)) {
+			
+			((SpriteSets[]) E.components()[ECS.ANIMATIONS.offset])[animIndex].setCurrentSprite(frameIndex);
+			E.animate(animIndex , animDirection);
+			
+		}
+		
+	}
+
+	public static Entities getEnclosedEntity(EntityScanResult result) {
+		
+		return result.result;
+		
+	}
+		
+	// NON STATIC
+	Thread owningThread = Thread.currentThread();
 	
 	private boolean runSystems = true;
 	private final Camera camera;
-	private UserHostedServer server;
+	private NetworkedInstance networkInstance;
+	
+	public EntityLists(Scene owner , int renderOrder , Camera camera) {
 		
-	public EntityLists(int renderOrder , Camera camera) {
-		
-		super(renderOrder , CSType.ENTITY);
+		super(owner , renderOrder , CSType.ENTITY);
 		this.camera = camera;
 		stepTimer.start();		
 		
 	}
 	
-	public void setServer(UserHostedServer server) {
+	private <R> R locked(Supplier<R> callback) {
 		
-		this.server = server;
+//		try {
+//			
+//			throw new Exception();
+//			
+//		} catch(Exception e) {
+//
+//			System.err.println("FROM THREAD: " + Thread.currentThread().getName());
+//			for(int i = 0 , j = 1 ; i < e.getStackTrace().length - 2 ; j ++ , i ++) {
+//				
+//				System.err.println(e.getStackTrace()[j]);
+//				
+//			}
+//			
+//			System.err.println("\n");
+//			
+//		}
+		
+		if(Thread.currentThread() != owningThread) throw new IllegalStateException("FUNCTION CALLED FROM OUTSIDE THREAD");
+		R ret = callback.get();
+		return ret;
 		
 	}
 	
+	private void locked(Executor callback) {
+
+//		try {
+//			
+//			throw new Exception();
+//			
+//		} catch(Exception e) {
+//			
+//			System.err.println("FROM THREAD: " + Thread.currentThread().getName());
+//			for(int i = 0 , j = 1 ; i < e.getStackTrace().length - 2 ; j ++ , i ++) {
+//				
+//				System.err.println(e.getStackTrace()[j]);
+//				
+//			}
+//			
+//			System.err.println("\n");
+//			
+//		}
+		
+		if(Thread.currentThread() != owningThread) throw new IllegalStateException("FUNCTION CALLED FROM OUTSIDE THREAD");
+		callback.execute();
+				
+	}
+	
+	public void setNetworkInstance(NetworkedInstance network) {
+		
+		this.networkInstance = network;
+		
+	}
+		
 	public void newEntity() {
 		
 		Supplier<String> name = DialogUtils.newInputBox("Input Entity Name" , 5 , 270);
@@ -83,85 +278,117 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	}
 	
 	public Entities newEntity(String name) {
-		
-		Entities newEntity = new Entities(name , list.size());
-		list.add(newEntity);
-		return newEntity;
+				
+		return locked(() -> {
+
+			Entities newEntity = new Entities(name , list.size());
+			list.add(newEntity);
+			return newEntity;
+			
+		});
 		
 	}
 		
 	public void addStraightIn(Entities E) {
 		
-		list.add(E);
+		locked(() -> {
+			
+			list.add(E);
+			
+		});		
 		
 	}
 	
 	public void removeStraight(Entities E) {
 		
-		cdNode<Entities> iter = list.get(0);
-		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) if(iter.val.equals(E)) {
-		
-			list.safeRemove(iter);
-			return;
+		locked(() -> {
+
+			cdNode<Entities> iter = list.get(0);
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) if(iter.val.equals(E)) {
 			
-		}
+				list.safeRemove(iter);
+				return;
+				
+			}
+			
+		});
 		
 	}
 	
 	public void add(Entities E) {
 		
-		E.setID(list.size());
-		list.add(E);
+		locked(() -> {
+
+			E.setID(list.size());
+			list.add(E);
+			
+		});
 		
 	}
 	
 	public void remove(int removeThis) {
 		
-		if(removeThis > -1 && removeThis < list.size()) {
-			
-			Entities removed = list.removeVal(removeThis);
-			Object[] comps = removed.components();
-			
-			if(removed.has(ECS.SCRIPT)) {
+		locked(() -> {
+
+			if(removeThis > -1 && removeThis < list.size()) {
 				
-				EntityScripts script = (EntityScripts) comps[Entities.SOFF];
-				script.call("shutDown()");
+				Entities removed = list.removeVal(removeThis);
+				Object[] comps = removed.components();
 				
+				if(removed.has(ECS.SCRIPT)) {
+					
+					EntityScripts script = (EntityScripts) comps[Entities.SOFF];
+					script.call("shutDown()");
+					
+				}
+				
+				for(int i = removeThis ; i < list.size() ; i++) list.removeVal(i).decrementID();
+							
 			}
 			
-			for(int i = removeThis ; i < list.size() ; i++) list.removeVal(i).decrementID();
-						
-		}
+		});
 		
 	}
 		
 	public void remove(Entities removeThis) {
 		
-		if(list.has(removeThis)) {
+		locked(() -> {
+
+			if(list.has(removeThis)) {
+				
+				list.removeVal(removeThis);
+				Object[] comps = removeThis.components();
+				
+				if(removeThis.has(ECS.SCRIPT)) ((EntityScripts) comps[Entities.SOFF]).call("shutDown()");			
+				for(int i = removeThis.getID() ; i < list.size() ; i++) list.getVal(i).decrementID();
+				
+			}
 			
-			list.removeVal(removeThis);
-			Object[] comps = removeThis.components();
-			
-			if(removeThis.has(ECS.SCRIPT)) ((EntityScripts) comps[Entities.SOFF]).call("shutDown()");			
-			for(int i = removeThis.getID() ; i < list.size() ; i++) list.getVal(i).decrementID();
-			
-		}
+		});
 		
 	}
 
 	public void delete(Entities E) {
 		
-		list.removeVal(E);
-		E.delete();
+		locked(() -> {
+
+			list.removeVal(E);
+			E.delete();
+			
+		});
 		
 	}
 	
 	public Entities loadEntity(String namePath) {
 		
-		Entities loaded = new Entities(namePath);
-		loaded.setID(list.size());
-		list.add(loaded);		
-		return loaded;
+		return locked(() -> {
+			
+			Entities loaded = new Entities(owningScene , namePath);
+			loaded.setID(list.size());
+			list.add(loaded);
+			return loaded;
+			
+		});
 		
 	}
 	
@@ -191,121 +418,30 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	public void removeAllEntities() {
 		
-		if(list.size() > 0) {
+		locked(() -> {
+
+			if(list.size() > 0) {
+				
+				remove(0);
+				removeAllEntities();			
+				
+			}
 			
-			remove(0);
-			removeAllEntities();			
-			
-		}
+		});
 		
 	}
 	
 	public Quads selectEntity(float cursorX , float cursorY) {
-				
-		for(int i = list.size() -1 ; i >= 0 ; i--) if(list.getVal(i).selectEntity(cursorX , cursorY) != -1) return list.getVal(i);		
-		return null;
 		
-	}
-
-	public void translate(int index , float xSpeed , float ySpeed) {
-		
-		list.getVal(index).translate(xSpeed, ySpeed);
-		
-	}
-
-	public int size() {
-		
-		return list.size();
-		
-	}
-
-	public void textureEntity(int index , String filePath) {
-		
-		loadTexture(list.getVal(index).getTexture() , filePath);
-		
-	}
-	
-	public void textureEntity(Entities E , String filepath) {
-		
-		loadTexture(E.getTexture() ,  filepath);
-		
-	}
-	
-	public void removeTexture(int index) {
-		
-		list.getVal(index).setTexture(null);	
-		
-	}
-	
-	public void filterColor(int index , Vector3f color) {
-		
-		list.getVal(index).setFilter(color.x, color.y, color.z);
-		
-	}
-	
-	public void removeColor(int index , Vector3f color) {
-		
-		list.getVal(index).removeColor(color);
-		
-	}
-	
-	public boolean has(Entities E) {
-		
-		return list.has(E);
-		
-	}
-
-	public void toggleAnimations() {
-		
-		playAnimations = playAnimations ? false:true;
-		
-	}
-	
-	public void toggleComponent(Entities E , ECS component) {
-		
-		if(E.has(component)) E.removeComponents(component);
-		else E.addComponents(component);
+		return locked(() -> {
 			
-	}
-		
-	public void modWidth(int index , float mod) {
-		
-		list.getVal(index).modWidthBi(mod);
-		
-	}
-	
-	public void modActiveHeight(int index , float mod) {
-		
-		list.getVal(index).modHeightUp(mod);
-		
-	}
-	
-	public static final void toggleHorizontalControl(Entities E) {
-		
-		Object[] comps = E.components();
-		if(E.has(ECS.HORIZONTAL_PLAYER_CONTROLLER)) comps[Entities.HCOFF + 1] = (int)comps[Entities.HCOFF + 1] == 1 ? 0:1;
+			for(int i = list.size() -1 ; i >= 0 ; i--) if(list.getVal(i).selectEntity(cursorX , cursorY) != -1) return list.getVal(i);		
+			return null;
+			
+		});
 		
 	}
 
-	public static final void toggleVerticalControl(Entities E) {
-
-		Object[] comps = E.components();
-		if(E.has(ECS.VERTICAL_PLAYER_CONTROLLER)) comps[Entities.VCOFF + 4] = (int) comps[Entities.VCOFF + 4] == 1 ? 0:1;
-		
-	}
-	
-	public static final void setHorizontalControl(Entities E , boolean state) {
-		
-		E.components()[Entities.HCOFF + 1] = state;
-	
-	}
-	
-	public static final void setVerticalControl(Entities E , boolean state) {
-		
-		E.components()[Entities.VCOFF + 4] = state;
-		
-	}
-	
 	/**
 	 * Moves E left or right speed, checking for collisions along the way. This scans for triangle collisions and box collisions in one go.
 	 * 
@@ -313,7 +449,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 * @param speed — amount to move 
 	 * @return true if E collided
 	 */
-	public static final boolean moveHorizChecked(Entities E , float speed) {
+	public boolean moveHorizChecked(Entities E , float speed) {
 	
 		if (speed == 0) return false;
 
@@ -373,8 +509,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			ArrayList<Colliders> validTriangles = new ArrayList<Colliders>();
 			float[] xData;
 			
-			//checks for and removes invalid colliders
-			CSLinked<Colliders> allColliders = ColliderLists.getComposite();
+			//checks for and removes invalid colliders	
+			CSLinked<Colliders> allColliders = owningScene.colliders().getList();
 			
 			cdNode<Colliders> iter = allColliders.get(0);
 			Colliders x;
@@ -671,7 +807,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 * @param speed — amount of units to move E
 	 * @return true if the object collided, false otherwise
 	 */
-	public static final boolean moveVertChecked(Entities E , float speed) {
+	public boolean moveVertChecked(Entities E , float speed) {
 		
 		if(speed == 0) return false;
 		
@@ -725,9 +861,10 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			float[] xData;
 			ArrayList<Colliders> validBoxes = new ArrayList<Colliders>();
 			ArrayList<Colliders> validTriangles = new ArrayList<Colliders>();			
-			
+
 			//checks for and removes invalid colliders
-			CSLinked<Colliders> allColliders = ColliderLists.getComposite();
+			CSLinked<Colliders> allColliders = owningScene.colliders().getList();
+			
 			cdNode<Colliders> iter = allColliders.get(0);
 			Colliders x;
 			for(int i = 0 ; i < allColliders.size() ; i ++ , iter = iter.next) {
@@ -1032,7 +1169,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 * @param speed — amount to move 
 	 * @return true if E collided
 	 */
-	public static final boolean moveHorizChecked(Quads Q , float speed) {
+	public boolean moveHorizChecked(Items I , float speed) {
 	
 		if(speed == 0) return false;
 		
@@ -1050,8 +1187,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		BY = QuadIndices.BY,
 		TY = QuadIndices.TY;
 		
-		float[] targetData = Q.getData();
-		float[] startingMid = Q.getMidpoint();
+		float[] targetData = I.getData();
+		float[] startingMid = I.getMidpoint();
 	
 		float scanningDistance = 10000f;
 		Direction moveDirection = speed > 0f ? Direction.RIGHT : Direction.LEFT;
@@ -1059,9 +1196,9 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		ArrayList<Colliders> validBoxes = new ArrayList<Colliders>();
 		ArrayList<Colliders> validTriangles = new ArrayList<Colliders>();
 		float[] xData;
-		
+
 		//checks for and removes invalid colliders
-		CSLinked<Colliders> allColliders = ColliderLists.getComposite();
+		CSLinked<Colliders> allColliders = owningScene.colliders().getList();
 		
 		cdNode<Colliders> iter = allColliders.get(0);
 		Colliders x;
@@ -1110,7 +1247,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 //		System.out.println("Number valid triangles: " + validTriangles.size());
 		
-		Q.translate(speed, 0f);
+		I.translate(speed, 0f);
 		
 		
 		for(Colliders b : validBoxes) {
@@ -1147,13 +1284,13 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				
 				if(moveDirection == Direction.RIGHT) {
 					
-					Q.translate(distance , 0f);
+					I.translate(distance , 0f);
 					didCollide = true;
 					continue;
 					
 				} else {					
 
-					Q.translate(-distance, 0f);
+					I.translate(-distance, 0f);
 					didCollide = true;
 					continue;
 					
@@ -1162,8 +1299,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			} else {
 
 				//if this collider moved passed a collider entirely, move it back to its appropriate position.
-				if(moveDirection == Direction.RIGHT) if(xData[0] < targetData[BRX]) Q.translate(-distance, 0f);
-				else if(moveDirection == Direction.LEFT) if(xData[0] > targetData[BLX]) Q.translate(distance, 0f);
+				if(moveDirection == Direction.RIGHT) if(xData[0] < targetData[BRX]) I.translate(-distance, 0f);
+				else if(moveDirection == Direction.LEFT) if(xData[0] > targetData[BLX]) I.translate(distance, 0f);
 									
 			}
 									
@@ -1199,19 +1336,19 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			   			
 			   			float yValue = (slope * targetData[BLX]) + intercept;
 			   			distance = yValue - targetData[BLY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			didCollide = true;
 			   			
 			   		} else if (xData[27] >= targetData[BRX]) {//if E moved passed this
 			   			
 			   			distance = xData[10] - targetData[BRY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			didCollide = true;
 			   			
 			   		} else if (xData[0] > targetData[BLX] && xData[1] > targetData[BRY]) {//if E collides with the point
 						
 						distance = targetData[BLX] - xData[0]; 
-						Q.translate(distance, 0f);
+						I.translate(distance, 0f);
 						didCollide = true;
 						
 					}
@@ -1239,19 +1376,19 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    		
 			    		float yValue = (slope * targetData[TLX]) + intercept;
 			    		distance = targetData[TLY] - yValue;
-			    		Q.translate(0f, -distance);
+			    		I.translate(0f, -distance);
 			    		didCollide = true;
 			    		
 			    	} else if (xData[27] >= targetData[BRX]) {//if E moved past this
 			    		
 			    		distance = targetData[TRY] - xData[28];
-			    		Q.translate(0f, -distance);
+			    		I.translate(0f, -distance);
 			    		didCollide = true;
 			    		
 			    	} else if (xData[18] > targetData[BLX] && targetData[TLY] > xData[19] && xData[19] > targetData[BLY]) {//if E is touching point
 			    		
 			    		distance = xData[18] - targetData[BLX];
-			    		Q.translate(-distance, 0f);
+			    		I.translate(-distance, 0f);
 			    		didCollide = true;
 			    		
 			    	}
@@ -1283,19 +1420,19 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 						float yValue = (slope * targetData[BRX]) + intercept;
 						distance = yValue - targetData[BRY];
 						
-						Q.translate(0f, distance);
+						I.translate(0f, distance);
 						didCollide = true;
 						
 					} else if (xData[28] > targetData[BRY] && targetData[BRX] > xData[27]) {//colliding with point
 						
 						distance = targetData[BRX] - xData[27];
-						Q.translate(distance, 0f);
+						I.translate(distance, 0f);
 						didCollide = true;
 						
 					} else if (targetData[BLX] > xData[0]) {
 						
 						distance = xData[19] - targetData[BLY];
-						Q.translate(0f, distance);
+						I.translate(0f, distance);
 						didCollide = true;
 						
 					}
@@ -1321,19 +1458,19 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    		
 			    		float yValue = (targetData[TRX] * slope) + intercept;
 			    		distance = targetData[TRY] - yValue;
-			    		Q.translate(0f, -distance);
+			    		I.translate(0f, -distance);
 			    		didCollide = true;
 			    		
 			    	} else if (targetData[BLX] > xData[0]) {//moved past it
 			    		
 			    		distance = targetData[BRX] - xData[9];
-			    		Q.translate(-distance, 0f);
+			    		I.translate(-distance, 0f);
 			    		didCollide = true;
 			    						    		
 			    	} else if (targetData[TLY] >= xData[10] && targetData[BRX] > xData[9]) {//touching its point
 						
 						distance = targetData[BRX] - xData[9];
-						Q.translate(distance, 0f);
+						I.translate(distance, 0f);
 						didCollide = true;
 						
 					}						
@@ -1359,7 +1496,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 * @param speed — amount of units to move E
 	 * @return true if the object collided, false otherwise
 	 */
-	public static final boolean moveVertChecked(Quads Q , float speed) {
+	public boolean moveVertChecked(Items I , float speed) {
 		
 		if(speed == 0) return false;
 		
@@ -1375,8 +1512,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		BRX = QuadIndices.BRX,
 		BRY = QuadIndices.BRY;
 		
-		float[] targetData = Q.getData();
-		float[] startingMid = Q.getMidpoint();
+		float[] targetData = I.getData();
+		float[] startingMid = I.getMidpoint();
 		
 		float scanningDistance = 10000f;
 		Direction moveDirection = speed > 0f ? Direction.UP : Direction.DOWN;
@@ -1384,9 +1521,10 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		float[] xData;
 		ArrayList<Colliders> validBoxes = new ArrayList<Colliders>();
 		ArrayList<Colliders> validTriangles = new ArrayList<Colliders>();			
-		
+
 		//checks for and removes invalid colliders
-		CSLinked<Colliders> allColliders = ColliderLists.getComposite();
+		CSLinked<Colliders> allColliders = owningScene.colliders().getList();
+		
 		cdNode<Colliders> iter = allColliders.get(0);
 		Colliders x;
 		for(int i = 0 ; i < allColliders.size() ; i ++ , iter = iter.next) {
@@ -1442,7 +1580,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		    			
 		}
 		
-		Q.translate(0f, speed);
+		I.translate(0f, speed);
 		
 		for(Colliders b : validBoxes) {
 			
@@ -1471,12 +1609,12 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				
 				if(moveDirection == Direction.UP) {
 					
-					Q.translate(0f, distance);
+					I.translate(0f, distance);
 					break;
 					
 				} else {
 					
-					Q.translate(0f, -distance);
+					I.translate(0f, -distance);
 					break;
 					
 				}					
@@ -1487,7 +1625,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 					if(targetData[BRY] > xData[1]) {
 						
-						Q.translate(0f, -distance);
+						I.translate(0f, -distance);
 						didCollide = true;
 						continue;
 						
@@ -1497,7 +1635,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 					if(xData[19] > targetData[TRY]) {
 						
-						Q.translate(0f, distance);
+						I.translate(0f, distance);
 						didCollide = true;
 						continue;
 						
@@ -1549,12 +1687,12 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    		//then move back the distance of top right y and distance
 			    		float yValue = (targetData[TRX] * triHypSlope) + intercept; 
 			    		distance = targetData[TRY] - yValue;
-			    		Q.translate(0f, -distance);				    		
+			    		I.translate(0f, -distance);				    		
 			    		
 			    	} else if (targetData[TLY] > xData[1] && targetData[BRX] >= xData[0]) {				    		
 			    		
 			    		distance = targetData[TRY] - xData[1];
-			    		Q.translate(0f, -distance);
+			    		I.translate(0f, -distance);
 			    		didCollide = true;				    		
 			    		
 			    	} else if(targetData[TRY] > xData[19]) {
@@ -1564,7 +1702,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			    		float intercept = xData[10] - (triHypSlope * xData[9]);
 			    		float yValue = (targetData[TRX] * triHypSlope) + intercept; 
 			    		distance = targetData[TRY] - yValue;
-			    		Q.translate(0f, -distance);		
+			    		I.translate(0f, -distance);		
 			    		
 			    	}
 			    					    	
@@ -1585,13 +1723,13 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 				    	float intercept = xData[28] - (triHypSlope * xData[27]);
 				    	float yValue = (targetData[TLX] * triHypSlope) + intercept;
 				    	distance = targetData[TLY] - yValue;
-				    	Q.translate(0f, -distance);
+				    	I.translate(0f, -distance);
 				    	didCollide = true;
 				    						    	
 			    	} else if (xData[27] >= targetData[TLX] && targetData[TLY] > xData[28]) {
 			    		
 			    		distance = targetData[TLY] - xData[28];
-			    		Q.translate(0f, -distance);
+			    		I.translate(0f, -distance);
 			    		didCollide = true;
 			    		
 			    	}
@@ -1622,12 +1760,12 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			   			float intercept = xData[28] - (hypSlope * xData[27]);				   			
 			   			float yValue = (targetData[BRX] * hypSlope) + intercept;
 			   			distance = yValue - targetData[BRY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			
 			   		} else if (targetData[BRX] > xData[0] && xData[19] > targetData[BRY]) {
 			   			
 			   			distance = xData[19] - targetData[BRY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			didCollide = true;
 			   			
 			   		}
@@ -1652,12 +1790,12 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 			   			float intercept = xData[1] - (hypSlope * xData[0]);				   			
 			   			float yValue = (targetData[BLX] * hypSlope) + intercept;
 			   			distance = yValue - targetData[BLY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			
 			   		} else if (xData[9] >= targetData[BLX] && xData[10] > targetData[BLY]) {
 			   			
 			   			distance = xData[10] - targetData[BLY];
-			   			Q.translate(0f, distance);
+			   			I.translate(0f, distance);
 			   			didCollide = true;
 			   			
 			   		}
@@ -1672,50 +1810,21 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
-	public static boolean getPlayAnimations() {
+	public boolean has(Entities E) {
 		
-		return playAnimations;
-		
-	}
-
-	/**
-	 * 
-	 * @param E
-	 * @param dir
-	 * @param index
-	 */
-	public static final void animate(Entities E , Direction dir , int index) {
-		
-		if(E.type == CSType.ENTITY) E.animate(index ,  dir);
-		else if (E.type == CSType.PROJECTILE) ((Projectiles)E).animate(dir);
-		
-	}
-	
-	public static final SpriteSets getActiveAnim(Entities E) {
-		
-		if(E.has(ECS.ANIMATIONS)) return ((EntityAnimations)E.components()[Entities.AOFF]).active();		
-		return null;
-		
-	}
-	
-	public static final int activeAnim(Entities E) {
-		
-		if(E.has(ECS.ANIMATIONS)) return ((EntityAnimations)E.components()[Entities.AOFF]).activeIndex();
-		else return -1;
-		
-	}
-	
-	public static final void setActiveAnim(Entities E , int index) {
-		
-		((EntityAnimations)E.components()[Entities.AOFF]).activate(index);
+		return locked(() -> list.has(E));
 		
 	}
 	
 	public Entities getEntityByLID(int LID) {
 		
-		cdNode<Entities> iter = list.get(0);
-		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) if(iter.val.LID() == LID) return iter.val;
-		return null;
+		return locked(() -> {
+
+			cdNode<Entities> iter = list.get(0);
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) if(iter.val.LID() == LID) return iter.val;
+			return null;
+			
+		});
 		
 	}
 		
@@ -1729,87 +1838,20 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 		if(!E.has(ECS.COLLISION_DETECTION)) return null;
 		Object[] comps = E.components();
-		float[] EData = comps[Entities.CDOFF] != null ? (float[]) comps[Entities.CDOFF] : E.getData();
-		float[] xData;
-		float distance = Float.MAX_VALUE;
-		float currentDistance = Float.MAX_VALUE;
+		
+		CSLinked<Colliders> allColliders = owningScene.colliders().getList();
 
-		CSLinked<Colliders> allColliders = ColliderLists.getComposite();
-		cdNode<Colliders> iter = allColliders.get(0);
-		Colliders closest = null;
-		Colliders x;
-
-		for(int i = 0 ; i < allColliders.size() ; i ++ , iter = iter.next) {//eliminate noncandidates, then calculate distance		
-			
-			x = iter.val;
-			xData = x.getData();				
-
-			if (x.isLowerLeftTriangle()) continue;				
-			else if (x.isLowerRightTriangle()) continue;
-			
-			//if the object is left or right of the subject, ignore it
-			if(!x.isTriangle() || x.isUpperLeftTriangle() || x.isUpperRightTriangle()) 
-				if(EData[27] >= xData[0] || xData[27] >= EData[0]) continue;
-			
-			if(xData[28] >= EData[19]) continue;
-			
-			//now get the distance
-			if(!x.isTriangle()) currentDistance = EData[1] - xData[19];
-			
-			else if(x.isUpperLeftTriangle()) {
-				//V1 = bottom left , V2 = top right
-				float slope = (xData[19] - xData[28]) / (xData[18] - xData[27]);
-				float intercept = xData[28] - (slope * xData[27]);
-				
-				currentDistance = EData[1] - ((slope * EData[0])  + intercept); 
-				
-			} else if (x.isUpperRightTriangle()) {
-			
-				//V1 = bottom right , V2 = top left
-				float slope = (xData[10] - xData[1]) / (xData[9] - xData[0]);
-				float intercept = xData[1] - (slope * xData[0]);
-				
-				currentDistance = EData[28] - ((slope * EData[27])  + intercept);
-				
-			}
-			
-			//this collider is closer than the previous one
-			if(currentDistance < distance) {
-				
-				distance = currentDistance;
-				closest = x;
-				
-			}
-			
-			if(distance == 0) return new Tuple2<>(closest , distance);
-			
-		}
-	
-		return new Tuple2<>(closest , distance);
-			
-	}
-	
-	/**
-	 * Gets and returns this distance of E from the closest valid floor collider. 
-	 * 
-	 * @param E — entity whose distance from the ground is being queried
-	 * @return float representation of distance
-	 */
-	public static final float getDistanceToFloor(Entities E) {
-				
-		if(E.has(ECS.COLLISION_DETECTION)) {
-						
-			var comps = E.components();
+		return locked(() -> {
 			
 			float[] EData = comps[Entities.CDOFF] != null ? (float[]) comps[Entities.CDOFF] : E.getData();
 			float[] xData;
 			float distance = Float.MAX_VALUE;
 			float currentDistance = Float.MAX_VALUE;
 			
-			CSLinked<Colliders> allColliders = ColliderLists.getComposite();
-			cdNode<Colliders> iter = allColliders.get(0);
-			Colliders x ;
+			Colliders closest = null;
+			Colliders x;
 			
+			cdNode<Colliders> iter = allColliders.get(0);			
 			for(int i = 0 ; i < allColliders.size() ; i ++ , iter = iter.next) {//eliminate noncandidates, then calculate distance		
 				
 				x = iter.val;
@@ -1844,67 +1886,98 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 					
 				}
 				
-				distance = distance > currentDistance ? currentDistance : distance;
-				if(distance == 0) return distance;
+				//this collider is closer than the previous one
+				if(currentDistance < distance) {
+					
+					distance = currentDistance;
+					closest = x;
+					
+				}
+				
+				if(distance == 0) {
+					
+					break;
+					
+				}
 				
 			}
 		
-			return distance;
+			return new Tuple2<>(closest , distance);
+			
+		});
+		
+	}
+	
+	/**
+	 * Gets and returns this distance of E from the closest valid floor collider. 
+	 * 
+	 * @param E — entity whose distance from the ground is being queried
+	 * @return float representation of distance
+	 */
+	public float getDistanceToFloor(Entities E) {
+				
+		if(E.has(ECS.COLLISION_DETECTION)) {
+			
+			return locked(() -> {
+				
+				var comps = E.components();
+				
+				float[] EData = comps[Entities.CDOFF] != null ? (float[]) comps[Entities.CDOFF] : E.getData();
+				float[] xData;
+				float distance = Float.MAX_VALUE;
+				float currentDistance = Float.MAX_VALUE;
+				
+				CSLinked<Colliders> allColliders = owningScene.colliders().getList();
+				cdNode<Colliders> iter = allColliders.get(0);
+				Colliders x ;
+				
+				for(int i = 0 ; i < allColliders.size() ; i ++ , iter = iter.next) {//eliminate noncandidates, then calculate distance		
+					
+					x = iter.val;
+					xData = x.getData();				
+
+					if (x.isLowerLeftTriangle()) continue;				
+					else if (x.isLowerRightTriangle()) continue;
+					
+					//if the object is left or right of the subject, ignore it
+					if(!x.isTriangle() || x.isUpperLeftTriangle() || x.isUpperRightTriangle()) 
+						if(EData[27] >= xData[0] || xData[27] >= EData[0]) continue;
+					
+					if(xData[28] >= EData[19]) continue;
+					
+					//now get the distance
+					if(!x.isTriangle()) currentDistance = EData[1] - xData[19];
+					
+					else if(x.isUpperLeftTriangle()) {
+						//V1 = bottom left , V2 = top right
+						float slope = (xData[19] - xData[28]) / (xData[18] - xData[27]);
+						float intercept = xData[28] - (slope * xData[27]);
+						
+						currentDistance = EData[1] - ((slope * EData[0])  + intercept); 
+						
+					} else if (x.isUpperRightTriangle()) {
+					
+						//V1 = bottom right , V2 = top left
+						float slope = (xData[10] - xData[1]) / (xData[9] - xData[0]);
+						float intercept = xData[1] - (slope * xData[0]);
+						
+						currentDistance = EData[28] - ((slope * EData[27])  + intercept);
+						
+					}
+					
+					distance = distance > currentDistance ? currentDistance : distance;
+					if(distance == 0) return distance;
+					
+				}
+			
+				return distance;
+				
+			});
 			
 		} else return -1;
 		
 	}
-	
-	/**
-	 * Returns a direction representing what target is with respect to caller. If target is to the left of caller, left is retured, else
-	 * right is returned.
-	 * 
-	 * @param caller — the entity to orient the check around
-	 * @param target — an entity who is either right or left of caller
-	 * @return — a direction enum, left or right
-	 */
-	public static Direction horizontally(Entities caller , Entities target) {
-		
-		float[] callerMid = caller.getMidpoint();
-		float[] targetMid = target.getMidpoint();
-		if(callerMid[0] > targetMid[0]) return Direction.LEFT;
-		else if (callerMid[0] < targetMid[0]) return Direction.RIGHT;		
-		return null;
-		
-	}
-	
-	/**
-	 * 
-	 * Returns a direction representing what target is with respect to caller. If target is below caller, down is returned, else up is returned.
-	 * 
-	 * @param caller — the entity to orient the check around
-	 * @param target — an entity who is either above or below of caller
-	 * @return — a direction enum, up or down
-	 */
-	public static Direction vertically(Entities caller , Entities target) {
-		
-		if(caller.getMidpoint()[1] > target.getMidpoint()[1]) return Direction.DOWN;
-		else return Direction.UP;
-		
-	}
-	
-	public static final void toggleAutoOrient(Entities E) {
-		
-		if(E.has(ECS.DIRECTION)) {
-			
-			Object[] comps = E.components();
-			comps[Entities.DOFF + 2] = toggle((boolean)comps[Entities.DOFF + 2]);
-			
-		}
-		
-	}
-	
-	public static final void setAutoOrient(Entities E , boolean state) {
-		
-		if(E.has(ECS.DIRECTION)) E.components()[Entities.DOFF + 2] = state;	
-		
-	}	
-	
+
 	/**
 	 * Scans for entities within radius from target, and returns the closest one, along with it's distance across the x and y axis. 
 	 * If no entity is found from the scan, the record contains null.
@@ -1915,55 +1988,59 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public EntityScanResult nearestEntity(Entities target , float scanRadius) {
 		
-		float[] center = target.getMidpoint();
-		
-		Entities closest = null;
-		
-		float smallestHorizontalDistance = Float.MAX_VALUE;
-		float smallestVerticalDistance = Float.MAX_VALUE;
+		return locked(() -> {
+
+			float[] center = target.getMidpoint();
+			
+			Entities closest = null;
+			
+			float smallestHorizontalDistance = Float.MAX_VALUE;
+			float smallestVerticalDistance = Float.MAX_VALUE;
+					
+			float currentHorizontalDistance = 0f;
+			float currentVerticalDistance = 0f;
+			
+			boolean wasSmallerHoriz = false;
+			boolean wasSmallerVert = false;
+			
+			cdNode<Entities> iter = list.get(0);
+			Entities x = iter.val;
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) {
+			
+				x = iter.val;
+				if(x.freeze) continue; 
+				if(x == target) continue;
 				
-		float currentHorizontalDistance = 0f;
-		float currentVerticalDistance = 0f;
-		
-		boolean wasSmallerHoriz = false;
-		boolean wasSmallerVert = false;
-		
-		cdNode<Entities> iter = list.get(0);
-		Entities x = iter.val;
-		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) {
-		
-			x = iter.val;
-			if(x.freeze) continue; 
-			if(x == target) continue;
-			
-			float [] xMid = x.getMidpoint();
-			
-			wasSmallerHoriz = false;
-			wasSmallerVert = false;			
-			
-			currentHorizontalDistance = xMid[0] - center[0];
-			if(Math.abs(currentHorizontalDistance) > scanRadius) continue;
-			else if(currentHorizontalDistance < smallestHorizontalDistance) {
+				float [] xMid = x.getMidpoint();
 				
-				wasSmallerHoriz = true;
-				smallestHorizontalDistance = currentHorizontalDistance;
+				wasSmallerHoriz = false;
+				wasSmallerVert = false;			
+				
+				currentHorizontalDistance = xMid[0] - center[0];
+				if(Math.abs(currentHorizontalDistance) > scanRadius) continue;
+				else if(currentHorizontalDistance < smallestHorizontalDistance) {
+					
+					wasSmallerHoriz = true;
+					smallestHorizontalDistance = currentHorizontalDistance;
+					
+				}
+					
+				currentVerticalDistance = xMid[1] - center[1];
+				if(Math.abs(currentVerticalDistance) > scanRadius) continue;
+				else if(currentVerticalDistance < smallestVerticalDistance) {
+					
+					wasSmallerVert = true;
+					smallestVerticalDistance = currentVerticalDistance;
+					
+				}
+				
+				if(wasSmallerHoriz && wasSmallerVert) closest = x;
 				
 			}
-				
-			currentVerticalDistance = xMid[1] - center[1];
-			if(Math.abs(currentVerticalDistance) > scanRadius) continue;
-			else if(currentVerticalDistance < smallestVerticalDistance) {
-				
-				wasSmallerVert = true;
-				smallestVerticalDistance = currentVerticalDistance;
-				
-			}
 			
-			if(wasSmallerHoriz && wasSmallerVert) closest = x;
+			return new EntityScanResult(closest , smallestHorizontalDistance , smallestVerticalDistance);
 			
-		}
-		
-		return new EntityScanResult(closest , smallestHorizontalDistance , smallestVerticalDistance);
+		});
 		
 	}
 		
@@ -1978,111 +2055,120 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public EntityScanResult nearestEntityWithAny(Entities caller , float scanRadius , ECS... comps) {
 		
-		float[] callerMid = caller.getMidpoint();
-		Entities closest = null;
-		
-		float smallestHorizontalDistance = Float.MAX_VALUE;
-		float smallestVerticalDistance = Float.MAX_VALUE;
+		return locked(() -> {
+
+			float[] callerMid = caller.getMidpoint();
+			Entities closest = null;
+			
+			float smallestHorizontalDistance = Float.MAX_VALUE;
+			float smallestVerticalDistance = Float.MAX_VALUE;
+					
+			float currentHorizontalDistance = 0f;
+			float currentVerticalDistance = 0f;
+			
+			boolean wasSmallerHoriz = false;
+			boolean wasSmallerVert = false;
+			
+			cdNode<Entities> iter = list.get(0);
+			Entities x;
+			float[] xMid;
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) {
 				
-		float currentHorizontalDistance = 0f;
-		float currentVerticalDistance = 0f;
-		
-		boolean wasSmallerHoriz = false;
-		boolean wasSmallerVert = false;
-		
-		cdNode<Entities> iter = list.get(0);
-		Entities x;
-		float[] xMid;
-		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) {
-			
-			x = iter.val;
-			
-			if(x.freeze || x == caller || !x.hasAny(comps)) continue;
-			
-			
-			xMid = x.getMidpoint();
-			wasSmallerHoriz = false;
-			wasSmallerVert = false;	
-		
-			//actually try now
-			currentHorizontalDistance = xMid[0] - callerMid[0];
-			if(Math.abs(currentHorizontalDistance) > scanRadius) continue;
-			else if(currentHorizontalDistance < smallestHorizontalDistance) {
+				x = iter.val;
 				
-				wasSmallerHoriz = true;
-				smallestHorizontalDistance = currentHorizontalDistance;
+				if(x.freeze || x == caller || !x.hasAny(comps)) continue;
+				
+				
+				xMid = x.getMidpoint();
+				wasSmallerHoriz = false;
+				wasSmallerVert = false;	
+			
+				//actually try now
+				currentHorizontalDistance = xMid[0] - callerMid[0];
+				if(Math.abs(currentHorizontalDistance) > scanRadius) continue;
+				else if(currentHorizontalDistance < smallestHorizontalDistance) {
+					
+					wasSmallerHoriz = true;
+					smallestHorizontalDistance = currentHorizontalDistance;
+					
+				}
+				
+				currentVerticalDistance = xMid[1] - callerMid[1];
+				if(Math.abs(currentVerticalDistance) > scanRadius) continue ;
+				else if (currentVerticalDistance < smallestVerticalDistance){
+					
+					wasSmallerVert = true;
+					smallestVerticalDistance = currentVerticalDistance;
+					
+				}
+				
+				if(wasSmallerHoriz && wasSmallerVert) closest = x;
 				
 			}
 			
-			currentVerticalDistance = xMid[1] - callerMid[1];
-			if(Math.abs(currentVerticalDistance) > scanRadius) continue ;
-			else if (currentVerticalDistance < smallestVerticalDistance){
-				
-				wasSmallerVert = true;
-				smallestVerticalDistance = currentVerticalDistance;
-				
-			}
+			EntityScanResult res = new EntityScanResult (closest , currentHorizontalDistance , currentVerticalDistance);
+			res.setMatchingComps(closest != null ? closest.matching(comps) : null);
+			return res;
 			
-			if(wasSmallerHoriz && wasSmallerVert) closest = x;
-			
-		}
-		EntityScanResult res = new EntityScanResult (closest , currentHorizontalDistance , currentVerticalDistance);
-		res.setMatchingComps(closest != null ? closest.matching(comps) : null);
-		return res;
+		});
 		
 	}
 	
 	public EntityScanResult nearestEntityWithAll(Entities caller , float radius , ECS... comps){
 		
-		float[] callerMid = caller.getMidpoint();
-		Entities closest = null;
-		
-		float smallestHorizontalDistance = Float.MAX_VALUE;
-		float smallestVerticalDistance = Float.MAX_VALUE;
-				
-		float currentHorizontalDistance = 0f;
-		float currentVerticalDistance = 0f;
-		
-		boolean wasSmallerHoriz = false;
-		boolean wasSmallerVert = false;
-		
-		cdNode<Entities> iter = list.get(0);
-		Entities x = iter.val;
-		for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next , x = iter.val) {
+		return locked(() -> {
 			
-			if(x.freeze) continue;
-			if(x == caller) continue;
-			if(!x.has(comps)) continue;
-			float[] xMid = x.getMidpoint();
-			wasSmallerHoriz = false;
-			wasSmallerVert = false;	
-		
-			//actually try now
-			currentHorizontalDistance = xMid[0] - callerMid[0];
-			if(Math.abs(currentHorizontalDistance) > radius) continue;
-			else if(currentHorizontalDistance < smallestHorizontalDistance) {
+			float[] callerMid = caller.getMidpoint();
+			Entities closest = null;
+			
+			float smallestHorizontalDistance = Float.MAX_VALUE;
+			float smallestVerticalDistance = Float.MAX_VALUE;
+					
+			float currentHorizontalDistance = 0f;
+			float currentVerticalDistance = 0f;
+			
+			boolean wasSmallerHoriz = false;
+			boolean wasSmallerVert = false;
+			
+			cdNode<Entities> iter = list.get(0);
+			Entities x = iter.val;
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next , x = iter.val) {
 				
-				wasSmallerHoriz = true;
-				smallestHorizontalDistance = currentHorizontalDistance;
+				if(x.freeze) continue;
+				if(x == caller) continue;
+				if(!x.has(comps)) continue;
+				float[] xMid = x.getMidpoint();
+				wasSmallerHoriz = false;
+				wasSmallerVert = false;	
+			
+				//actually try now
+				currentHorizontalDistance = xMid[0] - callerMid[0];
+				if(Math.abs(currentHorizontalDistance) > radius) continue;
+				else if(currentHorizontalDistance < smallestHorizontalDistance) {
+					
+					wasSmallerHoriz = true;
+					smallestHorizontalDistance = currentHorizontalDistance;
+					
+				}
+				
+				currentVerticalDistance = xMid[1] - callerMid[1];
+				if(Math.abs(currentVerticalDistance) > radius) continue ;
+				else if (currentVerticalDistance < smallestVerticalDistance){
+					
+					wasSmallerVert = true;
+					smallestVerticalDistance = currentVerticalDistance;
+					
+				}
+				
+				if(wasSmallerHoriz && wasSmallerVert) closest = x;
 				
 			}
 			
-			currentVerticalDistance = xMid[1] - callerMid[1];
-			if(Math.abs(currentVerticalDistance) > radius) continue ;
-			else if (currentVerticalDistance < smallestVerticalDistance){
-				
-				wasSmallerVert = true;
-				smallestVerticalDistance = currentVerticalDistance;
-				
-			}
+			EntityScanResult res = new EntityScanResult (closest , currentHorizontalDistance , currentVerticalDistance);
+			res.setMatchingComps(closest != null ? closest.matching(comps) : null);
+			return res;
 			
-			if(wasSmallerHoriz && wasSmallerVert) closest = x;
-			
-		}
-		
-		EntityScanResult res = new EntityScanResult (closest , currentHorizontalDistance , currentVerticalDistance);
-		res.setMatchingComps(closest != null ? closest.matching(comps) : null);
-		return res;
+		});
 		
 	}
 
@@ -2129,12 +2215,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
-	public static final void activateHitBox(Entities E , int index) {
-		
-		if(E.has(ECS.HITBOXES)) ((EntityHitBoxes)E.components()[ECS.HITBOXES.offset]).activate(index);
-		
-	}
-	
 	/**
 	 * Iterates through each entity's hit boxes, returning the results of the scan in the form of a record; <br>
 	 * boolean collided = true if two hitboxes are colliding <br>
@@ -2149,74 +2229,78 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public hitboxScan checkHitBoxes(Entities caller , Entities target) {
 		
-		if(caller.has(ECS.HITBOXES) && target.has(ECS.HITBOXES)) {
-			
-			if(target.isFrozen()) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-			
-			EntityHitBoxes callerBoxes = (EntityHitBoxes) caller.components()[Entities.HOFF];
-			if(callerBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-						
-			EntityHitBoxes targetBoxes = ((EntityHitBoxes)target.components()[Entities.HOFF]);
-			if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-						
-			float[][] callerActiveSet;
-			float[][] targetActiveSet;
-			
-			callerActiveSet = callerBoxes.getActiveHitBoxes(caller , (Direction) caller.components()[Entities.DOFF]);			
-			targetActiveSet = targetBoxes.getActiveHitBoxes(target , (Direction) target.components()[Entities.DOFF]);			
+		return locked(() -> {
 
-			final int 
-			BY , TY ,
-			LX , RX ;
-			
-			BY = QuadIndices.BY;
-			TY = QuadIndices.TY;
-			LX = QuadIndices.LX;
-			RX = QuadIndices.RX;
-			
-			float callerHeight;
-			float targetHeight;
-			for(int i = 0 ; i < callerActiveSet.length ; i ++) {
+			if(caller.has(ECS.HITBOXES) && target.has(ECS.HITBOXES)) {
 				
-				float[] callerBox = callerActiveSet[i];
-				callerHeight = CSUtil.BigMixin.getArrayHeight(callerBox);
+				if(target.isFrozen()) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
 				
-				for(int j = 0 ; j < targetActiveSet.length ; j++) {
+				EntityHitBoxes callerBoxes = (EntityHitBoxes) caller.components()[Entities.HOFF];
+				if(callerBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+							
+				EntityHitBoxes targetBoxes = ((EntityHitBoxes)target.components()[Entities.HOFF]);
+				if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+							
+				float[][] callerActiveSet;
+				float[][] targetActiveSet;
+				
+				callerActiveSet = callerBoxes.getActiveHitBoxes(caller , (Direction) caller.components()[Entities.DOFF]);			
+				targetActiveSet = targetBoxes.getActiveHitBoxes(target , (Direction) target.components()[Entities.DOFF]);			
+
+				final int 
+				BY , TY ,
+				LX , RX ;
+				
+				BY = QuadIndices.BY;
+				TY = QuadIndices.TY;
+				LX = QuadIndices.LX;
+				RX = QuadIndices.RX;
+				
+				float callerHeight;
+				float targetHeight;
+				for(int i = 0 ; i < callerActiveSet.length ; i ++) {
 					
-					float[] targetBox = targetActiveSet[j];
-										
-					//start with vertical collision:					
-					targetHeight = CSUtil.BigMixin.getArrayHeight(targetBox);
+					float[] callerBox = callerActiveSet[i];
+					callerHeight = CSUtil.BigMixin.getArrayHeight(callerBox);
 					
-					//y distance is the distance betwen the bottom of the quad thats above and the top of the quad thats below
-					float yDistance;
-					if(callerBox[TY] > targetBox[TY]) yDistance = callerBox[BY] - targetBox[TY];
-					else yDistance = targetBox[BY] - callerBox[TY];
-					
-					//collided if the distance between the objects calculated above is less than or equal to sum of the halves of the heights of the objects
-					boolean collidedVertical = yDistance <= (callerHeight / 2) + (targetHeight / 2);
-									
-					boolean collidedHorizontal = false;
-					//if caller is to the right of target and targets' right vertex is greater than callers left vertex
-					if(callerBox[RX] > targetBox[RX]) if(targetBox[RX] > callerBox[LX]) collidedHorizontal = true;
-					//if target is to the right of caller and caller's right vertex is greater than targets left vertex
-					else if(targetBox[RX] > callerBox[RX]) if(callerBox[LX] > targetBox[RX]) collidedHorizontal = true;
-					
-					if(collidedVertical && collidedHorizontal) {
+					for(int j = 0 ; j < targetActiveSet.length ; j++) {
 						
-						var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
-						return hb;
+						float[] targetBox = targetActiveSet[j];
+											
+						//start with vertical collision:					
+						targetHeight = CSUtil.BigMixin.getArrayHeight(targetBox);
+						
+						//y distance is the distance betwen the bottom of the quad thats above and the top of the quad thats below
+						float yDistance;
+						if(callerBox[TY] > targetBox[TY]) yDistance = callerBox[BY] - targetBox[TY];
+						else yDistance = targetBox[BY] - callerBox[TY];
+						
+						//collided if the distance between the objects calculated above is less than or equal to sum of the halves of the heights of the objects
+						boolean collidedVertical = yDistance <= (callerHeight / 2) + (targetHeight / 2);
+										
+						boolean collidedHorizontal = false;
+						//if caller is to the right of target and targets' right vertex is greater than callers left vertex
+						if(callerBox[RX] > targetBox[RX]) if(targetBox[RX] > callerBox[LX]) collidedHorizontal = true;
+						//if target is to the right of caller and caller's right vertex is greater than targets left vertex
+						else if(targetBox[RX] > callerBox[RX]) if(callerBox[LX] > targetBox[RX]) collidedHorizontal = true;
+						
+						if(collidedVertical && collidedHorizontal) {
+							
+							var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
+							return hb;
+							
+						}
 						
 					}
 					
 				}
-				
-			}
 
-		}
-		
-		var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-		return hb;
+			}
+			
+			var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+			return hb;
+			
+		});
 		
 	}
 
@@ -2234,59 +2318,59 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	 */
 	public hitboxScan checkHitBoxes(Entities caller , EntityScanResult targetScan) {
 		
-		Entities target = targetScan.result;
-		if(target == null) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-		
+		return locked(() -> {
 
-		
-		if(target.freeze || caller.freeze) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1); 
-		
-		if(caller.has(ECS.HITBOXES) && target.has(ECS.HITBOXES)) {
+			Entities target = targetScan.result;
+			if(target == null) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
 			
-			EntityHitBoxes callerBoxes = (EntityHitBoxes)caller.components()[Entities.HOFF];
-			if(callerBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+			if(target.freeze || caller.freeze) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1); 
 			
-			EntityHitBoxes targetBoxes = ((EntityHitBoxes)target.components()[Entities.HOFF]);
-			if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-						
-			float[][] callerActiveSet;
-			if(caller.has(ECS.DIRECTION)) callerActiveSet = callerBoxes.getActiveHitBoxes(caller, (Direction) caller.components()[Entities.DOFF]);
-			else callerActiveSet = callerBoxes.getActiveHitBoxes(caller, Direction.RIGHT);
-			float[][] targetActiveSet;
-			if(target.has(ECS.DIRECTION)) targetActiveSet = targetBoxes.getActiveHitBoxes(target, (Direction) target.components()[Entities.DOFF]);
-			else targetActiveSet = targetBoxes.getActiveHitBoxes(target, Direction.RIGHT);
-						
-			for(int i = 0 ; i < callerActiveSet.length ; i ++) {
+			if(caller.has(ECS.HITBOXES) && target.has(ECS.HITBOXES)) {
 				
-				float[] y = callerActiveSet[i];
+				EntityHitBoxes callerBoxes = (EntityHitBoxes)caller.components()[Entities.HOFF];
+				if(callerBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
 				
-				for(int j = 0 ; j < targetActiveSet.length ; j++) {
-					
-					float[] x = targetActiveSet[j];
-					
-					if((x[28] < y[19] && x[10] > y[28]) && (x[27] < y[18] && y[27] < x[0])){
-											
-						int targetArea = (int) getCoordinateRectangleArea(x[27] , x[28] , x[18] , x[19] , x[0] , x[1]);
-						int callerArea = (int)getCoordinateRectangleArea(y[0] , y[1] , x[18] , x[19] , x[0] , x[1]);
-						if(targetArea > callerArea) {
+				EntityHitBoxes targetBoxes = ((EntityHitBoxes)target.components()[Entities.HOFF]);
+				if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
 							
-							var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
-							return hb;
+				float[][] callerActiveSet;
+				if(caller.has(ECS.DIRECTION)) callerActiveSet = callerBoxes.getActiveHitBoxes(caller, (Direction) caller.components()[Entities.DOFF]);
+				else callerActiveSet = callerBoxes.getActiveHitBoxes(caller, Direction.RIGHT);
+				float[][] targetActiveSet;
+				if(target.has(ECS.DIRECTION)) targetActiveSet = targetBoxes.getActiveHitBoxes(target, (Direction) target.components()[Entities.DOFF]);
+				else targetActiveSet = targetBoxes.getActiveHitBoxes(target, Direction.RIGHT);
 							
+				for(int i = 0 ; i < callerActiveSet.length ; i ++) {
+					
+					float[] y = callerActiveSet[i];
+					
+					for(int j = 0 ; j < targetActiveSet.length ; j++) {
+						
+						float[] x = targetActiveSet[j];
+						
+						if((x[28] < y[19] && x[10] > y[28]) && (x[27] < y[18] && y[27] < x[0])){
+												
+							int targetArea = (int) getCoordinateRectangleArea(x[27] , x[28] , x[18] , x[19] , x[0] , x[1]);
+							int callerArea = (int)getCoordinateRectangleArea(y[0] , y[1] , x[18] , x[19] , x[0] , x[1]);
+							if(targetArea > callerArea) {
+								
+								var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
+								return hb;
+								
+							}
+						
 						}
-					
+						
 					}
 					
 				}
-				
+					
 			}
-				
-		}
-				
-		var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-		return hb;
-		
-	
+					
+			var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+			return hb;
+					
+		});		
 		
 	}
 
@@ -2305,72 +2389,60 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	public hitboxScan checkHitBoxes(Entities caller , float radius) {
 		
 		if(caller.freeze || !caller.has(ECS.HITBOXES)) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1); 
-		
+				
 		EntityHitBoxes callerBoxes = (EntityHitBoxes)caller.components()[Entities.HOFF];
 		if(callerBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-		float[] callerMid = caller.getMidpoint();
 		float[][] callerActiveSet = callerBoxes.getActiveHitBoxes(caller, (Direction) caller.components()[Entities.DOFF]);
-		
-		cdNode<Entities> iter = list.get(0);
-		Entities E;
-		for(int e = 0 ; e < list.size(); e ++ , iter = iter.next) {
+	
+		return locked(() -> {
+
+			float[] callerMid = caller.getMidpoint();
+			cdNode<Entities> iter = list.get(0);
+			Entities E;
 			
-			E = iter.val;
-			float[] iterMid = E.getMidpoint();
-			
-			if(E.equals(caller) || !E.has(ECS.HITBOXES) || (iterMid[0] - callerMid[0]) > radius || iterMid[1] - callerMid[1] > radius) continue;
-			
-			EntityHitBoxes targetBoxes = ((EntityHitBoxes)E.components()[Entities.HOFF]);
-			if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-			
-			float[][] targetActiveSet = targetBoxes.getActiveHitBoxes(E, (Direction) E.components()[Entities.DOFF]);			
-			
-			for(int i = 0 ; i < callerActiveSet.length ; i ++) {
+			for(int e = 0 ; e < list.size(); e ++ , iter = iter.next) {
 				
-				float[] y = callerActiveSet[i];
+				E = iter.val;
+				float[] iterMid = E.getMidpoint();
 				
-				for(int j = 0 ; j < targetActiveSet.length ; j++) {
+				if(E.equals(caller) || !E.has(ECS.HITBOXES) || (iterMid[0] - callerMid[0]) > radius || iterMid[1] - callerMid[1] > radius) continue;
+				
+				EntityHitBoxes targetBoxes = ((EntityHitBoxes)E.components()[Entities.HOFF]);
+				if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+				
+				float[][] targetActiveSet = targetBoxes.getActiveHitBoxes(E, (Direction) E.components()[Entities.DOFF]);			
+				
+				for(int i = 0 ; i < callerActiveSet.length ; i ++) {
 					
-					float[] x = targetActiveSet[j];
+					float[] y = callerActiveSet[i];
 					
-					if((x[28] < y[19] && x[10] > y[28]) && (x[27] < y[18] && y[27] < x[0])){
+					for(int j = 0 ; j < targetActiveSet.length ; j++) {
 						
-						int targetArea = (int) getCoordinateRectangleArea(x[27] , x[28] , x[18] , x[19] , x[0] , x[1]);
-						int callerArea = (int)getCoordinateRectangleArea(y[0] , y[1] , x[18] , x[19] , x[0] , x[1]);
-						if(targetArea > callerArea) {
+						float[] x = targetActiveSet[j];
+						
+						if((x[28] < y[19] && x[10] > y[28]) && (x[27] < y[18] && y[27] < x[0])){
 							
-							var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
-							return hb;
+							int targetArea = (int) getCoordinateRectangleArea(x[27] , x[28] , x[18] , x[19] , x[0] , x[1]);
+							int callerArea = (int)getCoordinateRectangleArea(y[0] , y[1] , x[18] , x[19] , x[0] , x[1]);
+							if(targetArea > callerArea) {
+								
+								var hb = new hitboxScan(true , callerBoxes.hot(i) , callerBoxes.cold(i) , callerBoxes.active() , targetBoxes.hot(j) , targetBoxes.cold(j) , targetBoxes.active());
+								return hb;
+								
+							}
 							
 						}
 						
 					}
 					
 				}
-				
+							
 			}
 						
-		}
-					
-		var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
-		return hb;
-		
-	}
-	
-	public void updateHitBoxes(Entities E) {
-		
-		if(E.has(ECS.HITBOXES))((EntityHitBoxes)E.components()[Entities.HOFF]).setupActive(E , (Direction)E.components()[Entities.DOFF]);
-		
-	}
-	
-	public void overrideEntityAnimation(Entities E , int animIndex , int frameIndex , Direction animDirection) {
-		
-		if(E.has(ECS.ANIMATIONS)) {
+			var hb = new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
+			return hb;
 			
-			((SpriteSets[]) E.components()[ECS.ANIMATIONS.offset])[animIndex].setCurrentSprite(frameIndex);
-			E.animate(animIndex , animDirection);
-			
-		}
+		});
 		
 	}
 	
@@ -2392,32 +2464,37 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		LX = QuadIndices.LX;
 		RX = QuadIndices.RX;
 		
-		cdNode<Items> iter = unownedItems.iter();		
 		float[] caller = E.has(ECS.COLLISION_DETECTION) ? (float[]) E.components()[Entities.CDOFF] : E.getData();
-		for(int i = 0 ; i < unownedItems.size() ; i ++ , iter = iter.next) {
-			
-			float[] target = iter.val.getData();
-			
-			float yDistance;
-			if(caller[TY] > target[TY]) yDistance = caller[BY] - target[TY];
-			else yDistance = target[BY] - caller[TY];
-			
-			boolean collidedVertical = yDistance <= (E.getHeight() / 2) + (iter.val.getHeight() / 2);							
-			boolean collidedHorizontal = false;
-			if(caller[RX] > target[RX]) if(target[RX] > caller[LX]) collidedHorizontal = true;
-			else if(target[RX] > caller[RX]) if(caller[LX] > target[RX]) collidedHorizontal = true;
-			
-			if(collidedVertical && collidedHorizontal) {
+		
+		locked(() -> {
 
-				Inventories inventory = (Inventories) E.components()[Entities.IOFF];
-				inventory.acquire(iter.val);
-				unownedItems.removeItem(iter);
-				return;
+			cdNode<Items> iter = unownedItems.iter();		
+			for(int i = 0 ; i < unownedItems.size() ; i ++ , iter = iter.next) {
+				
+				float[] target = iter.val.getData();
+				
+				float yDistance;
+				if(caller[TY] > target[TY]) yDistance = caller[BY] - target[TY];
+				else yDistance = target[BY] - caller[TY];
+				
+				boolean collidedVertical = yDistance <= (E.getHeight() / 2) + (iter.val.getHeight() / 2);							
+				boolean collidedHorizontal = false;
+				if(caller[RX] > target[RX]) if(target[RX] > caller[LX]) collidedHorizontal = true;
+				else if(target[RX] > caller[RX]) if(caller[LX] > target[RX]) collidedHorizontal = true;
+				
+				if(collidedVertical && collidedHorizontal) {
+
+					Inventories inventory = (Inventories) E.components()[Entities.IOFF];
+					inventory.acquire(iter.val);
+					unownedItems.removeItem(iter);
+					return;
+					
+				}
 				
 			}
 			
-		}
-		
+		});
+				
 	}
 	
 	public final void findItemsByFlag(Entities E , UnownedItems unownedItems , String... flags) {
@@ -2433,59 +2510,48 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		LX = QuadIndices.LX;
 		RX = QuadIndices.RX;
 		
-		cdNode<Items> iter = unownedItems.iter();		
 		float[] caller = E.has(ECS.COLLISION_DETECTION) ? (float[]) E.components()[Entities.CDOFF] : E.getData();
-		for(int i = 0 ; i < unownedItems.size() ; i ++ , iter = iter.next) if(iter.val.componentData().hasAnyFlags(flags)) {
-			
-			float[] target = iter.val.getData();
-			
-			float yDistance;
-			if(caller[TY] > target[TY]) yDistance = caller[BY] - target[TY];
-			else yDistance = target[BY] - caller[TY];
-			
-			boolean collidedVertical = yDistance <= (E.getHeight() / 2) + (iter.val.getHeight() / 2);							
-			boolean collidedHorizontal = false;
-			if(caller[RX] > target[RX]) if(target[RX] > caller[LX]) collidedHorizontal = true;
-			else if(target[RX] > caller[RX]) if(caller[LX] > target[RX]) collidedHorizontal = true;
-			
-			if(collidedVertical && collidedHorizontal) {
+		
+		locked(() -> {
 
-				Inventories inventory = (Inventories) E.components()[Entities.IOFF];
-				inventory.acquire(iter.val);
-				unownedItems.removeItem(iter);
-				return;
+			cdNode<Items> iter = unownedItems.iter();		
+			for(int i = 0 ; i < unownedItems.size() ; i ++ , iter = iter.next) if(iter.val.componentData().hasAnyFlags(flags)) {
+				
+				float[] target = iter.val.getData();
+				
+				float yDistance;
+				if(caller[TY] > target[TY]) yDistance = caller[BY] - target[TY];
+				else yDistance = target[BY] - caller[TY];
+				
+				boolean collidedVertical = yDistance <= (E.getHeight() / 2) + (iter.val.getHeight() / 2);							
+				boolean collidedHorizontal = false;
+				if(caller[RX] > target[RX]) if(target[RX] > caller[LX]) collidedHorizontal = true;
+				else if(target[RX] > caller[RX]) if(caller[LX] > target[RX]) collidedHorizontal = true;
+				
+				if(collidedVertical && collidedHorizontal) {
+
+					Inventories inventory = (Inventories) E.components()[Entities.IOFF];
+					inventory.acquire(iter.val);
+					unownedItems.removeItem(iter);
+					return;
+					
+				}
 				
 			}
 			
-		}
+		});
 		
 	}
-	
-	public static final void dropItem() {
 		
-		//TODO
-		
-	}
-	
-	public static final void moveEntityToCollisionBound(Entities E , float additionalX , float additionalY) {
-		
-		if(E.has(ECS.COLLISION_DETECTION)) {
-			
-			float[] mid = E.getMidpoint();
-			float[] boundMid = getArrayMidpoint(((float[])(E.components()[ECS.COLLISION_DETECTION.offset])));
-			E.translate((mid[0] - boundMid[0]) + additionalX , (boundMid[1] - mid[1]) + additionalY);
-			
-		}
-		
-	}
-	
 	public void startNumberTicks() {
 		
 		stepTimer.start();
-		ticksLastSecond = numberTicks;
-		numberTicks = 0; 
-		framesLastSecond = currentFrame;
-		currentFrame = 0;
+		ticksLastSecond = ticksThisSecond;
+		ticksThisSecond = 0; 
+		framesLastSecond = frameThisSecond;
+		frameThisSecond = 0;
+		averageMillisPerFrameLastSecond = (float)framesLastSecond / 1000d;
+		averageMillisPerFrameThisSecond = 0;
 		
 	}
 
@@ -2495,9 +2561,15 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
+	public int currentFrame() {
+		
+		return frameThisSecond;
+		
+	}
+	
 	public int numberTicks() {
 		
-		return numberTicks;
+		return ticksThisSecond;
 		
 	}
 
@@ -2515,7 +2587,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	
 	public boolean isTickingFrame() {
 	
-		return numberTicks == 0 || ((frameStep - currentFrame <= 1) && numberTicks < targetTicks + 0.1 * targetTicks) ;
+		return ticksThisSecond == 0 || ((frameStep - frameThisSecond <= 1) && ticksThisSecond < targetTicks + 0.1 * targetTicks) ;
 		
 	}
 	
@@ -2531,11 +2603,73 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		
 	}
 	
-	public void incrementFrames() {
+	private void internalRunInitialSystems(Entities E) {
+
+		Object[] comps = E.components();
 		
-		currentFrame++;
+		//initial entity physics calls
+		if(E.has(ECS.VERTICAL_DISPLACEMENT)) setVerticalPosition(comps);
+		if(E.has(ECS.HORIZONTAL_DISPLACEMENT)) setHorizontalPosition(comps);
+		if(E.has(ECS.GRAVITY_CONSTANT)) gravity(comps);
+
+		//game logic calls
+		playerInterface(comps);
+		if(E.has(ECS.SCRIPT)) script(comps);				
+		if(E.has(ECS.ANIMATIONS)) animator(comps);				
+		if(E.has(ECS.CAMERA_TRACK)) cameraTrack(comps);
+	
+	}
+
+	private void internalRunFinalSystems(Entities E) {
+
+		Object[] comps = E.components();
+
+		//concluding entitiy physics calls
+		if(E.has(ECS.VERTICAL_DISPLACEMENT)) verticalDisplacement(comps);
+		if(E.has(ECS.HORIZONTAL_DISPLACEMENT)) horizontalDisplacement(comps);	
+		if(E.has(ECS.DIRECTION)) directionOrient(comps);
 		
 	}
+	
+	private void internalRunSystems(Executor start , Executor between , Executor after) {
+
+		locked(() -> {
+
+			if(start != null) start.execute();
+			
+			cdNode<Entities> iter = list.get(0);
+			for(int i = 0 ; i < size() ; i ++ , iter = iter.next) {
+				
+				if(iter.val.freeze) continue;			
+				internalRunInitialSystems(iter.val);
+							
+			}
+			
+			if(between != null) between.execute();
+
+			//final iteration to finish a tick
+			iter = list.get(0);
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) internalRunFinalSystems(iter.val);
+
+			if(after != null) after.execute();
+			ticksThisSecond++;
+			
+		});
+		
+	}
+
+	private double averageMillisPerFrameLastSecond;
+	private double averageMillisPerFrameThisSecond;
+	
+	private int ticksThisSecond = 0;
+	private int framesLastSecond = 0;
+	private int ticksLastSecond = 0;	
+	private int frameThisSecond = 0;
+
+	private float framesPerTick;
+	private int targetTicks = 60;
+	private float frameStep;
+	private Timer stepTimer = new Timer();
 	
 	/**
 	 * Update function for use in the editor. We need to know the current frame rate because we want to ensure physics occurs
@@ -2562,67 +2696,26 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		}
 		
 		float addativeTick = (1f / framesPerTick) % 1; //if the currentFrame is a multiple of this, subtract one from the frameStep
-		frameStep = numberTicks * framesPerTick;				
-		if(currentFrame % addativeTick == 0) frameStep -= 1;
+		frameStep = ticksThisSecond * framesPerTick;
 		
-		if(numberTicks == 0 || ((frameStep - currentFrame <= 1) && numberTicks < targetTicks) ) {
-			
-			if(start != null) start.execute();
-			Object[] comps;
-			
-			cdNode<Entities> iter = list.get(0);
-			Entities x;
-			for(int i = 0 ; i < list.size() ; i ++) {
-				
-				x = iter.val;
-				if(x.freeze) continue;
-				iter = iter.next;
-				comps = x.components();
-				
-				//initial entity physics calls
-				if(x.has(ECS.VERTICAL_DISPLACEMENT)) setVerticalPosition(comps);
-				if(x.has(ECS.HORIZONTAL_DISPLACEMENT)) setHorizontalPosition(comps);
-				if(x.has(ECS.GRAVITY_CONSTANT)) gravity(comps);
-				
-				//game logic calls
-				playerInterface(comps);
-				if(x.has(ECS.SCRIPT)) script(comps);				
-				if(x.has(ECS.ANIMATIONS)) animator(comps);				
-				if(x.has(ECS.CAMERA_TRACK)) cameraTrack(comps);
-			
-			}
-			
-			//physics
-			if(inbetween != null) inbetween.execute();
-			
-			iter = list.get(0);
-			for(int i = 0 ; i < list.size() ; i ++) {
-			
-				x = iter.val;
-				iter = iter.next;
-				comps = x.components();
-				
-				//concluding entitiy physics calls
-				if(x.has(ECS.VERTICAL_DISPLACEMENT)) verticalDisplacement(comps);
-				if(x.has(ECS.HORIZONTAL_DISPLACEMENT)) horizontalDisplacement(comps);	
-				if(x.has(ECS.DIRECTION)) directionOrient(comps);
-				
-			}
-			
-			if(after != null) after.execute();
-			numberTicks++;
-			
-		}		
-			
-	}
-
-	public void gameRunSystems(Executor onStart , Executor inBetween , Executor onFinish) {
+		/*
+		 
+		 	if we calculate the average nanosecond per frame for every second, 
+		 	we can compare the current second's average nanosecond per frame against last second.
+		 	if we are going faster, we can get the difference in nanos and reduce frameStep by a little bit
+		  
+		  
+		 */
 		
-	}
-	
-	public Entities getEnclosedEntity(EntityScanResult result) {
+		//TODO create a way to adjust frames per tick if we are going faster or slower than the previous second
 		
-		return result.result;
+		if(frameThisSecond % addativeTick == 0) frameStep -= 1;		
+		averageMillisPerFrameThisSecond = (float)frameThisSecond / stepTimer.getElapsedTimeMillis();
+		double highResVariance = averageMillisPerFrameLastSecond - averageMillisPerFrameThisSecond;				
+		if(highResVariance < 0) frameStep += (highResVariance + highResVariance); 
+		
+		if(ticksThisSecond == 0 || ((frameStep - frameThisSecond <= 1) && ticksThisSecond < targetTicks)) internalRunSystems(start , inbetween , after);	
+		frameThisSecond++;	
 		
 	}
 	
@@ -2688,8 +2781,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 	private void horizontalNetworkController(Object[] comps) {
 				
 		if((boolean) comps[Entities.HCOFF + 1] == false) return;//if the entity has control
-		Entities E = ((Entities)comps[0]);
-		NetworkedEntities networked = server.getNetworkedEntity(E);
+		Entities E = ((Entities)comps[0]);		
+		NetworkedEntities networked = NetworkedInstance.getNetworkedEntityForEntity(networkInstance , E);
 		if(networked.pressed(Controls.LEFT)) moveHorizChecked(E , -(float)comps[Entities.HCOFF]);
 		if(networked.pressed(Controls.RIGHT)) moveHorizChecked(E , (float)comps[Entities.HCOFF]);
 		
@@ -2789,7 +2882,8 @@ public class EntityLists extends AbstractGameObjectLists<Entities>{
 		if((boolean) comps[Entities.VCOFF + 4] == false) return;//if the entity does not have control
 		
 		Entities E = (Entities) comps[0];
-		NetworkedEntities networked = server.getNetworkedEntity(E);
+
+		NetworkedEntities networked = NetworkedInstance.getNetworkedEntityForEntity(networkInstance , E);
 		
 		if(E.has(ECS.COLLISION_DETECTION , ECS.GRAVITY_CONSTANT , ECS.VERTICAL_DISPLACEMENT)) {				
 			

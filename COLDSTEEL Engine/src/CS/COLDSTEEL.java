@@ -74,6 +74,7 @@ public class COLDSTEEL {
 			Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
 			Configuration.DEBUG_STACK.set(true);
 			Configuration.OPENGL_EXPLICIT_INIT.set(true);
+			Configuration.DEBUG.set(true);
 			DEBUG_CHECKS = true;
 						
 		}

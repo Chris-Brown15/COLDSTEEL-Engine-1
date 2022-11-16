@@ -26,8 +26,8 @@ if not initialized:
     hurtBloodEmitter.setEmissionRate(1)
 
     if not onServer():
-        HUD = UIScript("ui_AlucardUI.py")
-        HUD.set("inventory" , inventory)
+        HUD = createUI("ui_AlucardUI.py")
+        HUD.set("inventory" , inventory)    
         HUD.set("equipped" , inventory.getEquipped())
         HUD.set("items" , inventory.getItems())
         HUD.run()

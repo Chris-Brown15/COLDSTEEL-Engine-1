@@ -129,9 +129,20 @@ public class NkInitialize {
 	        stbtt_PackEnd(pc);
 
 	        // Convert R8 to RGBA8
-	        ByteBuffer texture = memAlloc(BITMAP_W * BITMAP_H * 4);
-
-	        for (int i = 0; i < bitmap.capacity(); i++) texture.putInt((bitmap.get(i) << 24) | 0x00FFFFFF);
+	        ByteBuffer texture = memAlloc(bitmap.capacity() * 4);
+	        
+	        /*
+	         * 
+	         * byte 4 == opacity (0) 
+	         * byte 3 == blue
+	         * byte 2 == green
+	         * byte 1 == red
+	         * 
+	         */
+	        
+	        final int color = 0x00ffffFF;
+	        
+	        for (int i = 0; i < bitmap.capacity(); i++) texture.putInt((bitmap.get(i) << 24) | color);
 
 	        texture.flip();
 

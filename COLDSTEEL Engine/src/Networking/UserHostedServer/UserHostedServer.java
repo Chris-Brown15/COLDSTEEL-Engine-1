@@ -1,28 +1,30 @@
 package Networking.UserHostedServer;
 
-import static CSUtil.CSLogger.*;
-
-import static org.lwjgl.system.MemoryUtil.memCalloc;
-import static org.lwjgl.system.MemoryUtil.memFree;
+import static CSUtil.BigMixin.TRY;
 import static CSUtil.BigMixin.toBool;
+import static CSUtil.CSLogger.LOGGING_ENABLED;
+import static CSUtil.CSLogger.log;
 import static Networking.Utils.NetworkingConstants.*;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
+import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
+import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
+import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_LEFT;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_MIDDLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
-import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
-import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
-import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
+import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
+import static org.lwjgl.nuklear.Nuklear.nk_button_label;
+import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_end;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_push;
-import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
+import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
-import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -30,10 +32,12 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Calendar;
+import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 import CS.COLDSTEEL;
 import CS.Engine;
@@ -41,10 +45,13 @@ import CS.UserInterface;
 import CSUtil.RefInt;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.Tuple2;
+import CSUtil.DataStructures.cdNode;
 import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
+import Core.Entities.EntityScripts;
 import Game.Levels.Levels;
 import Networking.MultiplayerChatUI;
 import Networking.NetworkedEntities;
@@ -52,7 +59,7 @@ import Networking.NetworkedInstance;
 import Networking.ReliableDatagram;
 import Networking.Utils.ByteArrayUtils;
 import Networking.Utils.PacketCoder;
-import Physics.Kinematics;
+import Renderer.Renderer;
 
 /**
  * 
@@ -66,33 +73,24 @@ public class UserHostedServer implements NetworkedInstance {
 
 	private static final int DEFAULT_PORT = 32900;
 	
-	//holds data about all players in the level
-	private final ConcurrentHashMap<Integer , UserConnection> connections = new ConcurrentHashMap<>(17);
-	//holds references to levels that are in play, which means two or more players are in them
-	private final ConcurrentHashMap<Tuple2<Levels , Scene> , CSLinked<UserConnection>> liveLevels = new ConcurrentHashMap<>(4);	
+	//holds data about all players in the server
+	private volatile ConcurrentHashMap<Integer , UserConnection> connections = new ConcurrentHashMap<>(17);
+	//holds references to levels that have previously been loaded. If all players leave a a level, we keep it in memory and once
+	//another player enters it, we redeploy the level
+	private volatile ConcurrentHashMap<Tuple2<Levels , Scene> , CSLinked<UserConnection>> loadedLevels = new ConcurrentHashMap<>(4);
+	private volatile CSQueue<Tuple2<DatagramPacket , Integer>> packetsToHandle = new CSQueue<>();
 	private final Engine engine;
+	private final Renderer renderer;
 	private final ServerUI ui;
 	private final MultiplayerChatUI chatUI;
-	private short nextConnectionID = 0;
-	private boolean running = false;
-		
-	private final Thread serverThread = new Thread(new Runnable() {
+	private volatile short nextConnectionID = 0;
+	private volatile boolean running = false;
+	
+	private final Thread serverListeningThread = new Thread(new Runnable() {
 		
 		@Override public void run() {
 			
-			while(true) {
-				
-				try {
-					
-					listen();
-					
-				} catch (IOException e) {
-					
-					e.printStackTrace();
-					
-				}
-				
-			}
+			while(true) TRY(() -> listen());
 			
 		}
 		
@@ -102,11 +100,7 @@ public class UserHostedServer implements NetworkedInstance {
 		
 		@Override public void run() {
 			
-			while(true) { 
-				
-				instanceUpdate();
-			
-			}
+			while(true) instanceUpdate();
 			
 		}
 		
@@ -116,23 +110,24 @@ public class UserHostedServer implements NetworkedInstance {
 	
 	{
 		serverUpdateThread.setDaemon(true);
-		serverThread.setDaemon(true);
+		serverListeningThread.setDaemon(true);
 	}
 	
-	public UserHostedServer(Engine engine) {
+	public UserHostedServer(Engine engine , Renderer renderer) {
 		
 		this.engine = engine;
 		
 		ui = new ServerUI();
 		chatUI = new MultiplayerChatUI("SERVER" , this);
+		this.renderer = renderer;
 		
 		try {
 			
 			serverSocket = new DatagramSocket(DEFAULT_PORT , InetAddress.getLocalHost());
-			serverThread.setName("Server Listening Thread");
+			serverListeningThread.setName("Server Listening Thread");
 			serverUpdateThread.setName("Server Perpetual Update Thread");
 			
-			serverThread.start();
+			serverListeningThread.start();
 			serverUpdateThread.start();
 			running = true;
 			System.out.println("User Hosted Server started.");
@@ -165,7 +160,7 @@ public class UserHostedServer implements NetworkedInstance {
 					//disconnected
 
 				} else {
-										
+					
 					/*
 					 * 
 					 * Connect and sync the entrant to the server
@@ -176,151 +171,163 @@ public class UserHostedServer implements NetworkedInstance {
 					 * as entrant.
 					 * 
 					 */
-					
-					//connected
 					System.out.println("Connecting new user");
 					
-					PacketCoder entrantCoder = new PacketCoder(packet.getData() , offset + 1);
-					
-					String entrantName = entrantCoder.rstring() + ".CStf";
-					float[] entrantPos = entrantCoder.rposition();
-					String entrantmacroLevelLevel = entrantCoder.rstring();
-					
-					short connectionID = nextConnectionID++;
-					NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(connectionID , new Entities(entrantName) , false);
-					newClientNetworkedEntity.setNetworkControlled();
-					UserConnection newClient = new UserConnection(
-						connectionID , 
-						packet.getPort() , 
-						packet.getAddress() , 
-						new Timer() , 
-						newClientNetworkedEntity
-					);
-					
-					newClient.entity.networked().moveTo(entrantPos);
-					
-					//this packet gets sent to people who are in the server but outside the level the entrant connected from
-					PacketCoder toOthersOutside = new PacketCoder()
-						.bflag(CLIENT_CONNECTED)
-						.bconnectionID(connectionID)
-						.bstring(entrantName)
-					;
-					
-					//this coder will hold IDs and names of entities and then IDs and positions of players in the level the client is connecting to 
-					PacketCoder toEntrant = new PacketCoder()
-						.bflag(CHANGE_CONNECTION)					
-						.bconnectionID(connectionID)
-						.brepitition((short) connections.size() , (byte) 3)
-					;
-					
-					//populate the coder for the entrant of ALL players ID and entity
-					connections.forEach((hash , connection) -> {
+					//initialize resourcse
+					try(PacketCoder entrantCoder = new PacketCoder(packet.getData() , offset + 1) ; 
+						PacketCoder toOthersOutside = new PacketCoder() ;  
+						PacketCoder toEntrant = new PacketCoder()
+					) {
 						
-						toEntrant
-							.bconnectionID(connection.index)
-							.bstring(connection.entity.networked().name())
+						String entrantName = entrantCoder.rstring() + ".CStf";
+						float[] entrantPos = entrantCoder.rposition();
+						String entrantmacroLevelLevel = entrantCoder.rstring();
+						short connectionID = nextConnectionID++;
+						
+						//this packet gets sent to people who are in the server but outside the level the entrant connected from
+						toOthersOutside
+							.bflag(CLIENT_CONNECTED)
+							.bconnectionID(connectionID)
+							.bstring(entrantName)
 						;
-							
-					});
-					
-					RefInt foundLevel = new RefInt(0);
-					
-					liveLevels.forEach((levelSceneTuple , players) -> {
 						
-						Levels level = levelSceneTuple.getFirst();
-						//if this is true, the entrant is in a level that is already in play
-						if(foundLevel.get() == 0 && (level.macroLevel() + "/" + level.gameName() + ".CStf").equals(entrantmacroLevelLevel)) { 
-																			
-							foundLevel.set(1);
+						//this coder will hold IDs and names of entities and then IDs and positions of players in the level the client is connecting to 
+						toEntrant
+							.bflag(CHANGE_CONNECTION)					
+							.bconnectionID(connectionID)
+							.brepitition((short) connections.size() , (byte) 2)
+						;
+						
+						//populate the coder for the entrant of ALL players ID and entity
+						connections.forEach((hash , connection) -> {
 							
-							//this packet gets sent to people who are in the server and inside the level teh entrant connected from
-							PacketCoder toOthersInside = new PacketCoder()
-								.bflag(CLIENT_CONNECTED)
-								.bconnectionID(connectionID)
-								.bstring(entrantName)
-								.bposition(entrantPos)
+							toEntrant
+								.bconnectionID(connection.index)
+								.bstring(connection.entity.networked().name())
 							;
 							
-							toEntrant.brepitition((short) players.size(), (byte)2);
-							
-							players.forEachVal(player -> {
-								
-								//add this player's data to the packet going to the entrant 
-								toEntrant
-									.bconnectionID(player.index)
-									.bposition(player.entity.networked().getMidpoint())
-								;
-								
-								//send the packet to players inside the level the entrant is in to each player
-								try {
-									
-									sendReliable(toOthersInside.get() , 102894191 + player.index , 1000 , player.address , player.port);
-									
-								} catch (IOException e) {
-									
-									e.printStackTrace();
-									
-								}
-								
-							});
-							
-							//adds the new client to the level they said they were in
-							players.add(newClient);
-							levelSceneTuple.getSecond().entities().add(newClient.entity.networked());
-							
-						} else {
-							
-							players.forEachVal(player -> {
+						});
+						
+						RefInt foundLevel = new RefInt(0);
+						UserConnection newClient = null;
+						
+						Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> entries = loadedLevels.entrySet();
+						
+						for(Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>> x : entries) {
 
-								//send the packet to players outside the level the entrant is in to each player not in entrants level
-								try {
-									
-									sendReliable(toOthersOutside.get() , 102892191 + player.index , 1000 , player.address , player.port);
-									
-								} catch (IOException e) {
-									
-									e.printStackTrace();
-									
-								}
+							Levels level = x.getKey().getFirst();
+							Scene scene = x.getKey().getSecond();
+							CSLinked<UserConnection> players = x.getValue();
+							//if this is true, the entrant is in a level that is already in play
+							if(foundLevel.get() == 0 && (level.macroLevel() + "/" + level.gameName() + ".CStf").equals(entrantmacroLevelLevel)) { 
 								
-							});
+								foundLevel.set(1);
+								
+								try(PacketCoder toOthersInside = new PacketCoder()) {
+									
+									toOthersInside
+										.bflag(CLIENT_CONNECTED)
+										.bconnectionID(connectionID)
+										.bstring(entrantName)
+										.bposition(entrantPos)
+									;
+									
+									//this packet gets sent to people who are in the server and inside the level teh entrant connected from
+									toEntrant.brepitition((short) players.size(), (byte)2);
+									
+									players.forEachVal(player -> TRY(() -> {
+
+										//add this player's data to the packet going to the entrant 
+										toEntrant
+											.bconnectionID(player.index)
+											.bposition(player.entity.networked().getMidpoint())
+										;
+										
+										//send the packet to players inside the level the entrant is in to each player
+										sendReliable(toOthersInside.get() , 102894191 + player.index , 1000 , player.address , player.port);
+									
+									}));
+									
+								} 
+								
+								NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(
+									connectionID , 
+									new Entities(scene , entrantName) , 
+									false
+								);
+								
+								newClientNetworkedEntity.setNetworkControlled();
+								
+								newClient = new UserConnection(
+									connectionID , 
+									packet.getPort() , 
+									packet.getAddress() , 
+									new Timer() , 
+									newClientNetworkedEntity
+								);
+								
+								newClientNetworkedEntity.networked().moveTo(entrantPos);
+								
+								//adds the new client to the level they said they were in
+								players.add(newClient);
+								scene.entities().add(newClient.entity.networked());
+								
+							} else {
+								
+								players.forEachVal(player -> TRY(() ->  {
+									
+									//send the packet to players outside the level the entrant is in to each player not in entrants level
+									sendReliable(toOthersOutside.get() , 102892191 + player.index , 1000 , player.address , player.port);
+
+								}));
+								
+							}
+													
+						}
+						
+						//if we did not find a level the client was in, we add a new level
+						if(foundLevel.get() == 0)  {
+
+							Scene newLevelScene = new Scene(renderer , engine);
+							Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
+
+							newLevelScene.entityScriptingInterface().server(this);
+							
+							NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(
+								connectionID , 
+								new Entities(newLevelScene , entrantName) , 
+								false
+							);
+							
+							newClientNetworkedEntity.setNetworkControlled();
+							
+							newClient = new UserConnection(
+								connectionID , 
+								packet.getPort() , 
+								packet.getAddress() , 
+								new Timer() , 
+								newClientNetworkedEntity
+							);
+							
+							newClientNetworkedEntity.networked().moveTo(entrantPos);
+							
+							newLevelScene.entities().setNetworkInstance(this);
+							newLiveLevel.deploy(newLevelScene);
+							newLevelScene.entities().add(newClient.entity.networked());
+							loadedLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(newClient));
 							
 						}
 						
-					});
-					
-					//if we did not find a level the client was in, we add a new level
-					if(foundLevel.get() == 0)  {
+						//key the entity
+						connections.put(key, newClient);
+						//finally respond to client
+						TRY(() -> sendReliable(toEntrant.get() , 1020103984 + connectionID , 1000 , packet.getAddress() , packet.getPort()));
 						
-						Levels newLiveLevel = new Levels((CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
-						Scene newLevelScene = new Scene(engine.getCamera());
-						newLevelScene.entities().setServer(this);
-						newLiveLevel.deploy(newLevelScene);
-						newLevelScene.entities().add(newClient.entity.networked());
-						liveLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(newClient));
-					
-						//update UI that we loaded a new level
-						ui.refreshLevelPointers();
+						System.out.println("New Player Connected as: " + entrantName);
 						
 					}
 					
-					//key the entity
-					connections.put(key, newClient);
-					
-					//finally respond to client
-					try {
-						
-						sendReliable(toEntrant.get() , 1020103984 + connectionID , 1000 , packet.getAddress() , packet.getPort());
-						
-					} catch (IOException e) {
-						
-						e.printStackTrace();
-						
-					}
-					
-					System.out.println("New Player Connected as: " + entrantName);
-						
-				}
+				} 
 				
 			}
 			
@@ -337,15 +344,7 @@ public class UserHostedServer implements NetworkedInstance {
 					
 					if(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()) != hash) {
 						
-						try {
-							
-							sendReliable(chatData , 9349491 , 1500);
-							
-						} catch (IOException e) {
-							
-							e.printStackTrace();
-							
-						}
+						TRY(() -> sendReliable(chatData , 9349491 , 1500));
 						
 					}
 					
@@ -355,26 +354,243 @@ public class UserHostedServer implements NetworkedInstance {
 				
 			}
 			
-			case LOCATION_CHANGE -> {}
+			case LOCATION_CHANGE_IN -> {
+				
+				//someone has left their old level and new one is encoded in this packet
+				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
+				
+				boolean foundNewLevelYet = false;
+				
+				String levelEntered;
+				float[] posInNewLevel;
+				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)){
+					
+					levelEntered = coder.rstring();
+					posInNewLevel = coder.rposition();
+					sender.entity.networked().moveTo(posInNewLevel);
+					
+				}
+				
+				Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> levels = loadedLevels.entrySet();
+					
+				boolean removedSenderFromOldLevel = false;
+				
+				/*
+				 * iterate over all live levels with two goals
+						1) find the level the sender is leaving
+						2) find the level the sender is entering
+				   
+				 * if any particular iteration satisfies one of these, take that opportunity to notify players in the level appropriately
+				 * 
+				 * Once we find the level the sender was previously in, either:
+				   		1) there is at least one other player in the level,
+				   		2) the sender was the only player in the level
+				   
+				 * If there is at least one other person in the level, we need to remove the sender from the list of connections and
+				 * notify other players that the sender has left the level.
+ 
+				 * If the sender is the only person in the level, we will redeploy the level ie reset the scene
+
+				 */				
+				for(Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>> x : levels) {
+					
+					//iterator of connections per level-scene tuple
+					cdNode<UserConnection> iter = x.getValue().get(0);
+					boolean advanceIter = true;
+					
+					//break out of the outer for loop if we can
+					if(removedSenderFromOldLevel && foundNewLevelYet) break;
+					
+					//iterate over connections
+					for(int i = 0 ; i < x.getValue().size() ; i ++) { 
+						
+						advanceIter = true;
+						//if this is true, the sender is in the current list of connections
+						if(iter.val.equals(sender)) {
+							
+							//if there is more than one person in the live level 
+							if(x.getValue().size() > 1) {
+																	
+								//setup packet to old players
+								try (PacketCoder toPlayersInOldLevel = new PacketCoder()) {
+
+									toPlayersInOldLevel
+										.bflag(LOCATION_CHANGE_OUT)
+										.bconnectionID(sender.index)
+									;
+									
+									//notify other player in the level the sender was in that the sender left
+									x.getValue().forEachVal(conn -> TRY(() -> {
+										
+										if(!conn.equals(sender)) {
+											
+											sendReliable(toPlayersInOldLevel.get() , 130921012 + conn.index , 1000 , conn.address , conn.port);
+											
+										}
+										
+									}));
+									
+								} 
+								
+								//remove the senders entity from the list of entities
+								x.getKey().getSecond().entities().remove(sender.entity.networked());
+								
+							} 
+							//the sender was the last one in the level, we'll refresh the scene here which removes the entity anyway
+							else {
+
+								x.getKey().getFirst().deploy(x.getKey().getSecond());
+								
+							}						
+							
+							//remove the sender from the list of connections in this level
+							iter = x.getValue().safeRemove(iter);
+							advanceIter = false;
+							removedSenderFromOldLevel = true;
+													
+						} 
+						
+						if(advanceIter) iter = iter.next;
+						
+					}
+					
+					//if we have not found the level that the sender is entering yet
+					if(!foundNewLevelYet) {
+						
+						String someLevelsExpandedName = x.getKey().getFirst().macroLevel() + "/" + x.getKey().getFirst().gameName() + ".CStf";
+						//string comparison to determine if the sender is entering this level
+						//if true, we are entering this level, so send the below packet to players already in that level let them know 
+						if(someLevelsExpandedName.equals(levelEntered)) try(PacketCoder toPlayersInNewLevel = new PacketCoder()) {
+							
+							foundNewLevelYet = true;
+							//to players in new level, we are sending ID of sender and their position
+							toPlayersInNewLevel
+								.bflag(LOCATION_CHANGE_IN)
+								.bconnectionID(sender.index)
+								.bposition(posInNewLevel);
+							;
+							
+							//this packet only needs to be sent in the case there are already people in the level the sender is entering
+							try(PacketCoder toSender = new PacketCoder()) {
+							
+								toSender
+									.bflag(LEVEL_LOAD_INFO)
+									//number of people in the server with each having two elements, ID and position
+									.brepitition((short) x.getValue().size() , (byte)2)
+								;
+								
+								x.getValue().forEachVal(conn -> TRY(() -> {
+								
+									//update sender repitition
+									toSender
+										.bconnectionID(conn.index)
+										.bposition(conn.entity.networked().getMidpoint())
+									;
+									
+									//update people already in the level
+									sendReliable(toPlayersInNewLevel.get() , 123095810 + conn.index , 1000 , conn.address , conn.port);
+									
+								}));
+								
+								//finally update sender about whose in the level already
+								TRY(() -> sendReliable(toSender.get() , 123095810 << 1 , 800 , sender.address , sender.port));
+								
+							}
+							
+							//finally add sender to list of connections and entity to scene 
+							x.getKey().getSecond().entities().add(sender.entity.networked());
+							x.getValue().add(sender);
+
+							((EntityScripts)sender.entity.networked().components()[Entities.SOFF]).resetLib(
+								x.getKey().getSecond().entityScriptingInterface()
+							);
+							
+						}
+						
+					}
+						
+				}
+				
+				//if we did not find the level the player is entering, we need to make a new one for them
+				if(!foundNewLevelYet) {
+					
+					//same procedure as when a player enters a level for the first time
+					Scene newLevelScene = new Scene(renderer , engine);
+					newLevelScene.entityScriptingInterface().server(this);
+					Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + levelEntered));						
+					newLevelScene.entities().setNetworkInstance(this);
+					newLiveLevel.deploy(newLevelScene);
+					newLevelScene.entities().add(sender.entity.networked());
+					((EntityScripts)sender.entity.networked().components()[Entities.SOFF]).resetLib(newLevelScene.entityScriptingInterface());
+					loadedLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(sender));
+				
+				}	
+								
+			}
 			
 			case UPDATE -> {
 				
 				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
-				PacketCoder coder = new PacketCoder(packet.getData() , offset + 1);
-				
-				/*
-				 * Sets the server's view of the keystrokes sender made last 
-				 */				
-				if(coder.testFor(PacketCoder.CONTROL_KEY_STROKES)) {
+				byte[] controls;
+				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
 					
-					byte[] controls = coder.rControlStrokes();
-					sender.entity.controlsState(controls);
+					controls = coder.rControlStrokes();
 					
 				}
 				
+				/*
+				 * Sets the server's view of the keystrokes sender made last 
+				 */		
+				sender.entity.controlsState(controls);
+				
+				/*
+				 * Update other players by finding the level the sender of this update packet is in by:
+				 * 		creating a packet coder for a packet to send to other players,
+				 		creating a datagram packet to send to each player,
+				 		send it for each client other than the one who sent it.
+				 * 
+				 */
+				loadedLevels.forEach((levelSceneTuple , connectionsTherein) -> {
+					
+					if(levelSceneTuple.getSecond().entities().has(sender.entity.networked())) {
+
+						try(PacketCoder recipientCoder = new PacketCoder()) {
+							
+							recipientCoder
+								.bflag(UPDATE)
+								.bconnectionID(sender.index)
+								.bControlStrokes(controls)	
+							;
+							
+							DatagramPacket updatePacket = new DatagramPacket(recipientCoder.get() , 0 , recipientCoder.position());
+														
+							connectionsTherein.forOnlyVals(conn -> conn.entity != sender.entity , (conn) -> TRY(() -> {
+								
+								updatePacket.setAddress(conn.address);
+								updatePacket.setPort(conn.port);
+								serverSocket.send(updatePacket);								
+								
+							}));
+							
+						}						
+						
+						return;
+						
+					}
+					
+				});
+				
 			}
 			
-			default -> throw new IllegalArgumentException("Invalid packet flag given: " + packet.getData()[offset]);
+			default -> {
+				
+				System.err.println("Invalid packet flag given: " + packet.getData()[offset]);
+				System.err.println("Packet bytes: ");
+				for(int i = 0 ; i < packet.getLength() ; i ++) System.err.println("" + packet.getData()[i]);
+				
+				throw new IllegalArgumentException();
+				
+			}
 		
 		}
 		
@@ -400,19 +616,11 @@ public class UserHostedServer implements NetworkedInstance {
 	
 	public void broadCastReliable(byte[] data , int hash , int cooldownMillis) {
 		
-		connections.forEach((connectionHash , connection) -> {
+		connections.forEach((connectionHash , connection) -> TRY(() -> {
 			
-			try {
-				
-				sendReliable(data , hash + connectionHash , cooldownMillis , connection.address , connection.port);
-				
-			} catch (IOException e) {
-
-				e.printStackTrace();
-				
-			}
+			sendReliable(data , hash + connectionHash , cooldownMillis , connection.address , connection.port);
 			
-		});
+		}));
 		
 	}
 	
@@ -430,35 +638,36 @@ public class UserHostedServer implements NetworkedInstance {
 			
 			ReliableDatagram.tickLiveDatagrams(serverSocket);
 			
-			/*
-			 * Unfortunately, this prevents someone from using this instance of the COLDSTEEL engine from hosting a server
-			 * and client on that server at the same time because the global objects Kinematics and TemporalExecutor are needed
-			 * for entities to work.
-			 * TODO: something about this 
-			 */
-			liveLevels.forEach((levelSceneTuple , listOfConnections) -> {
+			synchronized(packetsToHandle) {
+				
+				while(!packetsToHandle.empty()) {
+					
+					var packet = packetsToHandle.dequeue();
+					handleFlaggedPacket(packet.getFirst() , packet.getSecond());
+					
+				}
+				
+			}			
+			
+			loadedLevels.forEach((levelSceneTuple , listOfConnections) -> {
 				
 				levelSceneTuple.getSecond().entities().entitySystems(
 					() -> {
 						
-						if(LOGGING_ENABLED) {
-							
-							Calendar c = Calendar.getInstance();							
-							log("server tick (" + c.get(Calendar.SECOND)  + "): " + levelSceneTuple.getSecond().entities().numberTicks());
-							
-						}
-						
-					} ,
-					
-					() -> {
+					} , () -> {
 		
 						//serverside physics simulation
-						Kinematics.process();
+						levelSceneTuple.getSecond().kinematics().process();
 						TemporalExecutor.process();
 										
 					} , 
 					//release server view of connection's keys
-					() -> listOfConnections.forEachVal(connection -> connection.entity.unStrikeKeys())
+					() -> {
+						
+						listOfConnections.forEachVal(connection -> connection.entity.unStrikeKeys());
+						
+					}
+					
 				);
 								
 			});
@@ -471,8 +680,17 @@ public class UserHostedServer implements NetworkedInstance {
 		
 	}
 	
+	@Override public Iterable<NetworkedEntities> managedConnections() {
+				
+		ArrayList<NetworkedEntities> entities = new ArrayList<>(connections.size());
+		connections.forEach((hash , conn) -> entities.add(conn.entity));
+		return entities;
+		
+	}
+	
 	@Override public void send(byte[] data) throws IOException {
 
+		throw new UnsupportedOperationException("Servers must have a specified address to send a packet to.");
 		
 	}
 
@@ -493,18 +711,27 @@ public class UserHostedServer implements NetworkedInstance {
 		DatagramPacket packet = new DatagramPacket(new byte[256] , 256);
 		serverSocket.receive(packet);
 		int offset = 0; 
+		boolean isAck = false;
 		if(ReliableDatagram.isReliableDatagramPacket(packet)) {
 			
 			offset = 8;
-			if(ReliableDatagram.isAcknowledgement(packet)) ReliableDatagram.acceptAcknowledgement(packet);
-			else ReliableDatagram.acknowledge(serverSocket, packet);
+			if(ReliableDatagram.isAcknowledgement(packet)) { 
+				
+				ReliableDatagram.acceptAcknowledgement(packet);
+				isAck = true;
+				
+			} else ReliableDatagram.acknowledge(serverSocket, packet);
 			
 		}
 		
-		if(isFlaggedMessage(packet.getData() , offset)) { 
+		if(!isAck) {
 			
-			int off = offset;
-			TemporalExecutor.onTrue(() -> true , () -> handleFlaggedPacket(packet , off));
+			int offset2pointo = offset;			
+			synchronized(packetsToHandle) {
+				
+				packetsToHandle.enqueue(new Tuple2<>(packet , offset2pointo));
+				
+			}
 			
 		}
 				
@@ -513,11 +740,13 @@ public class UserHostedServer implements NetworkedInstance {
 	@Override public boolean host() {
 
 		return false;
+		
 	}
 
 	@Override public boolean client() {
 
 		return false;
+		
 	}
 
 	@Override public void toggleUI() {
@@ -527,14 +756,8 @@ public class UserHostedServer implements NetworkedInstance {
 		
 	}
 
-	@Override public void onLevelLoad(Levels newLevel, float[] initialPosition) throws IOException {
-
-		
-	}
-
 	@Override public void shutDown() { 
 	
-		ui.shutDown();
 		chatUI.shutDown();
 		
 	}
@@ -542,13 +765,26 @@ public class UserHostedServer implements NetworkedInstance {
 	private class ServerUI extends UserInterface {
 		
 		private static int options = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_TITLE;
+
+		//toggle this with f11
+		private ByteBuffer liveLevelDropdown = ALLOCATOR.bytes((byte) 0);
+		
+		private ByteBuffer freeze = ALLOCATOR.bytes((byte)0);
+		private ByteBuffer renderDebug = ALLOCATOR.bytes((byte)0);
+		private final DecimalFormat decimalFormatter = new DecimalFormat();
+		
+		private ReentrantLock ptrModLock = new ReentrantLock();
 		
 		public ServerUI() {
 			
 			super("Multiplayer Information", 1565 , 5 , 350 , 600 , options , options);
-			
+
+			decimalFormatter.setMaximumFractionDigits(1);
+		
 			layoutBody((frame) -> {
 
+				ptrModLock.lock();
+				
 				nk_layout_row_dynamic(context , 20 , 2);
 				nk_text(context , "Server Address:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 				nk_text(context , serverSocket.getLocalAddress().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
@@ -560,36 +796,24 @@ public class UserHostedServer implements NetworkedInstance {
 				int symbol = toBool(liveLevelDropdown) ? NK_SYMBOL_TRIANGLE_DOWN : NK_SYMBOL_TRIANGLE_RIGHT;
 				
 				nk_layout_row_dynamic(context , 30 , 1);				
-				if(nk_selectable_symbol_label(context , symbol , "Show Live Levels" , NK_TEXT_ALIGN_LEFT , liveLevelDropdown)) { 
-					
-					refreshLevelPointers();
-					
-				}
+				if(nk_selectable_symbol_label(context , symbol , "Show Live Levels" , NK_TEXT_ALIGN_LEFT , liveLevelDropdown)) ;
 				
 				if(toBool(liveLevelDropdown)) {
 					
 					RefInt iter = new RefInt(0);
 					
-					liveLevels.forEach((levelSceneTuple , listOfPlayers) -> {
+					loadedLevels.forEach((levelSceneTuple , listOfPlayers) -> {
 						
 						nk_layout_row_dynamic(context , 20 , 1);
-						if(nk_checkbox_label(context , levelSceneTuple.getFirst().gameName() , levelPtrs[iter.get()])) {
+						if(nk_button_label(context , "Show " + levelSceneTuple.getFirst().gameName())) {
 							
-							//unsets all others
-							for(int i = 0 ; i < liveLevels.size() ; i ++) if(i != iter.get()) levelPtrs[i].put(0 , (byte) 0);
-							
-							engine.schedule(() -> {
-								
-								Engine.boundScene().entities().runSystems(false);
-								Engine.bindScene(levelSceneTuple.getSecond());
-								
-							});
+							engine.schedule(() -> engine.setRenderScene(levelSceneTuple.getSecond()));
 														
 						}
 						
 						nk_layout_row_dynamic(context , 20 , 2);
 						nk_text(context , "Ticks Last Second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-						nk_text(context , "" + Engine.boundScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
+						nk_text(context , "" + levelSceneTuple.getSecond().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 						
 						listOfPlayers.forEachVal(connection -> {
 							
@@ -624,46 +848,32 @@ public class UserHostedServer implements NetworkedInstance {
 					nk_text(context , x.getValue().index + " | " + x.getValue().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 				
 				}
+
+				nk_layout_row_dynamic(context , 20 , 2);
+				if(nk_checkbox_label(context , "Render Debug" , renderDebug)) engine.toggleRenderDebug(null);
+				if(nk_checkbox_label(context , "Freeze Scene" , freeze)) {}
+
+				nk_layout_row_dynamic(context , 20 , 1);
+				nk_text(context , "Performance" , NK_TEXT_ALIGN_CENTERED);
+				
+				nk_layout_row_dynamic(context , 20 , 3);
+				nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
+				nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
+					
+				ptrModLock.unlock();
 				
 			});
+			
+			show = true;
 
 		}
 
-		//toggle this with f11
-		private ByteBuffer liveLevelDropdown = ALLOCATOR.bytes((byte) 0);
-		
-		private ByteBuffer[] levelPtrs;
-		
-		public void refreshLevelPointers() {
-
-			int active = -1;
-
-			if(levelPtrs != null) for(int i = 0 ; i < levelPtrs.length ; i ++) { 
-
-				if(levelPtrs[i].get(0) == 1) active = i;					
-				memFree(levelPtrs[i]);
-				
-			}
-			
-			levelPtrs = new ByteBuffer[liveLevels.size()];
-			for(int i = 0 ; i < liveLevels.size() ; i ++) levelPtrs[i] = memCalloc(1);
-			if(active != -1) levelPtrs[active].put(0 , (byte) 1);
-			
-		}
-		
 		public void toggleShow() {
 			
 			show = show ? false : true;
 			
 		}
-		
-		public void shutDown() {
 			
-			show = false;
-			if(levelPtrs != null) for(ByteBuffer b : levelPtrs) memFree(b);
-			
-		}
-	
 	}
 	
 }

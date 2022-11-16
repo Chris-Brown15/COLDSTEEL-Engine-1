@@ -2,6 +2,7 @@ package Game.Levels;
 
 import Core.CSType;
 import Core.Quads;
+import Core.Scene;
 
 import static CSUtil.BigMixin.areColliding;
 import static CSUtil.BigMixin.getTriggerConditionFloatArray;
@@ -26,8 +27,9 @@ public class Triggers{
 			
 	private String name = "UNNAMED";
 	private TriggerScripts script;
+	Scene owningScene;
 		
-	public Triggers(String name , int ID) {
+	public Triggers(Scene owningScene , String name , int ID) {
 		
 		this.name = name;		
 		script = new TriggerScripts(this , name + ".py");

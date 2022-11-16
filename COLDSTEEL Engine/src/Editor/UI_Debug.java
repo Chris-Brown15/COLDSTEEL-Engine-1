@@ -11,7 +11,6 @@ import java.text.DecimalFormat;
 import CS.Engine;
 import CS.UserInterface;
 import Core.TemporalExecutor;
-import Physics.Kinematics;
 import Renderer.Renderer;
 
 public class UI_Debug extends UserInterface {
@@ -33,7 +32,7 @@ public class UI_Debug extends UserInterface {
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Frames this second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , Integer.toString(Engine.currentFrame()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);				
+			nk_text(context , Integer.toString(editor.scene.entities().currentFrame()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);				
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Average Frames Per Second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
@@ -57,7 +56,7 @@ public class UI_Debug extends UserInterface {
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Kinematic Forces: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , "" + Kinematics.size() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
+			nk_text(context , "" + editor.scene.kinematics().size() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Temporal Executor Objects:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);

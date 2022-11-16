@@ -2,12 +2,12 @@ package Game.Projectiles;
 
 import static Game.Projectiles.ProjectileIndices.*;
 
-import CS.Engine;
 import Core.CSType;
 import Core.Direction;
 import Core.ECS;
 import Core.HitBoxSets;
 import Core.Quads;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
@@ -19,7 +19,8 @@ public class Projectiles extends Entities {
 
 	EntityAnimations anims;
 	EntityScripts script;
-	EntityHitBoxes hitboxes;
+	EntityHitBoxes hitboxes;	
+	Scene scene;
 	
 	/**
 	 * position array is a field of vertices representing the object's position. It is not drawn upon, but only used for game logic 
@@ -33,14 +34,17 @@ public class Projectiles extends Entities {
 			
 	};
 	
-	public Projectiles(Textures texture , SpriteSets animation , String scriptNamePath){
+	public Projectiles(Scene scene , Textures texture , SpriteSets animation , String scriptNamePath){
 		
 		super("Projectile Entity" , -2 , CSType.PROJECTILE , ECS.ANIMATIONS , ECS.SCRIPT , ECS.HITBOXES);
+		
+		this.scene = scene;
+		
 		vertexData = CSUtil.BigMixin.getProjectileVertexArray();
 		setTexture(texture);
 		
 		components()[AOFF] = anims = new EntityAnimations(1);		
-		components()[SOFF] = script = new EntityScripts(this , scriptNamePath);
+		components()[SOFF] = script = new EntityScripts(scene , this , scriptNamePath);
 		components()[SOFF + 1] = true;
 		components()[HOFF] = hitboxes = new EntityHitBoxes(5);
 				
@@ -49,7 +53,7 @@ public class Projectiles extends Entities {
 		setWidth(animation.getWidthOf(0));
 		setHeight(animation.getHeightOf(0));
 		
-		script.set("pLib", Engine.PROJECTILE_SCRIPTING_INTERFACE);
+		script.set("pLib", scene.projectileScriptingInterface());
 		script.call(ProjectileScriptingInterface.PROJECTILE_SCRIPTING_FACADE);
 		script.set("P" , this);
 		
@@ -316,7 +320,7 @@ public class Projectiles extends Entities {
 	 */
 	public Projectiles copy() {
 	
-		Projectiles newProjectile = new Projectiles(texture , anims.get(0).copy() , script.scriptName());
+		Projectiles newProjectile = new Projectiles(scene , texture , anims.get(0).copy() , script.scriptName());
 		if(hitboxes.numberSets() > 0) newProjectile.hitbox(hitboxes.get(0).copy());
 		if(has(ECS.COLLISION_DETECTION)) newProjectile.addComponents(ECS.COLLISION_DETECTION);
 		if(has(ECS.DIRECTION)) newProjectile.toggleDirection();

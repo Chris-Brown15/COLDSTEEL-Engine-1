@@ -1,7 +1,9 @@
 package Networking.Utils;
 
 import static Networking.Utils.NetworkingConstants.*;
+
 import CSUtil.DataStructures.CSQueue;
+import CSUtil.DataStructures.RingBuffer;
 
 import java.nio.ByteBuffer;
 import CS.Engine;
@@ -11,11 +13,34 @@ import CS.Engine;
  * You can provide data which is to be sent over the wire and call {@code get} to get the packet specified by the data given.
  * Packets constructed by this class can also be interpreted by it.  
  * 
+ * Internally this class makes one static allocation of byte buffers and reuses them. 
+ * 
  * @author Chris Brown
  *
  */
-public final class PacketCoder {
+public final class PacketCoder implements AutoCloseable {
 
+	private static final RingBuffer<ByteBuffer> BUFFER_POOL = new RingBuffer<>(10);	
+	
+	static {
+		
+		for(int i = 0 ; i < BUFFER_POOL.capacity() ; i ++) BUFFER_POOL.put(ByteBuffer.allocate(512));
+		
+	}	
+	
+	private static final void putBack(ByteBuffer resetBuffer) {
+			
+		BUFFER_POOL.put(resetBuffer);
+		
+	}
+	
+	private static final ByteBuffer nextBuffer() { 
+		
+		ByteBuffer next = BUFFER_POOL.get();
+		return next;
+		
+	}	
+	
 	public static final byte
 		POSITION = 1 ,
 		CONNECTION_ID = 2 ,
@@ -35,21 +60,20 @@ public final class PacketCoder {
 
 	private ByteBuffer bytes;
 	
-	public PacketCoder() {
-		
-		bytes = ByteBuffer.allocate(512);
-
+	{
+		bytes = nextBuffer();
 	}
+	
+	public PacketCoder() {}
 	
 	public PacketCoder(byte[] source) {
 		
-		bytes = ByteBuffer.wrap(source);
+		bytes.put(source);
 		
 	}
 	
 	public PacketCoder(byte[] source , int offset) {
 
-		bytes = ByteBuffer.allocate(512);
 		byte[] bytesArray = bytes.array();
 		System.arraycopy(source, offset, bytesArray, 0, source.length - offset);
 		
@@ -213,6 +237,13 @@ public final class PacketCoder {
 		
 		throw new IllegalArgumentException("PACKET BUILDER ERROR: " + error);
 		
+	}
+
+	@Override public void close() {
+
+		bytes.rewind();
+		putBack(bytes);
+				
 	}
 	
 }

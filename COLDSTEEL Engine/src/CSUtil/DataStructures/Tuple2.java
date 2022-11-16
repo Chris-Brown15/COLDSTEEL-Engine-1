@@ -51,4 +51,10 @@ public class Tuple2<U , V> {
 		
 	}
 	
+	public int hashCode() {
+		
+		return first.hashCode() + second.hashCode();
+		
+	}
+	
 }

@@ -85,6 +85,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -101,23 +102,29 @@ import org.lwjgl.system.MemoryStack;
 
 import CS.Engine;
 import CS.GLFWWindow;
-import CS.RuntimeState;
 import CS.UserInterface;
-import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSStack;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.Tuple3;
 import Core.CSType;
+import Core.Direction;
+import Core.ECS;
 import Core.Quads;
+import Core.Scene;
+import Core.Entities.Entities;
+import Core.Entities.EntityHitBoxes;
 import Core.Statics.Statics;
+import Game.Items.Inventories;
+import Game.Items.ItemComponents;
+import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
-import Physics.ColliderLists;
 import Renderer.Textures.ImageInfo;
 
 public class Renderer {
 
 	private static final CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
+	private static final ReentrantLock REQUEST_LOCK = new ReentrantLock();
 	private static final CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
 	
 	private static final CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
@@ -127,33 +134,7 @@ public class Renderer {
 
     private static int drawCalls = 0;
     private static double renderTime;
-    
-	private Textures previousTexture = null;
-	
-	private Camera camera = new Camera(new Vector2f(0 , 0));
-	private Shader shader = new Shader();
-	
-    private int VAOID;
-    private int VBOID;
-    private int EBOID;
-    
-    private FloatBuffer vertexBuffer;
-	private IntBuffer elementBuffer;
 
-	private boolean renderOthers = true;
-	private ArrayList<Particle> backgroundParticles = new ArrayList<Particle>();
-	private ArrayList<Particle> foregroundParticles = new ArrayList<Particle>();
-	private ArrayList<Quads> others = new ArrayList<Quads>();
-	private ArrayList<float[]> raw = new ArrayList<float[]>();
-	private ArrayList<Quads> finals = new ArrayList<Quads>();
-
-	private GLFWWindow window;
-	
-    private double renderMilliCounter = 0;
-    private Timer renderTimer = new Timer();
-
-    public final Quads screenQuad = new Quads(-1);
-    
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -211,9 +192,14 @@ public class Renderer {
 	public static final synchronized void loadTexture(Textures texture , String filepath) {
 
 		if(filepath == null || filepath.equals("null")) return;
-		
-		if(!Engine.isMainThread()) TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(filepath , null , null)));
-		else {
+				
+		if(!Engine.isMainThread()) {
+			
+			REQUEST_LOCK.lock();
+			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(filepath , null , null)));
+			REQUEST_LOCK.unlock();		
+			
+		} else {
 			
 			texture.initialize(filepath);
 			LOADED_TEXTURES.add(texture);
@@ -225,8 +211,13 @@ public class Renderer {
 
 	public static final synchronized void loadTexture(Textures texture , int textureID , ImageInfo info) {
 
-		if(!Engine.isMainThread()) TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(null , textureID , info)));
-		else {
+		if(!Engine.isMainThread()) { 
+			
+			REQUEST_LOCK.lock();
+			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(null , textureID , info)));
+			REQUEST_LOCK.unlock();		
+			
+		} else {
 			
 			texture.initialize(textureID , info);
 			LOADED_TEXTURES.add(texture);
@@ -239,6 +230,9 @@ public class Renderer {
 	private static final void handleTextureLoadRequests() {
 
 		assert Engine.isMainThread() : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
+		
+		REQUEST_LOCK.lock();
+		
 		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> requests;
 		while(!TEXTURE_LOAD_REQUESTS.empty()) {
 			
@@ -247,6 +241,8 @@ public class Renderer {
 			else loadTexture(requests.getFirst() , requests.getSecond().getSecond() , requests.getSecond().getThird());
 			
 		}
+		
+		REQUEST_LOCK.unlock();
 		
 	}
 	
@@ -308,7 +304,97 @@ public class Renderer {
             2 , 1 , 0 ,
             0 , 1 , 3
     };
+
+	private Textures previousTexture = null;
+	
+	private Camera camera = new Camera(new Vector2f(0 , 0));
+	private Shader shader = new Shader();
+	
+    private int VAOID;
+    private int VBOID;
+    private int EBOID;
     
+    private FloatBuffer vertexBuffer;
+	private IntBuffer elementBuffer;
+
+	private boolean renderOthers = true;
+	
+	//I use locks for this but probably synchronized(this) would work too
+	private ReentrantLock listModificationLock = new ReentrantLock();
+	private ArrayList<Particle> backgroundParticles = new ArrayList<Particle>();
+	private ArrayList<Particle> foregroundParticles = new ArrayList<Particle>();
+	private ArrayList<Quads> others = new ArrayList<Quads>();
+	private ArrayList<float[]> raw = new ArrayList<float[]>();
+	private ArrayList<Quads> finals = new ArrayList<Quads>();
+
+	private GLFWWindow window;
+
+    public final Quads screenQuad = new Quads(-1);
+	private boolean renderDebug = false;
+    private Scene renderScene;    
+    private Levels debugRenderLevel;
+    
+	private void renderDebug() {
+
+		if(!renderDebug) return;
+		
+		renderScene.colliders().forEach(Renderer::draw_foreground);
+		renderScene.entities().forEach(entity -> {
+			
+			Object[] comps = entity.components();
+			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
+			if(entity.has(ECS.HITBOXES)) {
+				
+				EntityHitBoxes entityHitBoxes = (EntityHitBoxes) comps[Entities.HOFF];
+				float[][] boxes = entityHitBoxes.getActiveHitBoxes(entity, (Direction)comps[Entities.DOFF]);
+				if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
+				
+			}
+			
+			if(entity.has(ECS.INVENTORY)) {
+				
+				((Inventories)comps[Entities.IOFF]).getEquipped().forEach(item -> {
+					
+					if(item.has(ItemComponents.HITBOXABLE)) {
+						
+						float[][] boxes = item.componentData().getActiveHitBoxes();
+						for(float[] x : boxes) Renderer.draw_foreground(x);
+						
+					}
+					
+				});
+				
+			}
+			
+			if(debugRenderLevel != null){
+				
+				debugRenderLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
+				debugRenderLevel.forEachTrigger(trigger -> {
+					
+					trigger.forEachConditionArea(Renderer::draw_foreground);
+					trigger.forEachEffectArea(Renderer::draw_foreground);
+					
+				});
+				
+			}
+			
+		});
+		
+	}
+
+	public void toggleRenderDebug(Levels level) {
+		
+		renderDebug = renderDebug ? false:true;
+		debugRenderLevel = level;
+		
+	}
+
+	public boolean isRenderingDebug() {
+		
+		return renderDebug; 
+		
+	}
+	
 	private FloatBuffer initializeVAO() {
 
 		// allocate VBO
@@ -384,7 +470,13 @@ public class Renderer {
 
     }
 
-	public void initialize(GLFWWindow window , NkContext context , NkBuffer commands){
+    public void renderScene(Scene renderScene) {    	
+    
+    	this.renderScene = renderScene;
+    	
+    }
+    
+	public void initialize(Scene renderScene , GLFWWindow window , NkContext context , NkBuffer commands){
 
 		this.window = window;
 		
@@ -406,9 +498,10 @@ public class Renderer {
     	int[] winDims = window.getFramebufferDimensions();    	
         glViewport(0, 0, winDims[0], winDims[1]);
 		System.out.println("Renderer initialization complete.");
-
+		renderScene(renderScene);
+		
 	}
-	
+		
     private FloatBuffer updateVAO(float [] target) {
 
     	vertexBuffer.clear();
@@ -443,57 +536,74 @@ public class Renderer {
 	}
 	
 	public void addToForegroundParticles(Particle p) {
-		
+
+		listModificationLock.lock();	
 		foregroundParticles.add(p);
+		listModificationLock.unlock();	
 		
 	}
 
 	public void addToBackgroundParticles(Particle p) {
 		
+		listModificationLock.lock();		
 		backgroundParticles.add(p);
+		listModificationLock.unlock();
 		
 	}
 
 	public void removeFromForegroundParticles(Particle p) {
 		
+		listModificationLock.lock();	
 		foregroundParticles.remove(p);
+		listModificationLock.unlock();
 		
 	}
 
 	public void removeFromBackgroundParticles(Particle p) {
-		
+
+		listModificationLock.lock();
 		backgroundParticles.remove(p);
+		listModificationLock.unlock();
 		
 	}
 	
 	public void addToFinals(Quads addThis) {
-		
+
+		listModificationLock.lock();
 		finals.add(addThis);
+		listModificationLock.unlock();
 		
 	}
 	
 	public void addToFinalsSafe(Quads addThis) {
-		
+
+		listModificationLock.lock();
 		if(!finals.contains(addThis)) finals.add(addThis);
+		listModificationLock.unlock();
 		
 	}
 
 	public void removeFromFinals(Quads removeThis) {
-		
+
+		listModificationLock.lock();
 		finals.remove(removeThis);
+		listModificationLock.unlock();
 		
 	}
 	
 	public void addToRawData(float[] addThis) {
-		
-		
+
+		listModificationLock.lock();
 		raw.add(addThis);
+		listModificationLock.unlock();
 				
 	}
 	
 	public void removeFromRawData(float[] removeThis) {
-		
+
+		listModificationLock.lock();
 		raw.remove(removeThis);
+		listModificationLock.unlock();
 		
 	}
 	
@@ -504,9 +614,11 @@ public class Renderer {
 	}
 	
 	public void rawReplaceWith(int replaceIndex , float[] with) {
-		
+
+		listModificationLock.lock();
 		raw.add(replaceIndex, with);
 		raw.remove(replaceIndex + 1);
+		listModificationLock.unlock();
 		
 	}
 	
@@ -640,30 +752,22 @@ public class Renderer {
     	
     	handleTextureLoadRequests();
     	
-    	renderTimer.start();
     	previousTexture = null;    	
     	
-    	if(Engine.secondPassed()) {
-    		
-    		renderTime = renderMilliCounter/ Engine.framesLastSecond(); //renders time per frame average
-    		renderMilliCounter = 0;
-    		
-    	}
-
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
     	shader.uniformMatrix4("uView", camera.getViewMatrix());
+    	
+    	listModificationLock.lock();    	
     	
     	while(!BACKGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(BACKGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!BACKGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(BACKGROUND_ARRAY_DRAW_COMMANDS.pop());
     	
     	backgroundParticles.forEach(particle -> drawQuad(particle));
     	
-    	Engine.forBoundScene(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
+    	if(renderScene != null) renderScene.forEach(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
     	
     	if(renderOthers) {
-    		
-    		if(Engine.STATE == RuntimeState.EDITOR && ColliderLists.shouldRender()) ColliderLists.forAll(x -> drawQuad(x));
     		
 			for(Quads x : others) drawQuad(x);			
     		for(float[] x : raw) drawData(x);	
@@ -674,6 +778,10 @@ public class Renderer {
     	
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
+    	
+    	listModificationLock.unlock();
+    	    
+    	renderDebug();
     	
     	while(!UserInterface.ITERATED_ALL_ELEMENTS.get());
     	renderUI();
@@ -686,8 +794,6 @@ public class Renderer {
     	drawFadeToBlack();
     	
     	for(Quads x : finals) drawQuad(x);
-    	
-    	renderMilliCounter += renderTimer.getElapsedTimeMillis();		
     	
     }
     

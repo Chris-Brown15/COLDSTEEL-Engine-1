@@ -9,71 +9,30 @@ import CSUtil.DataStructures.cdNode;
 import Core.Console;
 import Core.Direction;
 import Core.ECS;
+import Core.Scene;
 import Core.SpriteSets;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
-import Core.Entities.EntityLists;
 import Core.Entities.EntityRPGStats;
 import Core.Entities.EntityLists.hitboxScan;
 import Game.Core.DamageType;
 import Game.Core.EntityHurtData;
 import Game.Projectiles.Projectiles;
-import Renderer.Renderer;
 
 public class ItemScriptingInterface {
 	
 	static final PyCode ITEM_SCRIPTING_FACADE = INTERNAL_ENGINE_PYTHON().compile("CS_itemScriptingFunctions.py");;
 	
-	Console console;
-	Renderer renderer;
-	EntityLists eList;
+	Scene owner;
+	Console console;	
 	
-	public ItemScriptingInterface(Console console, Renderer renderer , EntityLists eList) {
+	public ItemScriptingInterface(Scene owner , Console console) {
 		
+		this.owner = owner;		
 		this.console = console;
-		this.renderer = renderer;
-		this.eList = eList;
 		
 	}
 	
-	public Console getConsole() {
-				
-		return console;
-		
-	}
-
-	public Renderer getRenderer() {
-	
-		return renderer; 
-		
-	}
-	
-	public void renderItemHitboxes(Items I) {
-		
-		Entities owner = I.ownerAsEntity();		
-		if(I.has(ItemComponents.HITBOXABLE) && owner != null) {
-			
-			EntityHitBoxes hb = I.componentData().HitBoxable();
-			float[][] arr = hb.getActiveHitBoxes(I , (Direction) owner.components() [Entities.DOFF]);
-			for(float[] x : arr) renderer.addToRawData(x);
-			
-		}
-		
-	}
-	
-	public void stopRenderItemHitboxes(Items I) {
-		
-		Entities owner = I.ownerAsEntity();
-		if(I.has(ItemComponents.HITBOXABLE) && owner != null) {
-			
-			EntityHitBoxes hb = I.componentData().HitBoxable();
-			float[][] allBoxes = hb.getAllHitBoxes();
-			for(float[] x : allBoxes) renderer.removeFromRawData(x);
-			
-		}
-		
-	}
-
 	public void activateHitbox(Items I , int index) {
 		
 		if(I.has(ItemComponents.HITBOXABLE)) I.componentData().hitboxable.hitboxManager.activate(index);
@@ -103,10 +62,10 @@ public class ItemScriptingInterface {
 		float currentHorizontalDistance = 0f;
 		float currentVerticalDistance = 0f;
 		
-		cdNode<Entities> iter = eList.iter();
+		cdNode<Entities> iter = owner.entities().iter();
 		Entities x = iter.val;		
 		float [] xMid;
-		for(int i = 0 ; i < eList.size() ; i ++ , iter = iter.next) {
+		for(int i = 0 ; i < owner.entities().size() ; i ++ , iter = iter.next) {
 			
 			x = iter.val;
 			if(x.isFrozen()) continue;
@@ -285,7 +244,7 @@ public class ItemScriptingInterface {
 
 		if(!I.has(ItemComponents.HITBOXABLE)) return;
 		
-		cdNode<Entities> iter = eList.iter();
+		cdNode<Entities> iter = owner.entities().iter();
 		if(iter == null) return;
 		
 		EntityHitBoxes callerBoxes = (EntityHitBoxes)I.componentData().HitBoxable();
@@ -312,7 +271,7 @@ public class ItemScriptingInterface {
 		float[] targetCurrentBox;
 		float targetBoxHeight;
 		
-		for(int e = 0 ; e < eList.size() ; e ++ , iter = iter.next) {
+		for(int e = 0 ; e < owner.entities().size() ; e ++ , iter = iter.next) {
 			
 			current = iter.val;
 			if(current == I.ownerAsEntity() || current.isFrozen() || !current.has(ECS.HITBOXES) || !current.has(ECS.RPG_STATS)) continue;
@@ -378,7 +337,7 @@ public class ItemScriptingInterface {
 	
 	public void launchProjectile(Projectiles projectile) {
 		
-		eList.add(projectile);
+		owner.entities().add(projectile);
 		
 	}
 		

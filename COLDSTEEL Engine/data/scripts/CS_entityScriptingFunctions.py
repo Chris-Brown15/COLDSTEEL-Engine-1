@@ -239,4 +239,7 @@ def syncControls(controls):
     lib.setNetworkedControls(controls)
 
 def onServer():
-    return lib.onServer()
+    return lib.onServer(E)
+
+def createUI(fileName):
+    return lib.createUI(fileName)

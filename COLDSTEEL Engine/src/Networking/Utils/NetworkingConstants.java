@@ -40,26 +40,15 @@ public abstract class NetworkingConstants {
 		CLIENT_DISCONNECTED = 3,		
 		//notifies that the contents of this packet are for chat. 
 		CHAT_MESSAGE = 4,
-		//notifies that the sender has changed levels. if the client sends they have changed levels, if the server sends the client needs to update
-		LOCATION_CHANGE = 5,
+		//notify that the sender has changed levels. 
+		LOCATION_CHANGE_IN = 5,
+		LOCATION_CHANGE_OUT = 6,
+		//notifies the client with useful information aobut the level they just loaded into
+		LEVEL_LOAD_INFO = 7,
 		//tells the recipient keystrokes the sender has made and state of synced variables.
-		UPDATE = 6
-		
+		UPDATE = 8		
 	;
 	
-	/**
-	 * Returns true if a the byte at {@code offset} of {@code data} is a flag.
-	 * 
-	 * @param data — a {@code DatagramPacket}'s data	 
-	 * @param offset — which index to look into
-	 * @return true if {@code data[offset]} is a flag.
-	 */
-	public static final boolean isFlaggedMessage(byte[] data , int offset) {
-		
-		return data[offset] >= CHANGE_CONNECTION && data[offset] <= UPDATE;
-		
-	}
-
 	public static final boolean isFlag(byte possiblyFlag) {
 		
 		return possiblyFlag >= CHANGE_CONNECTION && possiblyFlag <= UPDATE;

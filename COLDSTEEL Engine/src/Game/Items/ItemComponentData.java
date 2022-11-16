@@ -9,6 +9,7 @@ import CSUtil.DataStructures.Tuple2;
 import Core.Direction;
 import Core.Executor;
 import Core.HitBoxSets;
+import Core.Scene;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
 import Core.ECS;
@@ -16,18 +17,21 @@ import Core.ECS;
 public class ItemComponentData {
 
 	private final Items belongsTo;
+	private Scene owningScene;
 	
 	ItemComponentData(Items belongsTo , ItemOwner owner){
 		
 		usable.setOwner(owner);
 		this.belongsTo = belongsTo;
-		
+		this.owningScene = belongsTo.owningScene;	
+				
 	}
 
 	ItemComponentData(Items belongsTo){
 		
 		this.belongsTo = belongsTo;
-		
+		this.owningScene = belongsTo.owningScene;
+	
 	}
 	
 	void changeOwner(ItemOwner owner) {
@@ -36,7 +40,7 @@ public class ItemComponentData {
 		
 	}
 	
-	class ItemEquipData extends PythonScriptEngine{
+	class ItemEquipData extends PythonScriptEngine {
 
 		int equipSlot;
 		Executor onEquip;
@@ -145,7 +149,7 @@ public class ItemComponentData {
 		switch(comp) {
 		
 			case EQUIPPABLE -> equippable = new ItemEquipData();				
-			case USABLE -> usable = new ItemUsable(belongsTo);
+			case USABLE -> usable = new ItemUsable(owningScene , belongsTo);
 			case HITBOXABLE -> hitboxable = new ItemHitBoxes();
 			case MATERIALS -> materials = new ItemMaterials();
 			case CONSUMABLE -> consumable = new ItemConsumable(100);

@@ -2,8 +2,10 @@ package Networking;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Iterator;
+import java.util.Objects;
 
-import Game.Levels.Levels;
+import Core.Entities.Entities;
 
 /**
  * Interface unifying functionality across Network classes. This class specifies several methods such as
@@ -15,11 +17,44 @@ import Game.Levels.Levels;
 public interface NetworkedInstance {
 	
 	/**
+	 * Helper function to get a particular networked entity instance given some entity.
+	 * 
+	 * @param instance — an instance of NetworkedInstance
+	 * @param e — an instance of {@code Entities}
+	 * @return a {@code NetworkedEntities} if one exists
+	 * 
+	 * @throws IllegalArgumentException if {@code e} is not within {@code instance}'s managed connections
+	 */
+	public static NetworkedEntities getNetworkedEntityForEntity(NetworkedInstance instance , Entities e) {
+		
+		Objects.requireNonNull(instance , "NetworkedInstance is null");
+		Objects.requireNonNull(e , "Entities is null");
+		
+		NetworkedEntities elem;
+		for(Iterator<NetworkedEntities> iter = instance.managedConnections().iterator() ; iter.hasNext() ; ) {
+			
+			elem = iter.next();
+			if(elem.networked().equals(e)) return elem;
+			
+		}
+		
+		throw new IllegalArgumentException("Entity " + e.name() + " not managed by: " + instance.toString());
+		
+	}
+	
+	/**
 	 * Main update method for the given NetworkedInstance. This is in charge of handling anything that needs to happen
 	 * every frame, such as checking connection timeouts and sending messages. <b>This method is not for updating UI.</b> 
 	 * 
 	 */
 	public void instanceUpdate();
+	
+	/**
+	 * This method should be used to get the list of entities {@code this} manages.
+	 * 
+	 * @return — iterable object on NetowrkedEntities.
+	 */
+	public Iterable<NetworkedEntities> managedConnections();
 	
 	/**
 	 * This method should be used to send some message to a recipient 
@@ -82,12 +117,7 @@ public interface NetworkedInstance {
 	 * 
 	 */
 	public void toggleUI();
-	
-	/**
-	 * This method should contain code to execute when the engine loads a level.
-	 */
-	public void onLevelLoad(Levels newLevel , float[] initialPosition) throws IOException;
-	
+
 	/**
 	 * Intended to free any allocated resources, both from LWJGL and Java.
 	 * 
