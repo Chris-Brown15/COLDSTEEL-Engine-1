@@ -25,6 +25,13 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
 
     }
 
+    public void add(Quads addThis) {
+
+    	addThis.setID(list.size());
+    	list.add(addThis);
+    	
+    }
+
     public Quads add() {
 
     	Quads newQuad = add(getFloatArray() , list.size() , CSType.GENERIC);

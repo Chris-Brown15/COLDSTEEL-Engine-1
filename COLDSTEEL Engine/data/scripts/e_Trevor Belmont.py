@@ -16,10 +16,11 @@ if not initialized:
 	HURT = 4
 
 	if not onServer():
-		HUD = UIScript("ui_TrevorHUD.py")
+		HUD = createUI("ui_TrevorHUD.py")
 		HUD.set("maxLife" , maxLife())
 		HUD.set("life" , currentLife())
 		HUD.set("hearts" , 0)
+		HUD.run()
 		HUD.toggle()
 	else:
 		syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACK1 , Controls.ATTACK2 , Controls.POWER1])
@@ -42,7 +43,7 @@ if not initialized:
 					global subWeapon
 					if not onServer():
 						addSubWeaponFunction = HUD.get("addSubWeapon")
-					addSubWeaponFunction(item)
+						addSubWeaponFunction(item)
 					subWeapon = item
 
 	inventory.onAcquire(itemAcquireCallback)
@@ -58,8 +59,8 @@ if not initialized:
 		
 		hurtDir = horizontally(hurtData)
 		initialX = 5 if hurtDir == Direction.LEFT else -5
-		Kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , 0.0 , 5.5 , 0.0 , 0.1 , E)
-		Kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , initialX , 0.0 , 0.1 , 0.0 , E)
+		lib.kinematics().impulse(ForceType.LINEAR_DECAY , 2500  , 0.0 , 5.5 , 0.0 , 0.1 , E)
+		lib.kinematics().impulse(ForceType.LINEAR_DECAY , 2500  , initialX , 0.0 , 0.1 , 0.0 , E)
 		TemporalExecutor.onTicks(55 , lambda: endHurt())
 		setControl(FALSE)
 

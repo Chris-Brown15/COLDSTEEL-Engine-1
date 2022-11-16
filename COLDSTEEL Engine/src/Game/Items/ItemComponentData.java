@@ -9,7 +9,6 @@ import CSUtil.DataStructures.Tuple2;
 import Core.Direction;
 import Core.Executor;
 import Core.HitBoxSets;
-import Core.Scene;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
 import Core.ECS;
@@ -17,20 +16,17 @@ import Core.ECS;
 public class ItemComponentData {
 
 	private final Items belongsTo;
-	private Scene owningScene;
 	
 	ItemComponentData(Items belongsTo , ItemOwner owner){
 		
 		usable.setOwner(owner);
-		this.belongsTo = belongsTo;
-		this.owningScene = belongsTo.owningScene;	
+		this.belongsTo = belongsTo;	
 				
 	}
 
 	ItemComponentData(Items belongsTo){
 		
 		this.belongsTo = belongsTo;
-		this.owningScene = belongsTo.owningScene;
 	
 	}
 	
@@ -49,7 +45,9 @@ public class ItemComponentData {
 		String onUnequipScript;
 	
 		ItemEquipData(){
+			
 			super();
+			
 		}
 		
 		void applyScripts() {
@@ -76,7 +74,7 @@ public class ItemComponentData {
 		
 		EntityHitBoxes hitboxManager;		
 		
-		ItemHitBoxes(){
+		ItemHitBoxes() {
 			
 			hitboxManager = new EntityHitBoxes();
 			
@@ -144,18 +142,39 @@ public class ItemComponentData {
 	ItemConsumable consumable;
 	ItemFlags flags;
 	
-	void set(ItemComponents comp) {
+	public void setEquippable() {
+	
+		equippable = new ItemEquipData();
 		
-		switch(comp) {
+	}	
+	
+	public void setUsable(String scriptNamePath) {
 		
-			case EQUIPPABLE -> equippable = new ItemEquipData();				
-			case USABLE -> usable = new ItemUsable(owningScene , belongsTo);
-			case HITBOXABLE -> hitboxable = new ItemHitBoxes();
-			case MATERIALS -> materials = new ItemMaterials();
-			case CONSUMABLE -> consumable = new ItemConsumable(100);
-			case FLAGS -> flags = new ItemFlags();
-			
-		}
+		usable = new ItemUsable(belongsTo.owningScene , belongsTo , scriptNamePath);
+		
+	}
+	
+	public void setHitboxable() {
+		
+		 hitboxable = new ItemHitBoxes();
+		
+	}
+	
+	public void setMaterials() {
+	
+		materials = new ItemMaterials();
+		
+	}	
+	
+	public void setConsumable() {
+		
+		consumable = new ItemConsumable(100);
+		
+	}
+	
+	public void setFlags() {
+		
+		flags = new ItemFlags();
 		
 	}
 	
@@ -242,8 +261,12 @@ public class ItemComponentData {
 	public float[][] getActiveHitBoxes() {
 		
 		Entities owner = belongsTo.ownerAsEntity();
-		if(hitboxable != null && owner != null && owner.has(ECS.DIRECTION))
+		if(hitboxable != null && owner.has(ECS.DIRECTION)) {
+			
 			return hitboxable.hitboxManager.getActiveHitBoxes(owner, (Direction)owner.components()[Entities.DOFF]);
+			
+		}
+		
 		return null;
 		
 	}

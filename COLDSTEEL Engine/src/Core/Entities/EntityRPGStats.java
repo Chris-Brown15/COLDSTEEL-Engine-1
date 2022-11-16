@@ -8,6 +8,7 @@ import java.util.function.Supplier;
 import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
+import Core.Scene;
 import Core.TemporalExecutor;
 import Game.Core.EntityHurtData;
 
@@ -103,6 +104,7 @@ public class EntityRPGStats {
 	Consumer<EntityHurtData> onKill;
 	Consumer<EntityHurtData> onHurt;
 	Entities entity;
+	Scene scene;
 	
 	public EntityRPGStats(Entities owner) {
 		

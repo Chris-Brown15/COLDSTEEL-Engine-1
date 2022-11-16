@@ -58,7 +58,7 @@ public class ParticleEmitter {
 	private final Executor shutDown;
 	
 	
-	public ParticleEmitter(Renderer renderer , Scene owner , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , String animNamePath , boolean foreground) {
+	public ParticleEmitter(Scene owner , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , String animNamePath , boolean foreground) {
 		
 		this.owner = owner;
 		particles = new Particle[numberParticles];
@@ -69,16 +69,16 @@ public class ParticleEmitter {
 		for(int i = 0 ; i < particles.length ; i ++) {
 			
 			particles[i] = new Particle(i , particleLifetime , texture , particleAnimation.copy());
-			if (foreground) renderer.addToForegroundParticles(particles[i]);
-			else renderer.addToBackgroundParticles(particles[i]);		 
+			if (foreground) owner.quads2().add(particles[i]);
+			else owner.quads1().add(particles[i]);		 
 			particles[i].shouldRender(false);
 			
 		}
 		
 		shutDown = () -> {
 			
-			if(foreground) for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromForegroundParticles(particles[i]);
-			else for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromBackgroundParticles(particles[i]);
+			if(foreground) for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
+			else for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
 						
 		};
 		
@@ -87,8 +87,9 @@ public class ParticleEmitter {
 				
 	}
 	
-	public ParticleEmitter(Renderer renderer , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , float R , float G , float B  , float xDims , float yDims , boolean foreground) {
+	public ParticleEmitter(Scene owner , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , float R , float G , float B  , float xDims , float yDims , boolean foreground) {
 	
+		this.owner = owner;
 		particles = new Particle[numberParticles];
 		texture = null;
 		particleAnimation = null;
@@ -99,16 +100,16 @@ public class ParticleEmitter {
 			particles[i].color(R , G , B);
 			particles[i].setWidth(xDims);
 			particles[i].setHeight(yDims);
-			if (foreground) renderer.addToForegroundParticles(particles[i]);
-			else renderer.addToBackgroundParticles(particles[i]);
+			if (foreground) owner.quads2().add(particles[i]);
+			else owner.quads1().add(particles[i]);	
 			particles[i].shouldRender(false);			
 			
 		}
 
 		shutDown = () -> {
 			
-			if(foreground) for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromForegroundParticles(particles[i]);
-			else for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromBackgroundParticles(particles[i]);
+			if(foreground) for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
+			else for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
 						
 		};
 		
@@ -117,8 +118,9 @@ public class ParticleEmitter {
 		
 	}
 
-	public ParticleEmitter(Renderer renderer , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , SpriteSets anim , boolean foreground) {
+	public ParticleEmitter(Scene owner , int numberParticles , double particleLifetime , MExpression xMoveFunction , MExpression yMoveFunction , String textureAbsPath , SpriteSets anim , boolean foreground) {
 		
+		this.owner = owner;
 		particles = new Particle[numberParticles];
 		Renderer.loadTexture(texture, textureAbsPath);
 		particleAnimation = anim;
@@ -127,16 +129,16 @@ public class ParticleEmitter {
 		for(int i = 0 ; i < particles.length ; i ++) {
 			
 			particles[i] = new Particle(i , particleLifetime , texture , particleAnimation);
-			if (foreground) renderer.addToForegroundParticles(particles[i]);
-			else renderer.addToBackgroundParticles(particles[i]);
+			if (foreground) owner.quads2().add(particles[i]);
+			else owner.quads1().add(particles[i]);
 			particles[i].shouldRender(false);
 			
 		}
 
 		shutDown = () -> {
 			
-			if(foreground) for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromForegroundParticles(particles[i]);
-			else for(int i = 0 ; i < particles.length ; i ++) renderer.removeFromBackgroundParticles(particles[i]);
+			if(foreground) for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
+			else for(int i = 0 ; i < particles.length ; i ++) owner.quads2().delete(particles[i]);
 						
 		};
 		

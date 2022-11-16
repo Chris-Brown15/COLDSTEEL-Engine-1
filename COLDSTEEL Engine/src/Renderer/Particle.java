@@ -12,7 +12,7 @@ import Core.SpriteSets;
  *
  */
 
-public class Particle  extends Quads{
+public class Particle  extends Quads {
 
 	SpriteSets anim;
 	public double lifetime;

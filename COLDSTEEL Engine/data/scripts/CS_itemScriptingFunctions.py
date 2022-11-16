@@ -1,4 +1,5 @@
 from Core import TemporalExecutor
+from Renderer import Renderer
 
 console = lib.getConsole()
 
@@ -85,19 +86,13 @@ def getOwnersJointPosition(ownerJointIndex):
 		return [ownerData[18] - ownerJointOffsetX , ownerData[10] + ownerJointOffsetY]
 
 def render():
-	lib.getRenderer().addToOthers(I)
+	Renderer.draw_foreground(I)
 
 def animate(spriteSet):
 	if spriteSet.defaultDirection() != E_components[DOFF]:
 		I.swapAndFlipSprite(spriteSet.swapSprite())
 	else:
 		I.swapSprite(spriteSet.swapSprite())
-
-def renderHitboxes():
-	lib.renderItemHitboxes(I)
-
-def stopRenderHitboxes():
-	lib.stopRenderItemHitboxes(I)
 
 def findEntity(scanRadius):
 	return lib.findEntity(I , scanRadius)
@@ -119,3 +114,6 @@ def launchProjectile(projectile):
 
 def usersAnimation():
 	return E_animList.active()
+
+def createProjectile(texture , animation , script):
+	return lib.createProjectile(texture , animation , script)

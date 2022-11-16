@@ -37,9 +37,11 @@ if not initialized:
         particle.translate(fireParticleOffseterX.at(75) , fireParticleOffseterY.at(50) + 15)
 
     def deathFireParticleUpdate(particle):
-        particle.translate(0 , 1)
+        particle.translate(0 , 0.25)
+        particle.modTranslucency(-0.0025)
 
-    deathFireEmitter.onParticleStart(lambda particle: deathFireParticleInit(particle))
+    deathFireEmitter.onParticleStart(deathFireParticleInit)
+    deathFireEmitter.onParticleUpdate(deathFireParticleUpdate)
 
     hurtColorExpr = MExpression("rand x")
     actionState = 1
@@ -72,7 +74,7 @@ if not initialized:
                         
             TemporalExecutor.coolDown(2400.0 , CHARGE_COOLDOWN)
             resDirection = horizontally(scanRes)
-            Kinematics.impulse(ForceType.LINEAR_DECAY , 700 , 3.5 if resDirection == Direction.RIGHT else -3.5 , 0 , 0.05 , 0 , E)
+            lib.kinematics().impulse(ForceType.LINEAR_DECAY , 700 , 3.5 if resDirection == Direction.RIGHT else -3.5 , 0 , 0.05 , 0 , E)
             hitTarget = FALSE
 
         #hit the entity
@@ -133,6 +135,7 @@ if not initialized:
         TemporalExecutor.onElapseOf(6000 , remove)
         #we need to update the fire emitter for longer than the entity will exist
         TemporalExecutor.forMillis(7000 , lambda: death())
+        TemporalExecutor.onElapseOf(7000 , deathFireEmitter.finish)
         deathFireEmitter.start()
 
 
@@ -144,7 +147,7 @@ if not initialized:
         animList.active().freeze = TRUE
         hurtBloodEmitter.start()
         hurtBloodEmitter.setPosition(xMid() , yMid())
-        Kinematics.impulse(ForceType.LINEAR , 250 , 1 if horizontally(hurtData) == Direction.LEFT else -1 , 0 , 0 , 0 , E)
+        lib.kinematics().impulse(ForceType.LINEAR , 250 , 1 if horizontally(hurtData) == Direction.LEFT else -1 , 0 , 0 , 0 , E)
         TemporalExecutor.onElapseOf(250 , hurtElapseOf)
 
     def setState(scan):

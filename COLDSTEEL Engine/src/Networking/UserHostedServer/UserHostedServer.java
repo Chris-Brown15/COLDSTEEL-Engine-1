@@ -59,7 +59,6 @@ import Networking.NetworkedInstance;
 import Networking.ReliableDatagram;
 import Networking.Utils.ByteArrayUtils;
 import Networking.Utils.PacketCoder;
-import Renderer.Renderer;
 
 /**
  * 
@@ -80,7 +79,6 @@ public class UserHostedServer implements NetworkedInstance {
 	private volatile ConcurrentHashMap<Tuple2<Levels , Scene> , CSLinked<UserConnection>> loadedLevels = new ConcurrentHashMap<>(4);
 	private volatile CSQueue<Tuple2<DatagramPacket , Integer>> packetsToHandle = new CSQueue<>();
 	private final Engine engine;
-	private final Renderer renderer;
 	private final ServerUI ui;
 	private final MultiplayerChatUI chatUI;
 	private volatile short nextConnectionID = 0;
@@ -113,13 +111,12 @@ public class UserHostedServer implements NetworkedInstance {
 		serverListeningThread.setDaemon(true);
 	}
 	
-	public UserHostedServer(Engine engine , Renderer renderer) {
+	public UserHostedServer(Engine engine) {
 		
 		this.engine = engine;
 		
 		ui = new ServerUI();
 		chatUI = new MultiplayerChatUI("SERVER" , this);
-		this.renderer = renderer;
 		
 		try {
 			
@@ -288,7 +285,7 @@ public class UserHostedServer implements NetworkedInstance {
 						//if we did not find a level the client was in, we add a new level
 						if(foundLevel.get() == 0)  {
 
-							Scene newLevelScene = new Scene(renderer , engine);
+							Scene newLevelScene = new Scene(engine);
 							Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
 
 							newLevelScene.entityScriptingInterface().server(this);
@@ -515,7 +512,7 @@ public class UserHostedServer implements NetworkedInstance {
 				if(!foundNewLevelYet) {
 					
 					//same procedure as when a player enters a level for the first time
-					Scene newLevelScene = new Scene(renderer , engine);
+					Scene newLevelScene = new Scene(engine);
 					newLevelScene.entityScriptingInterface().server(this);
 					Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + levelEntered));						
 					newLevelScene.entities().setNetworkInstance(this);

@@ -23,10 +23,10 @@ if not initialized:
 		if entity != None and entity.has(ECS.RPG_STATS):
 			entity.components()[RPGOFF].hurt(EntityHurtData(holyCrossDamage , xMid() , yMid()))
 
-	Kinematics.impulse(ForceType.LINEAR_DECAY , 2000 , 5.0 if horizDirection() == Direction.RIGHT else -5.0 , 0.0 , 0.07 , 0.0 , P)
-	Kinematics.then(ForceType.LINEAR_DECAY , 2000 , -5.0 if horizDirection() == Direction.RIGHT else 5.0 , 0.0 , 0.07 , 0.0)
-	Kinematics.onFinish(onCollide)
-	Kinematics.killIf(lambda: exists == FALSE)
+	lib.kinematics().impulse(ForceType.LINEAR_DECAY , 2000 , 5.0 if horizDirection() == Direction.RIGHT else -5.0 , 0.0 , 0.07 , 0.0 , P)
+	lib.kinematics().then(ForceType.LINEAR_DECAY , 2000 , -5.0 if horizDirection() == Direction.RIGHT else 5.0 , 0.0 , 0.07 , 0.0)
+	lib.kinematics().onFinish(onCollide)
+	lib.kinematics().killIf(lambda: exists == FALSE)
 
 	initialized = TRUE
 

@@ -74,9 +74,9 @@ if not initialized:
         hurtHorizontalDirection = horizontally(entityHurtData)
         face(hurtHorizontalDirection)
         initialX = 4.5 if hurtHorizontalDirection == Direction.LEFT else -4.5
-        Kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , 0.0 , 5.5 , 0.0 , 0.08 , E)
-        Kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , initialX , 0.0 , 0.08 , 0.0 , E)
-        Kinematics.onFinish(lambda: setState(6))
+        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , 0.0 , 5.5 , 0.0 , 0.08 , E)
+        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , initialX , 0.0 , 0.08 , 0.0 , E)
+        lib.kinematics.onFinish(lambda: setState(6))
         moveV(5)
         moveH(initialX)
 
@@ -93,8 +93,8 @@ if not initialized:
         attackerDirection = horizontally(entityHurtData)
         face(attackerDirection)
         initialX = -4.5 if attackerDirection == Direction.LEFT else 4.5
-        Kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , 0.0 , 5.5 , 0.0 , 0.08 , E)
-        Kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , initialX , 0.0 , 0.08 , 0.0 , E)
+        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , 0.0 , 5.5 , 0.0 , 0.08 , E)
+        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , initialX , 0.0 , 0.08 , 0.0 , E)
         
     def grounded():
         

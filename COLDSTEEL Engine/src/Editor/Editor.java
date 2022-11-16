@@ -80,7 +80,6 @@ public class Editor {
 	private ReentrantLock lock = new ReentrantLock();
 	private final CSQueue<Consumer<Editor>> events = new CSQueue<>();
 	
-	Renderer renderer;
 	Scene scene;
 	Console console;
 	UI_AAAManager uiManager;
@@ -107,27 +106,18 @@ public class Editor {
 	Triggers currentTrigger;
 	Quads currentTriggerBound;
 	
-	Consumer<RuntimeState> switchStateCallback;
-
-	Supplier<float[]> cursorWorldCoords;
-	
-	public void initialize(Engine engine , Renderer renderer, Levels currentLevel , Console console,
-			Consumer<RuntimeState> switchStateCallback , Supplier<float[]> cursorWorldCoords) {
+	public void initialize(Engine engine , Levels currentLevel , Console console) {
 
 		this.engine = engine;
 		uiManager = new UI_AAAManager(this);
 		System.out.println("Beginning Editor initialization...");
-		this.renderer = renderer;
 		this.console = console;
 		this.selection = new SelectionArea();
-		this.scene = new Scene(renderer , engine);
+		this.scene = new Scene(engine);
 		
 		this.currentLevel = currentLevel;
-		renderer.addToRawData(selection.vertices);
-		this.switchStateCallback = switchStateCallback;
 		backupLevel.associate(data + "macrolevels/Editor/");
 		
-		this.cursorWorldCoords = cursorWorldCoords;
 		System.out.println("Editor initialization complete.");
 
 	}
@@ -178,6 +168,8 @@ public class Editor {
 
 		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on
 
+		Renderer.draw_foreground(selection.vertices);
+		
 		if (toBool(uiManager.tilesetEditor.renderTileSheet)) {
 
 			if(scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
@@ -199,10 +191,10 @@ public class Editor {
 
 			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.keyboardPressed(GLFW_KEY_UP)) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
-				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) renderer.getCamera().moveCamera(scene, moveSpeed, 0);	
-				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) engine.getCamera().moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) engine.getCamera().moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) engine.getCamera().moveCamera(scene, moveSpeed, 0);	
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) engine.getCamera().moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -210,7 +202,7 @@ public class Editor {
 			TemporalExecutor.process();
 			scene.tiles1().animateTiles();
 			scene.tiles2().animateTiles();
-			if(editorState == EditorState.EDITING_HITBOX && Engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT)) dragHitBoxMarker(cursorWorldCoords.get());
+			if(editorState == EditorState.EDITING_HITBOX && Engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT)) dragHitBoxMarker(engine.cursorWorldCoords());
 			engine.releaseKeys();
 			dragQuad();
 
@@ -249,10 +241,10 @@ public class Editor {
 
 			if (!(Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT) || Engine.keyboardPressed(GLFW_KEY_LEFT_CONTROL))) {
 
-				if(Engine.keyboardPressed(GLFW_KEY_UP)) renderer.getCamera().moveCamera(scene, 0, moveSpeed);
-				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) renderer.getCamera().moveCamera(scene, -moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) renderer.getCamera().moveCamera(scene, moveSpeed, 0);
-				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) renderer.getCamera().moveCamera(scene, 0, -moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_UP)) engine.getCamera().moveCamera(scene, 0, moveSpeed);
+				if(Engine.keyboardPressed(GLFW_KEY_LEFT)) engine.getCamera().moveCamera(scene, -moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_RIGHT)) engine.getCamera().moveCamera(scene, moveSpeed, 0);
+				if(Engine.keyboardPressed(GLFW_KEY_DOWN)) engine.getCamera().moveCamera(scene, 0, -moveSpeed);
 
 			}
 
@@ -291,7 +283,7 @@ public class Editor {
 	 */
 	private void dragQuad() {
 
-		float[] cursor = cursorWorldCoords.get();
+		float[] cursor = engine.cursorWorldCoords();
 		if(cursorState == CursorState.DRAGGING && activeQuad != null) {
 			
 //			System.out.println("cursorCoords: ");
@@ -493,13 +485,19 @@ public class Editor {
 
 	Camera camera() {
 		
-		return renderer.getCamera();
+		return engine.getCamera();
 		
 	}
 	
 	public Scene scene() {
 		
 		return scene;
+		
+	}
+	
+	public float[] cursorWorldCoords() {
+		
+		return engine.cursorWorldCoords();
 		
 	}
 	
@@ -611,7 +609,7 @@ public class Editor {
 
 	void toggleRenderDebug() {
 		
-		renderer.toggleRenderDebug(backupLevel);
+		engine.toggleRenderDebug(backupLevel);
 		
 	}
 	
@@ -623,7 +621,7 @@ public class Editor {
 
 		if (spawnAtCursor) {
 
-			float[] cursor = cursorWorldCoords.get();
+			float[] cursor = engine.cursorWorldCoords();
 			added.moveTo(cursor[0], cursor[1]);
 
 		}
@@ -818,7 +816,7 @@ public class Editor {
 		Colliders newCollider = scene.colliders().add();
 		if (spawnAtCursor) {
 
-			float[] cursor = cursorWorldCoords.get();
+			float[] cursor = engine.cursorWorldCoords();
 			newCollider.moveTo(cursor[0] , cursor[1]);
 
 		}
@@ -838,7 +836,7 @@ public class Editor {
 		TemporalExecutor.onTrue(() -> input.get() != null, () -> {
 
 			Statics newStatic = background ? scene.statics1().newStatic(input.get()) : scene.statics2().newStatic(input.get());
-			float[] cursor = cursorWorldCoords.get();
+			float[] cursor = engine.cursorWorldCoords();
 			newStatic.moveTo(cursor[0] , cursor[1]);
 
 		});
@@ -852,7 +850,7 @@ public class Editor {
 
 			String[] split = filepath.get().split("\\|");
 			Statics newStatic;
-			float[] cursor = cursorWorldCoords.get();
+			float[] cursor = engine.cursorWorldCoords();
 			for (String y : split) {
 
 				if (background) newStatic = scene.statics1().loadStatic((String) toNamePath(y));
@@ -872,7 +870,7 @@ public class Editor {
 
 			TemporalExecutor.onTrue(() -> size < scene.entities().size(), () -> {
 
-				float[] cursor = cursorWorldCoords.get();
+				float[] cursor = engine.cursorWorldCoords();
 				scene.entities().get(scene.entities().size() - 1).moveTo( cursor[0] , cursor[1]);
 
 			});
@@ -895,7 +893,7 @@ public class Editor {
 				System.out.println(loaded.getTexture().imageInfo);
 				if (spawnAtCursor) {
 
-					float[] cursor = cursorWorldCoords.get();
+					float[] cursor = engine.cursorWorldCoords();
 					loaded.moveTo(cursor[0] , cursor[1]);
 
 				}
@@ -918,7 +916,7 @@ public class Editor {
 				newItem = scene.items().load(toNamePath(y));
 				if (spawnAtCursor) {
 
-					float[] cursor = cursorWorldCoords.get();
+					float[] cursor = engine.cursorWorldCoords();
 					newItem.moveTo(cursor[0] , cursor[1]);
 
 				}
@@ -1121,7 +1119,7 @@ public class Editor {
 	public Tiles copyTile(Tiles copy) {
 
 		Tiles copied = (background ? scene.tiles1() : scene.tiles2()).copy(copy);
-		float[] cursorPos = cursorWorldCoords.get();
+		float[] cursorPos = engine.cursorWorldCoords();
 		copied.moveTo(cursorPos[0] , cursorPos[1]);
 		return copied;
 
@@ -1372,7 +1370,7 @@ public class Editor {
 		Supplier<String> yInput = DialogUtils.newInputBox("Input X Coordinate" , 360 , 120);
 		TemporalExecutor.onTrue(() -> xInput != null && yInput != null , () -> {
 			
-			renderer.getCamera().lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get()));
+			engine.getCamera().lookAt((float)toNumber(xInput.get()) , (float)toNumber(yInput.get()));
 			
 		});
 				
@@ -2265,9 +2263,51 @@ public class Editor {
 		
 	}
 	
-	void setItemComponent(ItemComponents component)  {
+	void setItemEquippable() {
 
-		((Items) activeQuad).toggleComponents(component);
+		Items activeItem = (Items) activeQuad;
+		activeItem.componentData().setEquippable();
+		
+	}
+		
+	void setItemUsable() {
+	
+		Supplier<String> file =  DialogUtils.newFileExplorer("Select Item Use Script", 5 , 270);
+		TemporalExecutor.onTrue(() -> file.get() != null , () -> {
+
+			Items activeItem = (Items) activeQuad;
+			activeItem.componentData().setUsable(toNamePath(file.get()));
+		
+		});
+		
+	}	
+	
+	void setItemMaterial() {
+
+		Items activeItem = (Items) activeQuad;
+		activeItem.componentData().setMaterials();
+		
+	}
+
+	void setItemHitboxable() {
+
+		Items activeItem = (Items) activeQuad;
+		activeItem.componentData().setHitboxable();
+		
+	}
+
+	void setItemConsumable() {
+
+		Items activeItem = (Items) activeQuad;
+		activeItem.componentData().setConsumable();
+		
+	}
+
+	void setItemFlags() {
+
+		Items activeItem = (Items) activeQuad;
+		activeItem.componentData().setFlags();
+		
 	}
 	
 	void setItemEquipSlot() {

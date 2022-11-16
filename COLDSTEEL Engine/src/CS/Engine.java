@@ -31,6 +31,7 @@ import Audio.Sounds;
 import CS.Controls.Control;
 import CSUtil.CSLogger;
 import CSUtil.CSTFParser;
+import CSUtil.Profiler;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
@@ -93,8 +94,9 @@ public final class Engine {
 	
 	final Editor editor = new Editor();
 	final GameRuntime gameRuntime = new GameRuntime();	
-	final Renderer renderer = new Renderer();
-	
+	private final Renderer renderer = new Renderer();
+	private volatile Camera camera = renderer.getCamera();
+		
 	private DebugInfo debugInfo;
 	
 	public Engine(RuntimeState state) {
@@ -134,15 +136,14 @@ public final class Engine {
 			
 			case EDITOR:
 				
-	    		editor.initialize(this , renderer , currentLevel , engineConsole , 
-	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());
+	    		editor.initialize(this , currentLevel , engineConsole);
 	    		
 	    		renderer.toggleRenderDebug(null);	    		
 				break;
 				
 			case GAME:
 				
-				gameRuntime.initialize(this , renderer);
+				gameRuntime.initialize(this);
 				renderer.renderScene(gameRuntime.gameScene());				
 				break;
 								
@@ -193,8 +194,7 @@ public final class Engine {
 			
 			case EDITOR:
 
-	    		editor.initialize(this , renderer, currentLevel , engineConsole , 
-	    			(targetState) -> switchState(targetState) , () -> WINDOW.getCursorWorldCoords());
+	    		editor.initialize(this , currentLevel , engineConsole);
 
 	    		renderer.toggleRenderDebug(null);
 	    		
@@ -205,7 +205,7 @@ public final class Engine {
 			case GAME:
 				
 				GameRuntime.setState(GameState.MAIN_MENU);
-				gameRuntime.initialize(this , renderer);
+				gameRuntime.initialize(this);
 				
 				break;
 				
@@ -259,7 +259,8 @@ public final class Engine {
         	} 
 
         	glClear(GL_COLOR_BUFFER_BIT); //wipe out previous frame
-    		
+        	Profiler p = new Profiler();
+
         	switch (STATE){
 
 	        	case EDITOR:
@@ -270,8 +271,8 @@ public final class Engine {
 	        			double[] pos = WINDOW.getCursorPos();
 	        			int[] windowDims = WINDOW.getWindowDimensions();	        			
 	        			//make cursorPos in world coordinates
-	        			pos[0] = getSCToWCForX(pos[0] , windowDims[0] , windowDims[1] , renderer.getCamera());
-	        			pos[1] = getSCToWCForY(pos[1] , windowDims[0] , windowDims[1] , renderer.getCamera());	        			
+	        			pos[0] = getSCToWCForX(pos[0] , windowDims[0] , windowDims[1] , camera);
+	        			pos[1] = getSCToWCForY(pos[1] , windowDims[0] , windowDims[1] , camera);	        			
 	        			editor.resizeSelectionArea((float) pos[0], (float) pos[1]);
 	        				        			
 	        		}
@@ -280,13 +281,15 @@ public final class Engine {
 
 	        	case GAME:
 
-	        		gameRuntime.run(this);
+	        		p.call(() -> gameRuntime.run(this));
+//	        		System.out.println("GAME TIME NANOS: " + p.nanos());
 	        		
 	        		break;
 	        	
         	}
         	
-        	renderer.run();
+        	p.call(() -> renderer.run());
+//        	System.out.println("RENDER TIME NANOS:" + p.nanos());
         	
         	WINDOW.swapBuffers();
             framesThisSecond++;
@@ -309,6 +312,12 @@ public final class Engine {
 		lock.lock();
 		while(!events.empty()) events.dequeue().execute();
 		lock.unlock();
+		
+	}
+	
+	public float[] cursorWorldCoords() {
+		
+		return WINDOW.getCursorWorldCoords();
 		
 	}
 	
@@ -387,7 +396,7 @@ public final class Engine {
 		else debugInfo.show();		
 		
 	}
-	
+		
 	public Levels currentLevel() {
 		
 		return currentLevel;
@@ -532,7 +541,8 @@ public final class Engine {
 	 */
 	public static boolean mousePressed(int glfwKey) { 
 		
-		return WINDOW.mousePressed(glfwKey);
+		//if a ui wigit is hovered, we will say the key is not pressed for the purposes of checking if a mouse control is pressed
+		return !nk_window_is_any_hovered(WINDOW.NuklearContext) && WINDOW.mousePressed(glfwKey);
 		
 	}
 
@@ -818,7 +828,7 @@ public final class Engine {
 	
 	public void mg_startHostedServer() {
 		
-		gameRuntime.startUserHostedServer(this , renderer);
+		gameRuntime.startUserHostedServer(this);
 		
 	}
 	

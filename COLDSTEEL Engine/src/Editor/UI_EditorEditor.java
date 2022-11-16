@@ -108,7 +108,7 @@ public class UI_EditorEditor extends UserInterface {
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Cursor Position" , NK_TEXT_ALIGN_MIDDLE|NK_TEXT_ALIGN_LEFT);
-			float[] coords = editor.cursorWorldCoords.get();
+			float[] coords = editor.cursorWorldCoords();
 			nk_text(context , "X: " + coords[0] + ", Y: " + coords[1] , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 			nk_layout_row_dynamic(context , 20 , 2);

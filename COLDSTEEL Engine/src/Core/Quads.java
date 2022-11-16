@@ -229,7 +229,7 @@ public class Quads{
 
 	}
 	
-	public void modTranslucencty(float opacity) {
+	public void modTranslucency(float opacity) {
 
 		vertexData[6] += opacity;
 		vertexData[15] += opacity;

@@ -1,5 +1,7 @@
 package Game.Items;
 
+import java.util.Objects;
+
 import org.python.core.PyCode;
 import org.python.core.PyObject;
 
@@ -15,7 +17,7 @@ import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityHitBoxes;
 
-public class ItemUsable extends PythonScriptEngine{
+public class ItemUsable extends PythonScriptEngine {
 
 	Executor onUse;
 	Executor onStopUse;
@@ -23,32 +25,20 @@ public class ItemUsable extends PythonScriptEngine{
 	PyCode onUseCode;
 	PyObject onStopUseCode;
 	
-	boolean using = false;
-	
+	boolean using = false;	
 	private boolean initialized = false;
 	
-	ItemUsable(Scene owner , Items item , String scriptFile){
+	ItemUsable(Scene owner , Items item , String scriptFile) {
 
 		super();
-		python.set("I", item);
 		python.set("lib", owner.itemScriptingInterface());
-		
-	}	
-	
-	ItemUsable(Scene owner , Items item){
-		
-		super();
-		onUse = () -> System.err.println("No script selected for " + toString());
 		python.set("I", item);
-		python.set("lib", owner.itemScriptingInterface());
-		
-	}
-
-	{
-		
 		python.set("initialized", initialized);
+
+		onUse(scriptFile);
 		python.exec(ItemScriptingInterface.ITEM_SCRIPTING_FACADE);
-	}
+	
+	}	
 	
 	public void setVariable(String name , Object variable) {
 		
@@ -58,6 +48,7 @@ public class ItemUsable extends PythonScriptEngine{
 	
 	void onUse(String namePath) {
 
+		python.exec(ItemScriptingInterface.ITEM_SCRIPTING_FACADE);
 		useScriptNamePath = namePath != null ? namePath : useScriptNamePath;
 		if(useScriptNamePath.equals("null")) {
 			

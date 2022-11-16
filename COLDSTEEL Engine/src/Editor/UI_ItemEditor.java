@@ -119,7 +119,7 @@ public class UI_ItemEditor extends UserInterface {
 
 				nk_layout_row_begin(context , NK_STATIC , 30 , 2);			
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Equippable" , equippableCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.EQUIPPABLE));
+				if(nk_checkbox_label(context , "Equippable" , equippableCheck)) editor.schedule(e -> e.setItemEquippable());
 				if(activeItem.has(ItemComponents.EQUIPPABLE)) {
 					
 					nk_layout_row_push(context , 90);
@@ -131,7 +131,7 @@ public class UI_ItemEditor extends UserInterface {
 				
 				nk_layout_row_begin(context , NK_STATIC , 30 , 3);			
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Usable" , usableCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.USABLE));
+				if(nk_checkbox_label(context , "Usable" , usableCheck)) editor.schedule(e -> e.setItemUsable());
 				if(activeItem.has(ItemComponents.USABLE)) {
 					
 					nk_layout_row_push(context , 90);
@@ -146,13 +146,13 @@ public class UI_ItemEditor extends UserInterface {
 				
 				nk_layout_row_begin(context , NK_STATIC , 30 , 1);			
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Materials" , materialsCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.MATERIALS));
+				if(nk_checkbox_label(context , "Materials" , materialsCheck)) editor.schedule(e -> e.setItemMaterial());
 				
 				nk_layout_row_end(context);
 				
 				nk_layout_row_begin(context , NK_STATIC , 30 , 2);			
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Hitboxable" , hitboxableCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.HITBOXABLE));
+				if(nk_checkbox_label(context , "Hitboxable" , hitboxableCheck)) editor.schedule(e -> e.setItemHitboxable());
 				if(activeItem.has(ItemComponents.HITBOXABLE)) {
 					
 					nk_layout_row_push(context , 90);
@@ -164,7 +164,7 @@ public class UI_ItemEditor extends UserInterface {
 
 				nk_layout_row_begin(context , NK_STATIC , 30 , 2);			
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Consumable" , consumableCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.CONSUMABLE));
+				if(nk_checkbox_label(context , "Consumable" , consumableCheck)) editor.schedule(e -> e.setItemConsumable());
 							
 				nk_layout_row_push(context , 90);
 				if(nk_button_label(context , "Chance To Consume")) editor.schedule(Editor::setItemChanceToConsume);
@@ -173,7 +173,7 @@ public class UI_ItemEditor extends UserInterface {
 				
 				nk_layout_row_begin(context , NK_STATIC , 30 , 3);
 				nk_layout_row_push(context , 200);
-				if(nk_checkbox_label(context , "Flags" , flagsCheck)) editor.schedule(e -> e.setItemComponent(ItemComponents.FLAGS));
+				if(nk_checkbox_label(context , "Flags" , flagsCheck)) editor.schedule(e -> e.setItemFlags());
 				if(activeItem.has(ItemComponents.FLAGS)) {
 
 					nk_layout_row_push(context , 90);

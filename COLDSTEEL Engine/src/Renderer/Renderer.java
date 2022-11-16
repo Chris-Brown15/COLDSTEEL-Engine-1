@@ -121,16 +121,16 @@ import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
 import Renderer.Textures.ImageInfo;
 
-public class Renderer {
+public final class Renderer {
 
-	private static final CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
-	private static final ReentrantLock REQUEST_LOCK = new ReentrantLock();
-	private static final CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
+	private static volatile CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
+	private static volatile ReentrantLock REQUEST_LOCK = new ReentrantLock();
+	private static volatile CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
 	
-	private static final CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static final CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-    private static final CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static final CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+	private static volatile CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static volatile CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+    private static volatile CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static volatile CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
 
     private static int drawCalls = 0;
     private static double renderTime;
@@ -189,7 +189,7 @@ public class Renderer {
 		
 	}
 	
-	public static final synchronized void loadTexture(Textures texture , String filepath) {
+	public static synchronized void loadTexture(Textures texture , String filepath) {
 
 		if(filepath == null || filepath.equals("null")) return;
 				
@@ -209,7 +209,7 @@ public class Renderer {
 		
 	}
 
-	public static final synchronized void loadTexture(Textures texture , int textureID , ImageInfo info) {
+	public static synchronized void loadTexture(Textures texture , int textureID , ImageInfo info) {
 
 		if(!Engine.isMainThread()) { 
 			
@@ -227,7 +227,7 @@ public class Renderer {
 		
 	}
 	
-	private static final void handleTextureLoadRequests() {
+	private static synchronized void handleTextureLoadRequests() {
 
 		assert Engine.isMainThread() : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
 		
@@ -246,28 +246,28 @@ public class Renderer {
 		
 	}
 	
-    public static void draw_background(Quads drawThis) {
+    public static synchronized void draw_background(Quads drawThis) {
     	
     	Objects.requireNonNull(drawThis);
     	BACKGROUND_QUAD_DRAW_COMMANDS.push(drawThis);
     	
     }
     
-    public static void draw_foreground(Quads drawThis) {
+    public static synchronized void draw_foreground(Quads drawThis) {
     	
     	Objects.requireNonNull(drawThis);
     	FOREGROUND_QUAD_DRAW_COMMANDS.push(drawThis);
     	
     }
 	
-    public static void draw_background(float[] drawThis) {
+    public static synchronized void draw_background(float[] drawThis) {
     	
     	Objects.requireNonNull(drawThis);
     	BACKGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
     	
     }
     
-    public static void draw_foreground(float[] drawThis) {
+    public static synchronized void draw_foreground(float[] drawThis) {
     	
     	Objects.requireNonNull(drawThis);
     	FOREGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
@@ -281,13 +281,13 @@ public class Renderer {
      * 
      * @param freeThis — the macro level to free
      */
-    public static void freeMacroLevel(MacroLevels freeThis) {
+    public static synchronized void freeMacroLevel(MacroLevels freeThis) {
     	
     	while(!freeThis.loadedTextures().empty()) LOADED_TEXTURES.removeVal(freeThis.loadedTextures().pop()).val.shutDown();
     	
     }
     
-    public static void removeTexture(int index) {
+    public static synchronized void removeTexture(int index) {
     	
     	LOADED_TEXTURES.removeVal(index).shutDown();
     	
@@ -307,7 +307,7 @@ public class Renderer {
 
 	private Textures previousTexture = null;
 	
-	private Camera camera = new Camera(new Vector2f(0 , 0));
+	private volatile Camera camera = new Camera(new Vector2f(0 , 0));
 	private Shader shader = new Shader();
 	
     private int VAOID;
@@ -321,18 +321,16 @@ public class Renderer {
 	
 	//I use locks for this but probably synchronized(this) would work too
 	private ReentrantLock listModificationLock = new ReentrantLock();
-	private ArrayList<Particle> backgroundParticles = new ArrayList<Particle>();
-	private ArrayList<Particle> foregroundParticles = new ArrayList<Particle>();
 	private ArrayList<Quads> others = new ArrayList<Quads>();
 	private ArrayList<float[]> raw = new ArrayList<float[]>();
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
 	private GLFWWindow window;
 
-    public final Quads screenQuad = new Quads(-1);
-	private boolean renderDebug = false;
-    private Scene renderScene;    
-    private Levels debugRenderLevel;
+    public volatile Quads screenQuad = new Quads(-1);
+    private volatile Scene renderScene;    
+    private volatile Levels debugRenderLevel;
+    private volatile boolean renderDebug = false;
     
 	private void renderDebug() {
 
@@ -358,7 +356,7 @@ public class Renderer {
 					if(item.has(ItemComponents.HITBOXABLE)) {
 						
 						float[][] boxes = item.componentData().getActiveHitBoxes();
-						for(float[] x : boxes) Renderer.draw_foreground(x);
+						if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
 						
 					}
 					
@@ -532,38 +530,6 @@ public class Renderer {
 	public void removeFromOthers(Quads object){
 
 		others.remove(object);
-		
-	}
-	
-	public void addToForegroundParticles(Particle p) {
-
-		listModificationLock.lock();	
-		foregroundParticles.add(p);
-		listModificationLock.unlock();	
-		
-	}
-
-	public void addToBackgroundParticles(Particle p) {
-		
-		listModificationLock.lock();		
-		backgroundParticles.add(p);
-		listModificationLock.unlock();
-		
-	}
-
-	public void removeFromForegroundParticles(Particle p) {
-		
-		listModificationLock.lock();	
-		foregroundParticles.remove(p);
-		listModificationLock.unlock();
-		
-	}
-
-	public void removeFromBackgroundParticles(Particle p) {
-
-		listModificationLock.lock();
-		backgroundParticles.remove(p);
-		listModificationLock.unlock();
 		
 	}
 	
@@ -763,8 +729,6 @@ public class Renderer {
     	while(!BACKGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(BACKGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!BACKGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(BACKGROUND_ARRAY_DRAW_COMMANDS.pop());
     	
-    	backgroundParticles.forEach(particle -> drawQuad(particle));
-    	
     	if(renderScene != null) renderScene.forEach(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
     	
     	if(renderOthers) {
@@ -773,8 +737,6 @@ public class Renderer {
     		for(float[] x : raw) drawData(x);	
 			
     	}
-    	
-    	foregroundParticles.forEach(particle -> drawQuad(particle));
     	
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());

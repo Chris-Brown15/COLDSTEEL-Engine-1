@@ -170,7 +170,7 @@ public class GLFWWindow {
 	}
 	
 	private Engine engine;
-	private NkContext NuklearContext;	
+	NkContext NuklearContext;	
 
 	private DoubleBuffer startingX = memCallocDouble(1);
 	private DoubleBuffer startingY = memCallocDouble(1);
@@ -2125,12 +2125,14 @@ public class GLFWWindow {
 					switch(action) {
 					
     					case GLFW_PRESS:
-    						        
-    						isRMouseStruck = true;
+
     						glfwGetCursorPos(handle, startingX , startingY);
     						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
     						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());		    			
-    						
+
+    						if(nk_window_is_any_hovered(NuklearContext)) break;
+    						isRMouseStruck = true;
+    						  
     						break;
     						
     					case GLFW_RELEASE:
@@ -2142,9 +2144,7 @@ public class GLFWWindow {
 
             				double deltaX = pressWorldX - releaseWorldX;
             				double deltaY = releaseWorldY - pressWorldY;
-
-            				if(nk_window_is_any_hovered(NuklearContext)) break;
-            					            				
+            				
             				//to move the camera, either no list is focused or no object is selected.
             				if(Engine.STATE == RuntimeState.EDITOR && engine.e_getEditor().getState() == EditorMode.BUILD_MODE)
             					engine.getCamera().moveCamera((float)deltaX, -(float)deltaY);
@@ -2164,22 +2164,22 @@ public class GLFWWindow {
 					switch(action) {
 					
     					case GLFW_PRESS:
-            				
+
             				glfwGetCursorPos(handle, startingX , startingY);
             				int[] windowDims = getWindowDimensions(); 
     						pressWorldX = (float)getSCToWCForX(startingX.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());
     						pressWorldY = (float)getSCToWCForY(startingY.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());		    			
 
-        					isLMouseStruck = true;
     						if(!keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
 
             					if(nk_window_is_any_hovered(NuklearContext)) break;
+            					isLMouseStruck = true;
 
             					boolean selectedSame = engine.e_select((float)pressWorldX , (float) pressWorldY);
             					if(selectedSame && engine.e_cursorState() == CursorState.DRAGGING) engine.e_setCursorState(CursorState.SELECTABLE);
             					else if (selectedSame) engine.e_setCursorState(CursorState.DRAGGING);
             								       		            							            					
-            				}	
+            				} 
     						
     						break;
     						
@@ -2190,8 +2190,6 @@ public class GLFWWindow {
     						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
     						releaseWorldY = (float)getSCToWCForY(newY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
             				
-    						if(nk_window_is_any_hovered(NuklearContext)) break;
-    						
             				//click-drag selection box        				
             				if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
             					        					
@@ -2400,8 +2398,8 @@ public class GLFWWindow {
 	
 		double[] coords = getCursorPos();		
 		int[] winDims = getWindowDimensions();
-		return new float[] {(float) getSCToWCForX(coords[0] , winDims[0] , winDims[1] , engine.renderer.getCamera()) ,
-						    (float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.renderer.getCamera())};
+		return new float[] {(float) getSCToWCForX(coords[0] , winDims[0] , winDims[1] , engine.getCamera()) ,
+						    (float)	getSCToWCForY(coords[1] , winDims[0] , winDims[1] , engine.getCamera())};
 	
 	}
 

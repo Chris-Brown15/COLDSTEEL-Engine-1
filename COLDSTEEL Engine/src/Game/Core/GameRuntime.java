@@ -13,7 +13,6 @@ import Game.Player.PlayerCharacter;
 import Game.Player.PlayerLoader;
 import Networking.NetworkClient;
 import Networking.UserHostedServer.UserHostedServer;
-import Renderer.Renderer;
 
 /**
  * 
@@ -50,9 +49,9 @@ public class GameRuntime {
 	
 	public GameRuntime() {}	
 	
-	public void initialize(Engine engine , Renderer renderer) {
+	public void initialize(Engine engine) {
 		
-		this.gameScene = new Scene(renderer , engine);
+		this.gameScene = new Scene(engine);
 		
 	}
 	
@@ -62,9 +61,9 @@ public class GameRuntime {
 		
 	}
 	
-	public void startUserHostedServer(Engine engine , Renderer renderer) {
+	public void startUserHostedServer(Engine engine) {
 		
-		hostedServer = new UserHostedServer(engine , renderer);
+		hostedServer = new UserHostedServer(engine);
 		runEntitySystems = false;
 		
 	}

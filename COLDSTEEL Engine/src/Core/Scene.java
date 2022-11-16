@@ -13,7 +13,6 @@ import Game.Levels.TriggerScriptingInterface;
 import Game.Projectiles.ProjectileScriptingInterface;
 import Physics.ColliderLists;
 import Physics.Kinematics;
-import Renderer.Renderer;
 
 public class Scene {
 
@@ -34,7 +33,7 @@ public class Scene {
 	private final ProjectileScriptingInterface projectileScriptingInterface;
 	
 		
-	public Scene(Renderer renderer , Engine engine) {
+	public Scene(Engine engine) {
 
 		this.quads1 = new ObjectLists(this , 1);
 		this.tiles1 = new TileSets(this , 2);
@@ -46,7 +45,7 @@ public class Scene {
 		this.statics2 = new StaticLists(this , 8);
 		this.colliders = new ColliderLists(this);
 		this.kinematics = new Kinematics(this);
-		this.entityScriptingInterface = new EntityScriptingInterface(renderer , this , engine.getConsole());
+		this.entityScriptingInterface = new EntityScriptingInterface(this , engine.getConsole());
 		this.uiScriptingInterface = new UIScriptingInterface(engine);                
 		this.itemScriptingInterface = new ItemScriptingInterface(this, engine.getConsole());            
 		this.triggerScriptingInterface = new TriggerScriptingInterface(this);      

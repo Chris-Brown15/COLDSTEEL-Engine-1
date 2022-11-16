@@ -18,6 +18,7 @@ import Core.Entities.EntityLists.hitboxScan;
 import Game.Core.DamageType;
 import Game.Core.EntityHurtData;
 import Game.Projectiles.Projectiles;
+import Renderer.Textures;
 
 public class ItemScriptingInterface {
 	
@@ -30,6 +31,12 @@ public class ItemScriptingInterface {
 		
 		this.owner = owner;		
 		this.console = console;
+		
+	}
+	
+	public Console getConsole() {
+		
+		return console;
 		
 	}
 	
@@ -332,6 +339,12 @@ public class ItemScriptingInterface {
 		EntityRPGStats scanStats = ((EntityRPGStats) scan.optional.components()[Entities.RPGOFF]);
 		for(int i = 0 ; i < types.length - 1 ; i ++) scanStats.hurtSansInvincibilityTime(new EntityHurtData(types[i] , mid[0] , mid[1]));		
 		scanStats.hurt(new EntityHurtData(types[types.length - 1] , mid[0] , mid[1]));
+		
+	}
+
+	public Projectiles createProjectile(Textures texture , SpriteSets set  , String scriptNamePath) {
+	
+		return new Projectiles(owner , texture , set , scriptNamePath);
 		
 	}
 	

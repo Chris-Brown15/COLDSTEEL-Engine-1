@@ -112,8 +112,11 @@ public class Inventories implements ItemOwner {
 			int slot = x.componentData().equipSlot();
 			x.changeOwner(this);
 			
-			if(equipSlots.get(slot) == null) equipSlots.addAt(slot, x);
-			else if (equipSlots.get(slot) != null) {
+			if(equipSlots.get(slot) == null) { 
+				
+				equipSlots.addAt(slot, x);
+				
+			} else if (equipSlots.get(slot) != null) {
 				
 				unequip(slot);
 				equipSlots.addAt(slot , x);

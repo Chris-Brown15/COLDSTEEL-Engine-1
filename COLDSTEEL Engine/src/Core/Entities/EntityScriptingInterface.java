@@ -25,9 +25,9 @@ import Game.Items.LootTables;
 import Networking.UserHostedServer.UserHostedServer;
 import Networking.NetworkClient;
 import Networking.NetworkedEntities;
+import Physics.Kinematics;
 import Physics.MExpression;
 import Renderer.ParticleEmitter;
-import Renderer.Renderer;
 /**
  * 
  * This class is known to entity scripting interpreter objects, and should serve as the main interface between entity scripts and the outside world
@@ -51,15 +51,13 @@ public class EntityScriptingInterface {
 	private Scene scene;
 	private PythonInterpreter internalInterpreter = new PythonInterpreter();
 	private Random RNG = new Random();
-	private Renderer renderer;
 	private Console console;
 	private UserHostedServer server;
 	private NetworkClient client;
 	
-	public EntityScriptingInterface(Renderer renderer , Scene scene , Console console) {
+	public EntityScriptingInterface(Scene scene , Console console) {
 	
 		this.scene = scene;
-		this.renderer = renderer;
 		this.console = console;
 		
 	}
@@ -528,7 +526,7 @@ public class EntityScriptingInterface {
 	 */
 	public ParticleEmitter createParticleEmitter(int number , double lifetime , MExpression xFunction , MExpression yFunction , String textureAbsPath , String animAbsPath , boolean foreground) {
 		
-		return new ParticleEmitter(renderer, scene , number , lifetime , xFunction , yFunction , textureAbsPath , animAbsPath , foreground);
+		return new ParticleEmitter(scene , number , lifetime , xFunction , yFunction , textureAbsPath , animAbsPath , foreground);
 			
 	}
 	
@@ -557,7 +555,7 @@ public class EntityScriptingInterface {
 	 */
 	public ParticleEmitter createParticleEmitter(int number , double lifetime , MExpression xFunction , MExpression yFunction , float R , float G , float B , float width , float height , boolean foreground) {
 		
-		return new ParticleEmitter(renderer , number , lifetime , xFunction , yFunction , R , G , B , width , height , foreground); 
+		return new ParticleEmitter(scene , number , lifetime , xFunction , yFunction , R , G , B , width , height , foreground); 
 				
 	}
 
@@ -586,7 +584,7 @@ public class EntityScriptingInterface {
 	 */
 	public ParticleEmitter createParticleEmitter(int numberParticles , double lifetimeMillis , MExpression xFunction , MExpression yFunction , String textureAbsPath , SpriteSets animation , boolean foreground) {
 		
-		return new ParticleEmitter(renderer , numberParticles , lifetimeMillis , xFunction , yFunction , textureAbsPath , animation , foreground);
+		return new ParticleEmitter(scene , numberParticles , lifetimeMillis , xFunction , yFunction , textureAbsPath , animation , foreground);
 		
 	}
 	
@@ -731,6 +729,12 @@ public class EntityScriptingInterface {
 	public UIScript createUI(String scriptName) {
 		
 		return new UIScript(scene , scriptName);
+		
+	}
+	
+	public Kinematics kinematics() {
+		
+		return scene.kinematics();
 		
 	}
 	

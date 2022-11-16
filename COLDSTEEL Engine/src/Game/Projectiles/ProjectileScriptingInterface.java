@@ -9,6 +9,7 @@ import org.python.core.adapter.ClassicPyObjectAdapter;
 import Core.Scene;
 import Core.Entities.EntityLists;
 import Core.Entities.EntityScanResult;
+import Physics.Kinematics;
 
 /**
  * Singleton style class that projectile scripts get a reference to which allow projectile scripts to work as desired.
@@ -46,6 +47,12 @@ public class ProjectileScriptingInterface {
 				code.__call__(new ClassicPyObjectAdapter().adapt(EntityLists.getEnclosedEntity(ent)));
 			
 		}
+		
+	}
+	
+	public Kinematics kinematics() {
+		
+		return scene.kinematics();
 		
 	}
 	

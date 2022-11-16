@@ -63,6 +63,13 @@ public class Items extends Quads implements GameFiles<Items>{
 	private final int hashCode;
 	Scene owningScene;
 	
+	/**
+	 * Constructs an empty item
+	 * 
+	 * @param owningScene
+	 * @param name
+	 * @param ID
+	 */
 	public Items(Scene owningScene , String name , int ID) {
 		
 		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);
@@ -71,18 +78,16 @@ public class Items extends Quads implements GameFiles<Items>{
 		
 	}
 	
-	public Items(Scene owningScene , String name , int ID , ItemComponents...components) {
-		
-		super(CSUtil.BigMixin.getItemFloatArray() , ID , CSType.ITEM);
-		toggleComponents(components);
-		this.name = name;
-		hashCode = name.hashCode();
-		
-	}
-		
+	/**
+	 * Constructs and loads an item at {@code namePath}
+	 * 
+	 * @param owningScene
+	 * @param namePath
+	 */
 	public Items(Scene owningScene , String namePath){
 		
 		super(CSUtil.BigMixin.getItemFloatArray() , -1 , CSType.ITEM);
+		this.owningScene = owningScene;
 		load(namePath);
 		hashCode = namePath.substring(0, namePath.length() - 5).hashCode();
 		
@@ -106,26 +111,17 @@ public class Items extends Quads implements GameFiles<Items>{
 	}
 	
 	/**
-	 * For each component provided, if {@code this} has the component already, it is disabled, otherwise it is added and a new data object is created
+	 * Sets one or more components but does nothing more.
 	 * 
-	 * @param components — components to use
+	 * @param components
 	 */
-	public void toggleComponents(ItemComponents...components) {
+	public void flipComponent(ItemComponents...components) {
 		
-		for(ItemComponents x : components) {
-			
-			if(this.components.get(x.index)) this.components.clear(x.index);
-			else {
-				
-				this.components.set(x.index);				
-				componentData.set(x);
-				
-			}			
-			
-		}
+		for(ItemComponents x : components) this.components.flip(x.index);
 		
 	}
-		
+	
+	
 	public void maxStackSize(int stackSize) {
 		
 		this.maxStackSize = stackSize;
@@ -331,13 +327,14 @@ public class Items extends Quads implements GameFiles<Items>{
 	}
 	
 	private void rcomponent(CSTFParser cstf , String component) throws IOException {
-		
-		toggleComponents(ItemComponents.parse(component));
+
+		flipComponent(ItemComponents.parse(component));
 		
 		switch(component) {
 		
 			case "Equippable" -> {
-				
+
+				componentData.setEquippable();
 				componentData.equipSlot(cstf.rintLabel("slot"));
 				componentData.onEquipScript(cstf.rlabel("on equip script"));
 				componentData.onUnequipScript(cstf.rlabel("on unequip script"));
@@ -346,12 +343,13 @@ public class Items extends Quads implements GameFiles<Items>{
 			
 			case "Usable" -> {
 				
-				componentData.onUse(cstf.rlabel("on use"));
+				componentData.setUsable(cstf.rlabel("on use"));
 				
 			}
 			
 			case "Hitboxable" -> {
 				
+				componentData.setHitboxable();
 				var hitboxes = componentData.HitBoxable(); 
 				hitboxes.setNumberAvailableHitBoxes(cstf.rintLabel("boxes"));
 				int numberSets = cstf.rlist("sets");
@@ -362,23 +360,23 @@ public class Items extends Quads implements GameFiles<Items>{
 			
 			case "Consumable" -> {
 				
+				componentData.setConsumable();
 				componentData.chanceToConsume(cstf.rintLabel("consume chance"));
 				
 			}
 			
 			case "Materials" -> {
+			
+				componentData.setMaterials();
 				
 			}
 			
 			case "Flags" -> {
 				
-				int number = cstf.rlist("flags");
-				for(int i = 0 ; i < number ; i ++) {
-					
-					componentData.addFlag(cstf.rvalue());
-										
-				}
+				componentData.setFlags();
 				
+				int number = cstf.rlist("flags");
+				for(int i = 0 ; i < number ; i ++) componentData.addFlag(cstf.rvalue());				
 				cstf.endList();
 				
 			}

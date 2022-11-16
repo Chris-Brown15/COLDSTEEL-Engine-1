@@ -64,8 +64,6 @@ public class UIScript extends PythonScriptEngine {
 		
 	}
 	
-	
-	
 	/**
 	 * Sets a python variable name to o. This allows outside sources to give additional info to UI scripts. 
 	 * From within this object's script, o can be referenced and manipulated.
@@ -122,7 +120,8 @@ public class UIScript extends PythonScriptEngine {
 	
 	public PyObject get(String variableName) {
 		
-		return python.get(variableName);
+		PyObject gotten = python.get(variableName);		
+		return gotten;
 		
 	}
 	

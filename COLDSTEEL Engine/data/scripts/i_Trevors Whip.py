@@ -9,13 +9,13 @@ if not initialized:
 	whipHolyDamage.setValue(45)
 	whipPhysDamage = DamageType.PHYSICAL
 	whipPhysDamage.setValue(45)
-	render()
 
 	def stopUse():
 		I.shouldRender(FALSE)
 
 	initialized = TRUE
 
+render()
 I.shouldRender(TRUE)
 userActiveAnimSpriteIndex = E_animList.active().getCurrentSprite()
 whipAnim.setCurrentSprite(userActiveAnimSpriteIndex)
