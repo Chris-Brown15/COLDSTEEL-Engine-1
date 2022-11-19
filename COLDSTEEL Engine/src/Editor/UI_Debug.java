@@ -43,14 +43,6 @@ public class UI_Debug extends UserInterface {
 			nk_text(context , fpsFormat.format(Renderer.getRenderTime())  , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 				
 			nk_layout_row_dynamic(context , 20 , 2);
-			nk_text(context , "Frames per Ticks: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , "" + editor.scene.entities().frameInterval() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-			
-			nk_layout_row_dynamic(context , 20 , 2);
-			nk_text(context , "Ticks last second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , "" + editor.scene.entities().ticksLastSecond() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-			
-			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Current Number Scripts:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 			nk_text(context , "" + editor.scene.entities().numberScripts() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			

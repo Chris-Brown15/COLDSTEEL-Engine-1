@@ -15,6 +15,7 @@ import static org.lwjgl.nuklear.Nuklear.nk_buffer_init_fixed;
 import static org.lwjgl.nuklear.Nuklear.nk_clear;
 import static org.lwjgl.nuklear.Nuklear.nk_convert;
 import static org.lwjgl.opengl.GL11.GL_BLEND;
+import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
 import static org.lwjgl.opengl.GL11.GL_INVALID_ENUM;
 import static org.lwjgl.opengl.GL11.GL_INVALID_OPERATION;
@@ -40,6 +41,7 @@ import static org.lwjgl.opengl.GL11.GL_UNSIGNED_INT;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_SHORT;
 import static org.lwjgl.opengl.GL11.glBindTexture;
 import static org.lwjgl.opengl.GL11.glBlendFunc;
+import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glDeleteTextures;
 import static org.lwjgl.opengl.GL11.glDrawElements;
 import static org.lwjgl.opengl.GL11.glEnable;
@@ -48,6 +50,7 @@ import static org.lwjgl.opengl.GL11.glGetError;
 import static org.lwjgl.opengl.GL11.glScissor;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
+import static org.lwjgl.opengl.GL11C.glClearColor;
 import static org.lwjgl.opengl.GL11C.glViewport;
 import static org.lwjgl.opengl.GL12.GL_UNSIGNED_INT_8_8_8_8_REV;
 import static org.lwjgl.opengl.GL13.GL_CLAMP_TO_BORDER;
@@ -100,6 +103,9 @@ import org.lwjgl.nuklear.NkDrawVertexLayoutElement;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
+import CSUtil.Timer;
+import CSUtil.DataStructures.CSQueue;
+import Core.Executor;
 import CS.Engine;
 import CS.GLFWWindow;
 import CS.UserInterface;
@@ -127,14 +133,16 @@ public final class Renderer {
 	private static volatile ReentrantLock REQUEST_LOCK = new ReentrantLock();
 	private static volatile CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
 	
-	private static volatile CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static volatile CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-    private static volatile CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static volatile CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+	private static CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+    private static CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
+    private static CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
 
     private static int drawCalls = 0;
     private static double renderTime;
 
+    private static Thread theRenderThread;
+    
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -189,11 +197,11 @@ public final class Renderer {
 		
 	}
 	
-	public static synchronized void loadTexture(Textures texture , String filepath) {
+	public static void loadTexture(Textures texture , String filepath) {
 
 		if(filepath == null || filepath.equals("null")) return;
 				
-		if(!Engine.isMainThread()) {
+		if(!Thread.currentThread().equals(theRenderThread)) {
 			
 			REQUEST_LOCK.lock();
 			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(filepath , null , null)));
@@ -201,44 +209,105 @@ public final class Renderer {
 			
 		} else {
 			
+			REQUEST_LOCK.lock();
 			texture.initialize(filepath);
 			LOADED_TEXTURES.add(texture);
-			if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + filepath);
+			if(checkErrors()) {
+				
+				try {
+					
+					throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + filepath);
+					
+				} finally {
+					
+					REQUEST_LOCK.unlock();
+					
+				}
+				
+			} else REQUEST_LOCK.unlock();			
 			
 		}
 		
 	}
 
-	public static synchronized void loadTexture(Textures texture , int textureID , ImageInfo info) {
+	public static void loadTexture(Textures texture , int textureID , ImageInfo info) {
 
-		if(!Engine.isMainThread()) { 
+		if(!Thread.currentThread().equals(theRenderThread)) { 
 			
 			REQUEST_LOCK.lock();
 			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(null , textureID , info)));
 			REQUEST_LOCK.unlock();		
 			
 		} else {
-			
+
+			REQUEST_LOCK.lock();
 			texture.initialize(textureID , info);
 			LOADED_TEXTURES.add(texture);
-			if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + textureID + ", " + info);
+			if(checkErrors()) { 
+				
+				try {
+					
+					throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + textureID + ", " + info);
+					
+				} finally {
+
+					REQUEST_LOCK.unlock();
+				}
+				
+			} else REQUEST_LOCK.unlock();
+			
+		}
+		
+	}
+
+	public static void loadTexture(Textures texture) {
+
+		if(!Thread.currentThread().equals(theRenderThread)) { 
+			
+			REQUEST_LOCK.lock();
+			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , null));
+			REQUEST_LOCK.unlock();		
+			
+		} else {
+			
+			REQUEST_LOCK.lock();
+			texture.initialize();
+			LOADED_TEXTURES.add(texture);
+			if(checkErrors()) {
+				
+				try {
+					
+					throw new IllegalStateException("GL Error thrown on call to loadTexture. no Parameters.");
+					
+				} finally {
+					
+					REQUEST_LOCK.unlock();
+					
+				}
+				
+			} else REQUEST_LOCK.unlock();
 			
 		}
 		
 	}
 	
-	private static synchronized void handleTextureLoadRequests() {
+	private static void handleTextureLoadRequests() {
 
-		assert Engine.isMainThread() : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
+		assert Thread.currentThread().equals(theRenderThread) : "Invalid call to handleTextureLoadRequests, must be called in the main thread";
 		
 		REQUEST_LOCK.lock();
 		
-		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> requests;
+		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> request;
 		while(!TEXTURE_LOAD_REQUESTS.empty()) {
 			
-			requests = TEXTURE_LOAD_REQUESTS.pop();
-			if(requests.getSecond().getFirst() != null) loadTexture(requests.getFirst() , requests.getSecond().getFirst());
-			else loadTexture(requests.getFirst() , requests.getSecond().getSecond() , requests.getSecond().getThird());
+			request = TEXTURE_LOAD_REQUESTS.pop();
+			
+			if(request.getSecond() != null && request.getSecond().getFirst() != null) {
+				
+				loadTexture(request.getFirst() , request.getSecond().getFirst());
+							
+			} else if (request.getSecond() == null) loadTexture(request.getFirst());
+			else loadTexture(request.getFirst() , request.getSecond().getSecond() , request.getSecond().getThird());			
 			
 		}
 		
@@ -246,31 +315,40 @@ public final class Renderer {
 		
 	}
 	
-    public static synchronized void draw_background(Quads drawThis) {
+    public static void draw_background(Quads drawThis) {
     	
-    	Objects.requireNonNull(drawThis);
-    	BACKGROUND_QUAD_DRAW_COMMANDS.push(drawThis);
+    	if(!continueRendering) return;
+    	
+    	REQUEST_LOCK.lock();
+    	if(!BACKGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) BACKGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    		
+    	REQUEST_LOCK.unlock();
     	
     }
     
-    public static synchronized void draw_foreground(Quads drawThis) {
-    	
-    	Objects.requireNonNull(drawThis);
-    	FOREGROUND_QUAD_DRAW_COMMANDS.push(drawThis);
+    public static void draw_foreground(Quads drawThis) {
+
+    	if(!continueRendering) return;
+    	REQUEST_LOCK.lock();
+    	if(!FOREGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) FOREGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    	
+    	REQUEST_LOCK.unlock();
     	
     }
 	
-    public static synchronized void draw_background(float[] drawThis) {
-    	
-    	Objects.requireNonNull(drawThis);
-    	BACKGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
+    public static void draw_background(float[] drawThis) {
+
+    	if(!continueRendering) return;
+    	REQUEST_LOCK.lock();
+    	if(!BACKGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) BACKGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
+    	REQUEST_LOCK.unlock();
     	
     }
     
-    public static synchronized void draw_foreground(float[] drawThis) {
-    	
-    	Objects.requireNonNull(drawThis);
-    	FOREGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
+    public static void draw_foreground(float[] drawThis) {
+
+    	if(!continueRendering) return;
+    	REQUEST_LOCK.lock();
+    	if(!FOREGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) FOREGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
+    	REQUEST_LOCK.unlock();
     	
     }
     
@@ -325,74 +403,69 @@ public final class Renderer {
 	private ArrayList<float[]> raw = new ArrayList<float[]>();
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
+	private volatile CSQueue<Executor> rendererCallbacks = new CSQueue<Executor>();
+	
 	private GLFWWindow window;
 
     public volatile Quads screenQuad = new Quads(-1);
     private volatile Scene renderScene;    
     private volatile Levels debugRenderLevel;
     private volatile boolean renderDebug = false;
+
+    private Timer renderTimer = new Timer();
+    private int framesLastSecond = 0;
+    private int currentFrame = 0;
+    private int totalSeconds = 0;
     
-	private void renderDebug() {
-
-		if(!renderDebug) return;
-		
-		renderScene.colliders().forEach(Renderer::draw_foreground);
-		renderScene.entities().forEach(entity -> {
-			
-			Object[] comps = entity.components();
-			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
-			if(entity.has(ECS.HITBOXES)) {
-				
-				EntityHitBoxes entityHitBoxes = (EntityHitBoxes) comps[Entities.HOFF];
-				float[][] boxes = entityHitBoxes.getActiveHitBoxes(entity, (Direction)comps[Entities.DOFF]);
-				if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
-				
-			}
-			
-			if(entity.has(ECS.INVENTORY)) {
-				
-				((Inventories)comps[Entities.IOFF]).getEquipped().forEach(item -> {
-					
-					if(item.has(ItemComponents.HITBOXABLE)) {
-						
-						float[][] boxes = item.componentData().getActiveHitBoxes();
-						if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
-						
-					}
-					
-				});
-				
-			}
-			
-			if(debugRenderLevel != null){
-				
-				debugRenderLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
-				debugRenderLevel.forEachTrigger(trigger -> {
-					
-					trigger.forEachConditionArea(Renderer::draw_foreground);
-					trigger.forEachEffectArea(Renderer::draw_foreground);
-					
-				});
-				
-			}
-			
-		});
-		
-	}
-
-	public void toggleRenderDebug(Levels level) {
-		
-		renderDebug = renderDebug ? false:true;
-		debugRenderLevel = level;
-		
-	}
-
-	public boolean isRenderingDebug() {
-		
-		return renderDebug; 
-		
-	}
+	public Thread renderThread;
+	public volatile boolean initialized = false;
+	public static volatile boolean continueRendering = true;
+	public volatile boolean shutDown = false;
+	public static volatile boolean clear = true;
+	public static volatile boolean waitingForMainThread = false;
 	
+    public Renderer(ReentrantLock shutDownLock , Scene renderScene , GLFWWindow window) {
+        	
+    	renderThread = new Thread(() -> {
+    		
+    		initialize(renderScene , window);
+    		while(continueRendering) { 
+    			
+    			if(clear) {
+
+    				glClearColor(window.r() , window.g() , window.b() , 1);
+    				glClear(GL_COLOR_BUFFER_BIT); //wipe out previous frame
+    				
+    			}
+    			
+    			clear = false;
+    			
+    			run();
+    			window.swapBuffers();
+    			while(waitingForMainThread);
+    			
+
+    		}
+    		
+    		shutDown(shutDownLock);
+    			
+    	});
+    	
+    	theRenderThread = renderThread;
+    	
+    	renderThread.start();
+    	
+    	renderThread.setName("OpenGL Thread");
+    	
+    }
+    
+    public void setNuklearEnv(NkContext context , NkBuffer commands) {
+    	
+    	this.context = context;
+    	this.commands = commands;
+    	
+    }
+    
 	private FloatBuffer initializeVAO() {
 
 		// allocate VBO
@@ -474,9 +547,10 @@ public final class Renderer {
     	
     }
     
-	public void initialize(Scene renderScene , GLFWWindow window , NkContext context , NkBuffer commands){
+	public void initialize(Scene renderScene , GLFWWindow window){
 
 		this.window = window;
+		this.window.makeCurrent();
 		
 		System.out.println("Beginning Renderer initialization...");
 		shader.initializeShader();
@@ -487,19 +561,28 @@ public final class Renderer {
 		initializeTextures();
 		initializeVertexAttribs();
 		setOpenGLState();
-		initializeNuklear(context , commands);
 		if(checkErrors()) throw new IllegalStateException("GL Error thrown on call to initialize."); 
-		screenQuad.moveTo(camera.cameraPosition);		
+		screenQuad.moveTo(camera.cameraPosition.x , camera.cameraPosition.y);		
 		screenQuad.setDimensions(window.getWindowDimensions());
-		screenQuad.makeTranslucent(0.0f);
-		
+		screenQuad.makeTranslucent(0.0f);		
     	int[] winDims = window.getFramebufferDimensions();    	
         glViewport(0, 0, winDims[0], winDims[1]);
-		System.out.println("Renderer initialization complete.");
 		renderScene(renderScene);
+		System.out.println("Renderer initialization complete.");
+		initialized = true;
 		
 	}
+	
+	public void enqueueRendererCallback(Executor callback) {
 		
+		synchronized(rendererCallbacks) {
+			
+			rendererCallbacks.enqueue(callback);
+			
+		}
+		
+	}
+	
     private FloatBuffer updateVAO(float [] target) {
 
     	vertexBuffer.clear();
@@ -712,11 +795,32 @@ public final class Renderer {
     	
     }
     
-    public void run() {
-
+    public int framesLastSecond() {
+    	
+    	return framesLastSecond;
+    	
+    }
+    
+    private void run() {
+    	
+    	if(renderTimer.getElapsedTimeSecs() >= 1) {
+    		
+    		renderTimer.start();
+    		framesLastSecond = currentFrame;
+    		currentFrame = 0;
+    		if(Engine.printFPS) System.out.println("Render Frames in Second " + totalSeconds + ": " + framesLastSecond);
+    		totalSeconds++;
+    		
+    	}
+    	
     	drawCalls = 0;
     	
     	handleTextureLoadRequests();
+    	synchronized(rendererCallbacks) {
+    		
+    		while(!rendererCallbacks.empty()) rendererCallbacks.dequeue().execute();
+    		
+    	}
     	
     	previousTexture = null;    	
     	
@@ -724,7 +828,7 @@ public final class Renderer {
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
     	shader.uniformMatrix4("uView", camera.getViewMatrix());
     	
-    	listModificationLock.lock();    	
+    	listModificationLock.lock(); REQUEST_LOCK.lock();
     	
     	while(!BACKGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(BACKGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!BACKGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(BACKGROUND_ARRAY_DRAW_COMMANDS.pop());
@@ -741,13 +845,24 @@ public final class Renderer {
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
     	
-    	listModificationLock.unlock();
+    	listModificationLock.unlock(); REQUEST_LOCK.unlock();
     	    
     	renderDebug();
     	
-    	while(!UserInterface.ITERATED_ALL_ELEMENTS.get());
-    	renderUI();
-    	UserInterface.ITERATED_ALL_ELEMENTS.set(false);
+    	if(nuklearInitialized) {
+
+    		if(UserInterface.ITERATED_ALL_ELEMENTS.get()) {
+    			
+    			renderUI();
+    			UserInterface.ITERATED_ALL_ELEMENTS.set(false);
+    			
+    		}    		
+    		
+    	} else if(context != null && commands != null) {
+    		
+    		initializeNuklear();
+    		
+    	}
     	
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
@@ -756,9 +871,72 @@ public final class Renderer {
     	drawFadeToBlack();
     	
     	for(Quads x : finals) drawQuad(x);
+    
+    	currentFrame++;
     	
     }
-    
+
+	private void renderDebug() {
+
+		if(!renderDebug) return;
+		
+		renderScene.colliders().forEach(Renderer::draw_foreground);
+		renderScene.entities().forEach(entity -> {
+			
+			Object[] comps = entity.components();
+			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
+			if(entity.has(ECS.HITBOXES)) {
+				
+				EntityHitBoxes entityHitBoxes = (EntityHitBoxes) comps[Entities.HOFF];
+				float[][] boxes = entityHitBoxes.getActiveHitBoxes(entity, (Direction)comps[Entities.DOFF]);
+				if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
+				
+			}
+			
+			if(entity.has(ECS.INVENTORY)) {
+				
+				((Inventories)comps[Entities.IOFF]).getEquipped().forEach(item -> {
+					
+					if(item.has(ItemComponents.HITBOXABLE)) {
+						
+						float[][] boxes = item.componentData().getActiveHitBoxes();
+						if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
+						
+					}
+					
+				});
+				
+			}
+			
+			if(debugRenderLevel != null){
+				
+				debugRenderLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
+				debugRenderLevel.forEachTrigger(trigger -> {
+					
+					trigger.forEachConditionArea(Renderer::draw_foreground);
+					trigger.forEachEffectArea(Renderer::draw_foreground);
+					
+				});
+				
+			}
+			
+		});
+		
+	}
+
+	public void toggleRenderDebug(Levels level) {
+		
+		renderDebug = renderDebug ? false:true;
+		debugRenderLevel = level;
+		
+	}
+
+	public boolean isRenderingDebug() {
+		
+		return renderDebug; 
+		
+	}
+	
     public int getNumberNuklearDrawCalls() {
 
 		return numberNuklearDrawCalls;
@@ -813,8 +991,8 @@ public final class Renderer {
     private static final int MAX_VERTEX_BUFFER  = 512 * 1024;
     private static final int MAX_ELEMENT_BUFFER = 128 * 1024;
 
-    private NkContext context;
-    private NkBuffer commands;
+    private volatile NkContext context;
+    private volatile NkBuffer commands;
     
     private static final NkDrawVertexLayoutElement.Buffer VERTEX_LAYOUT;
     static {
@@ -837,10 +1015,9 @@ public final class Renderer {
     private int width , height;
     private int display_width , display_height;
 
-    private void initializeNuklear(NkContext context , NkBuffer commands){
-
-        this.context = context;
-        this.commands = commands;
+    private boolean nuklearInitialized = false;
+    
+    private void initializeNuklear(){
         
     	// null texture setup
         int nullTexID = glGenTextures();
@@ -881,6 +1058,8 @@ public final class Renderer {
        
         		
    		});
+        
+        nuklearInitialized = true;
         
     }
 
@@ -987,7 +1166,7 @@ public final class Renderer {
         
     }
 
-	public void shutDownRenderer(){
+	private void shutDownRenderer(){
 
 		glBindBuffer(GL_ARRAY_BUFFER , 0);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER , 0);
@@ -1002,8 +1181,10 @@ public final class Renderer {
 
 	}
     
-    public void shutDown() {
+    public void shutDown(ReentrantLock shutDownLock) {
 
+    	shutDownLock.lock();
+    	    	
 		System.out.println("Shutting down Renderer...");
 		
 		LOADED_TEXTURES.forEachVal(Textures::shutDown);
@@ -1011,13 +1192,16 @@ public final class Renderer {
         shader.disableShader();
         glDeleteTextures(null_texture.texture().id());
         shutDownRenderer();
+        
         nk_buffer_free(commands);
         GL.setCapabilities(null);
 
         System.out.println("Renderer shut down.");
-
+        
+        shutDownLock.unlock();
+        shutDown = true;
+        
     }
-
 
 }
 

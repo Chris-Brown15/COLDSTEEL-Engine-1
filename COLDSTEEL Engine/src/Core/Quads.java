@@ -1,7 +1,6 @@
 package Core;
 
 import org.joml.Matrix4f;
-import org.joml.Vector2f;
 import org.joml.Vector3f;
 
 import Renderer.Textures;
@@ -111,7 +110,7 @@ public class Quads{
 		if(snapToPixels && !(type == CSType.ENTITY || type == CSType.STATIC_ENTITY || type == CSType.JOINT)) snapQuadToPixels();
 	
 	}
-		
+
 	/**
 	 * Decrements this quad's ID. This is needed when selecting things in the editor. 
 	 * 
@@ -768,18 +767,6 @@ public class Quads{
 		
 	}
 	
-	public void moveTo(Vector2f pos) {
-		
-		moveTo(pos.x , pos.y);
-		
-	}
-
-	public void moveTo(float [] pos) {
-		
-		moveTo(pos[0] , pos[1]);
-		
-	}
-		
 	public float[] specs() {
 		
 		return new float[] {getWidth() , getHeight() , getMidpoint()[0] , getMidpoint()[1]};
@@ -834,6 +821,10 @@ public class Quads{
 		
 	}
 	
+	/**
+	 * 
+	 * @param amount — amount of degrees to rotate
+	 */
 	public void rotate(float amount) {
 		
 		rotation.rotate((float)Math.toRadians(amount) , 0 , 0 , 1 , rotation);
@@ -879,6 +870,15 @@ public class Quads{
 	public float[] getBottomRightVertexColor() {
 		
 		return new float[] {vertexData[3] , vertexData[4] , vertexData[5]};
+		
+	}
+	
+	public boolean equals(Quads other) {
+		
+		return other.vertexData[0] == vertexData[0] && 
+			   other.vertexData[9] == vertexData[9] && 
+			   other.vertexData[28] == vertexData[28] && 
+			   other.vertexData[18] == vertexData[18];
 		
 	}
 	

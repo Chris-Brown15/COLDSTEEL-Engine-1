@@ -19,7 +19,7 @@ public class CSStack<T> {
 	
 	public T pop() {
 	
-		assert size > 0 : "Pop invoked while stack is empty" ;
+		assert size > 0 : "Pop invoked while stack is empty" ;		
 		T popped = top.val;
 		top = top.next;
 		size--;
@@ -45,6 +45,14 @@ public class CSStack<T> {
 		return size;
 		
 	}	
+	
+	public boolean has(final T instance) {
+		
+		csNode<T> iter = top;
+		for(int i = 0 ; i < size ; i ++ , iter = iter.next) if(iter.val.equals(instance)) return true;
+		return false;
+		
+	}
 	
 	public String toString() {
 		

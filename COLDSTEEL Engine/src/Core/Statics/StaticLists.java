@@ -408,7 +408,7 @@ public class StaticLists extends AbstractGameObjectLists<Statics>{
 	
 	public Statics loadStatic(String namePath){
 
-		Statics loadedStatic = new Statics(namePath);
+		Statics loadedStatic = new Statics(owningScene , namePath);
 		loadedStatic.setID(list.size());
 		loadedStatic.getColliders().forEach(c -> c.setOwnerID(loadedStatic.getID()));
 		list.add(loadedStatic);		

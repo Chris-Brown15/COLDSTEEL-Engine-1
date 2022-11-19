@@ -2,6 +2,8 @@ package CS;
 
 import static org.lwjgl.system.MemoryUtil.nmemAlloc;
 import static org.lwjgl.system.MemoryUtil.nmemFree;
+import static org.lwjgl.system.MemoryUtil.memPutByte;
+import static org.lwjgl.system.MemoryUtil.memGetBoolean;
 
 import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_end;
@@ -37,7 +39,7 @@ import org.lwjgl.system.MemoryStack;
 import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
-import CSUtil.NkInitialize;
+import static CSUtil.BigMixin.toByte;
 import CSUtil.DataStructures.Tuple2;
 import Core.Console;
 import Core.Executor;
@@ -55,31 +57,42 @@ public abstract class UserInterface {
 	private static final long UI_MEMORY = nmemAlloc(CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
 	protected static final MemoryStack ALLOCATOR = MemoryStack.ncreate(UI_MEMORY, CS.COLDSTEEL.UI_MEMORY_SIZE_KILOS * 1024);
 	
-	private static final NkInitialize staticInitializer;
-	protected final static NkContext context;
-	final static NkBuffer drawCommands;
+	private static NkInitialize staticInitializer = new NkInitialize();
+	protected static NkContext context;
+	static NkBuffer drawCommands;
 	
 	public static final NkPluginFilter DEFAULT_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_default);
 	public static final NkPluginFilter NUMBER_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_float);
 	
-	private static final ConcurrentLinkedQueue<UserInterface> ELEMENTS = new ConcurrentLinkedQueue<>();
-	private static final ConcurrentLinkedQueue<Tuple2<UserInterface , Consumer<MemoryStack>>> LAYOUT_BODY_COMMANDS = new ConcurrentLinkedQueue<>();
+	private static volatile ConcurrentLinkedQueue<UserInterface> ELEMENTS = new ConcurrentLinkedQueue<>();
+	private static volatile ConcurrentLinkedQueue<Tuple2<UserInterface , Consumer<MemoryStack>>> LAYOUT_BODY_COMMANDS = new ConcurrentLinkedQueue<>();
+	static volatile boolean continueRunning = true;
 	
 	public static AtomicBoolean ITERATED_ALL_ELEMENTS = new AtomicBoolean(false);
+//	public static AtomicBoolean AWAITING_INPUT_UPDATE = new AtomicBoolean(true);
 	
-	private static final boolean iteratedAllElements() {
-		
-		return ITERATED_ALL_ELEMENTS.get();
-		
-	}
+	
+	/*
+	 * All actions on the Nuklear data structures must be synchronized. One of three threads may want to modify them
+	 * 		1) This thread, which wants to enqueue draw commands
+	 * 		2) The render thread, which wants to dequeue draw commands 
+	 * 		3) the main thread, which wants to write user input state  
+	 * 
+	 * The actions of the render thread must be synchronized against this thread, and the actions of the main thread must
+	 * be synchronized against this thread, but the actions the main thread and the render thread take on Nuklear structs
+	 * +++I dont think+++ need to be synchronized against each other.
+	 * 
+	 * Nevertheless, this thread may only run through its ELEMENTS data structure so long as both other threads have completed.
+	 * 
+	 */
 	
 	private static final Thread NUKLEAR_THREAD = new Thread(new Runnable() {
 
 		@Override public void run() {
 
-			while(true) {
-				
-				if(!iteratedAllElements()) {
+			while(continueRunning) {
+								
+				if(!ITERATED_ALL_ELEMENTS.get()) {
 					
 					ELEMENTS.forEach((element) -> {
 					
@@ -107,20 +120,69 @@ public abstract class UserInterface {
 		
 	});
 
-	static {
+	static void initialize() {
 		
-		staticInitializer = new NkInitialize();
+		/*
+		 * Requires code to execute which must be called from the renderer thread.
+		 * After this call executes we will block until opengl calls the code we need.
+		 * Then we can finish initializing
+		 */
+		staticInitializer.setupFont();
+		
+		System.out.println("finished requst to initialize nuklear on opengl");
+
+		//wait until opengl initializes this
+		while(!staticInitializer.initialized);
+				
 		staticInitializer.initNKGUI();
+		staticInitializer.initialized = false;
+		
     	context = staticInitializer.getContext(); 
     	drawCommands = staticInitializer.getCommands();
     	NUKLEAR_THREAD.setDaemon(true);
     	NUKLEAR_THREAD.setName("Nuklear UI Thread");
     	
+    	staticInitializer.initialized = true;
+    	
 	}
 
+	static boolean initialized() {
+		
+		return staticInitializer.initialized;
+		
+	}
+	
 	static final void threadSpinup() {
 		
 		NUKLEAR_THREAD.start();
+		
+	}
+	
+	static void setNuklearKey(int nkKeyCode , boolean state) {
+		
+		long kbKey = context.input().keyboard().keys().get(nkKeyCode).address();
+		memPutByte(kbKey , toByte(state));		
+			
+	}
+	
+	static boolean isNuklearKeyPressed(int nkKeyCode) {
+		
+		long kb = context.input().keyboard().keys().get(nkKeyCode).address();
+		return memGetBoolean(kb);
+		
+	}
+	
+	static void setNuklearMouse(int nkMouseCode , boolean state) {
+		
+		long mb = context.input().mouse().buttons(nkMouseCode).address();
+		memPutByte(mb , toByte(state));
+		
+	}
+	
+	static boolean getNuklearMouse(int nkMouseCode) {
+		
+		long mb = context.input().mouse().buttons(nkMouseCode).address();
+		return memGetBoolean(mb);
 		
 	}
 	
@@ -188,6 +250,9 @@ public abstract class UserInterface {
 		
 	public static final void shutDown1() {
 		
+		//wait to exit the main while loop of the UI thread
+		while(continueRunning);
+		
 		NUKLEAR_THREAD.interrupt();
 		staticInitializer.shutDown();
 		DEFAULT_FILTER.free();
@@ -200,6 +265,18 @@ public abstract class UserInterface {
 		
 		staticInitializer.shutDownAllocator();
 		
+	}
+	
+	static NkContext getContext() {
+		
+		return context;
+				
+	}
+
+	static NkBuffer getCommands() {
+		
+		return drawCommands;
+				
 	}
 	
 	protected volatile boolean show = false;
@@ -273,4 +350,3 @@ public abstract class UserInterface {
 	}
 	
 }
-

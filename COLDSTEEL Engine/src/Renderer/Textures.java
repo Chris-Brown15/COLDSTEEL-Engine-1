@@ -73,7 +73,7 @@ public class Textures {
 			imageInfo = new ImageInfo(filepath , widthPtr.get(0) , heightPtr.get(0) , bitsPerPixelPtr.get(0));
 						
 		}
-		
+			
 		textureID = glGenTextures();
 		glBindTexture(GL_TEXTURE_2D , textureID);
     	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -103,20 +103,17 @@ public class Textures {
 	
 	void initialize() {
 
+		textureID = glGenTextures();
+		glBindTexture(GL_TEXTURE_2D, textureID);
 		if(onInitialize != null) onInitialize.accept(textureID);
+		glBindTexture(GL_TEXTURE_2D , 0);
+		
 		
 	}
 	
 	public void onInitialize(Consumer<Integer> initializeCallback) {
 		
-		this.onInitialize = (ID) -> {
-
-			textureID = glGenTextures();
-			glBindTexture(GL_TEXTURE_2D, textureID);
-			initializeCallback.accept(ID);			
-			glBindTexture(GL_TEXTURE_2D , 0);
-			
-		};
+		this.onInitialize = (ID) -> initializeCallback.accept(ID);
 				
 	}
 		
@@ -156,7 +153,7 @@ public class Textures {
 		return initialized;
 		
 	}
-	
+		
 	public void activateForNuklear(Consumer<Integer> code) {
 		
 		activate(0);

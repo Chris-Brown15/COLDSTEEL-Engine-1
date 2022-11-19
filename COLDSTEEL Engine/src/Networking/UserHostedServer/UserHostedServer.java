@@ -263,7 +263,7 @@ public class UserHostedServer implements NetworkedInstance {
 									newClientNetworkedEntity
 								);
 								
-								newClientNetworkedEntity.networked().moveTo(entrantPos);
+								newClientNetworkedEntity.networked().moveTo(entrantPos[0] , entrantPos[1]);
 								
 								//adds the new client to the level they said they were in
 								players.add(newClient);
@@ -306,7 +306,7 @@ public class UserHostedServer implements NetworkedInstance {
 								newClientNetworkedEntity
 							);
 							
-							newClientNetworkedEntity.networked().moveTo(entrantPos);
+							newClientNetworkedEntity.networked().moveTo(entrantPos[0] , entrantPos[1]);
 							
 							newLevelScene.entities().setNetworkInstance(this);
 							newLiveLevel.deploy(newLevelScene);
@@ -364,7 +364,6 @@ public class UserHostedServer implements NetworkedInstance {
 					
 					levelEntered = coder.rstring();
 					posInNewLevel = coder.rposition();
-					sender.entity.networked().moveTo(posInNewLevel);
 					
 				}
 				
@@ -493,7 +492,8 @@ public class UserHostedServer implements NetworkedInstance {
 								TRY(() -> sendReliable(toSender.get() , 123095810 << 1 , 800 , sender.address , sender.port));
 								
 							}
-							
+
+							sender.entity.networked().moveTo(posInNewLevel[0] , posInNewLevel[1]);
 							//finally add sender to list of connections and entity to scene 
 							x.getKey().getSecond().entities().add(sender.entity.networked());
 							x.getValue().add(sender);
@@ -517,6 +517,7 @@ public class UserHostedServer implements NetworkedInstance {
 					Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + levelEntered));						
 					newLevelScene.entities().setNetworkInstance(this);
 					newLiveLevel.deploy(newLevelScene);
+					sender.entity.networked().moveTo(posInNewLevel[0] , posInNewLevel[1]);
 					newLevelScene.entities().add(sender.entity.networked());
 					((EntityScripts)sender.entity.networked().components()[Entities.SOFF]).resetLib(newLevelScene.entityScriptingInterface());
 					loadedLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(sender));
@@ -663,7 +664,7 @@ public class UserHostedServer implements NetworkedInstance {
 						
 						listOfConnections.forEachVal(connection -> connection.entity.unStrikeKeys());
 						
-					}
+					}		
 					
 				);
 								
@@ -807,10 +808,6 @@ public class UserHostedServer implements NetworkedInstance {
 							engine.schedule(() -> engine.setRenderScene(levelSceneTuple.getSecond()));
 														
 						}
-						
-						nk_layout_row_dynamic(context , 20 , 2);
-						nk_text(context , "Ticks Last Second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-						nk_text(context , "" + levelSceneTuple.getSecond().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 						
 						listOfPlayers.forEachVal(connection -> {
 							

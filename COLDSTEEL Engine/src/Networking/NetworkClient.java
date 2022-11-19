@@ -214,7 +214,7 @@ public class NetworkClient implements NetworkedInstance {
 									
 									if(otherClient.connectionIndex() == othersID) {
 										
-										otherClient.networked().moveTo(othersPos);
+										otherClient.networked().moveTo(othersPos[0] , othersPos[1]);
 										scene.entities().add(otherClient.networked());
 										
 									}
@@ -252,7 +252,7 @@ public class NetworkClient implements NetworkedInstance {
 					if(coder.testFor(PacketCoder.POSITION)) {
 						
 						float[] position = coder.rposition();
-						newClientsEntity.networked().moveTo(position);
+						newClientsEntity.networked().moveTo(position[0] , position[1]);
 						scene.entities().add(newClientsEntity.networked());
 						
 					}
@@ -319,7 +319,7 @@ public class NetworkClient implements NetworkedInstance {
 						if(e.connectionIndex() == ID) {
 							
 							scene.entities().add(e.networked());
-							e.networked().moveTo(pos);
+							e.networked().moveTo(pos[0] , pos[1]);
 							break;
 							
 						}
@@ -373,7 +373,7 @@ public class NetworkClient implements NetworkedInstance {
 						//and we are guaranteed the order of entities the server sends will be least to greatest
 						while((e = iter.next()).connectionIndex() != ID);
 													
-						e.networked().moveTo(pos);
+						e.networked().moveTo(pos[0] , pos[1]);
 						scene.entities().add(e.networked());
 						
 					}

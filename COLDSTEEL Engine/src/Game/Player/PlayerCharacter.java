@@ -52,12 +52,6 @@ public class PlayerCharacter implements GameFiles<PlayerCharacter> {
 		
 	}
 	
-	public void moveTo(float[] xAndY) {
-		
-		playerEntity.moveTo(xAndY);
-		
-	}
-	
 	public Entities playersEntity() {
 	
 		return playerEntity;

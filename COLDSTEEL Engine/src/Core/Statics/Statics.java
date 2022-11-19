@@ -25,6 +25,7 @@ import CSUtil.DataStructures.Tuple4;
 import Core.CSType;
 import Core.GameFiles;
 import Core.Quads;
+import Core.Scene;
 import Physics.Colliders;
 
 public class Statics extends Quads implements GameFiles<Statics> {
@@ -60,10 +61,10 @@ public class Statics extends Quads implements GameFiles<Statics> {
 		
 	}
 	
-	public Statics(String namePath) {
+	public Statics(Scene owningScene , String namePath) {
 		
 		super(getStaticFloatArray() ,  -1 , CSType.STATIC);
-		load(namePath);
+		load(owningScene , namePath);
 		
 	}
 	
@@ -77,7 +78,7 @@ public class Statics extends Quads implements GameFiles<Statics> {
 		} else if(activeCollider != -1) colliders.get(activeCollider).transformAndSnap(xSpeed, ySpeed);
 
 	}
-	
+		
 	public int selectStatic(float cursorX , float cursorY) {
 
 		if(collidersFocused) {
@@ -565,7 +566,7 @@ public class Statics extends Quads implements GameFiles<Statics> {
 		
 	}
 
-	@Override public void load(String namePath) {
+	@Override public void load(Scene scene , String namePath) {
 
 		try(BufferedReader reader = Files.newBufferedReader(Paths.get(data + "statics/" + namePath) , Charset.forName("UTF-8"))){
 			

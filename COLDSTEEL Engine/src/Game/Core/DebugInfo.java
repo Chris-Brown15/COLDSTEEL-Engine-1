@@ -76,7 +76,6 @@ public class DebugInfo extends UserInterface {
 			nk_layout_row_dynamic(context , 20 , 3);
 			nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
 			nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
-			if(runtime.gameScene() != null) nk_text(context , "TLS: " + runtime.gameScene().entities().ticksLastSecond() , NK_TEXT_ALIGN_LEFT);
 						
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);

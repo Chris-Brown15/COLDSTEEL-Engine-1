@@ -113,10 +113,17 @@ public class ItemScriptingInterface {
 			float[][] callerActiveSet;
 			float[][] targetActiveSet;
 			
-			if(I.ownerAsEntity().has(ECS.DIRECTION)) callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF]);
-			else callerActiveSet = callerBoxes.getActiveHitBoxes(I , null);
-			if(entity.optional.has(ECS.DIRECTION)) targetActiveSet = targetBoxes.getActiveHitBoxes(entity.optional , (Direction) entityComps[Entities.DOFF]);
-			else targetActiveSet = targetBoxes.getActiveHitBoxes(entity.optional , null);
+			if(I.ownerAsEntity().has(ECS.DIRECTION)) { 
+				
+				callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF]);
+				
+			} else callerActiveSet = callerBoxes.getActiveHitBoxes(I , null);
+			
+			if(entity.optional.has(ECS.DIRECTION)) { 
+				
+				targetActiveSet = targetBoxes.getActiveHitBoxes(entity.optional , (Direction) entityComps[Entities.DOFF] );
+				
+			} else targetActiveSet = targetBoxes.getActiveHitBoxes(entity.optional , null );
 
 			final int 
 			BY , TY ,
@@ -173,7 +180,7 @@ public class ItemScriptingInterface {
 		
 	}
 
-	public hitboxScan checkHitBoxes(Items I , Entities target) {
+	public hitboxScan checkHitBoxes(Items I , Entities target , float deltaTime) {
 		
 		if(I.has(ItemComponents.HITBOXABLE) && target.has(ECS.HITBOXES)) {
 			
@@ -189,8 +196,8 @@ public class ItemScriptingInterface {
 			float[][] callerActiveSet;
 			float[][] targetActiveSet;
 			
-			callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF]);
-			targetActiveSet = targetBoxes.getActiveHitBoxes(target , (Direction) entityComps[Entities.DOFF]);
+			callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF] );
+			targetActiveSet = targetBoxes.getActiveHitBoxes(target , (Direction) entityComps[Entities.DOFF] );
 
 			final int 
 			BY , TY ,
@@ -247,7 +254,7 @@ public class ItemScriptingInterface {
 		
 	}
 
-	public void checkHitBoxesAndHurt(Items I , DamageType... damage) {
+	public void checkHitBoxesAndHurt(Items I , float deltaTime , DamageType... damage) {
 
 		if(!I.has(ItemComponents.HITBOXABLE)) return;
 		
@@ -262,7 +269,7 @@ public class ItemScriptingInterface {
 		Object[] currentComps;		
 		
 		float[][] callerActiveSet;
-		callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF]);
+		callerActiveSet = callerBoxes.getActiveHitBoxes(I , (Direction) I.ownerAsEntity().components()[Entities.DOFF] );
 		
 		final int 
 		BY = QuadIndices.BY, TY = QuadIndices.TY,
@@ -288,7 +295,7 @@ public class ItemScriptingInterface {
 			currentBoxes = ((EntityHitBoxes)currentComps[Entities.HOFF]);
 			if(currentBoxes.active() == -1) continue;
 			
-			targetActiveSet = currentBoxes.getActiveHitBoxes(current , (Direction) currentComps[Entities.DOFF]);
+			targetActiveSet = currentBoxes.getActiveHitBoxes(current , (Direction) currentComps[Entities.DOFF] );
 			stats = (EntityRPGStats)currentComps[Entities.RPGOFF];
 			
 			for(int i = 0 ; i < callerActiveSet.length ; i ++) {

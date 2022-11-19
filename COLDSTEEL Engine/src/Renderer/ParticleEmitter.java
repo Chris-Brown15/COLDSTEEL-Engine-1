@@ -146,7 +146,7 @@ public class ParticleEmitter {
 		this.yMoveFunction = yMoveFunction;
 				
 	}
-	
+		
 	public void setTexture(Textures texture) {
 		
 		this.texture = texture;

@@ -16,6 +16,7 @@ public class Profiler {
 	private double millis;
 	private double nanos;
 	private double seconds;
+	private int iters = 0;
 	
 	public final void call(Executor pure) {
 		
@@ -25,6 +26,26 @@ public class Profiler {
 		nanos = timer.getElapsedTimeNanos();
 		seconds = timer.getElapsedTimeSecs();
 		
+	}
+	
+	public final void timerStart() {
+		
+		timer.start();
+		
+	}
+	
+	public final void itersPerSecond(Executor code) {
+		
+		if(timer.getElapsedTimeSecs() >= 1) {
+			
+			timer.start();
+			System.out.println(iters);
+			iters = 0; 
+			
+		}
+
+		code.execute();
+		iters++;
 		
 	}
 	

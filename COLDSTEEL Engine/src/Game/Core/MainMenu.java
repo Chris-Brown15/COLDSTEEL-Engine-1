@@ -67,6 +67,18 @@ public class MainMenu  {
 	
 	public MainMenu(Engine engine) {
 		
+		Sounds intro = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
+		Sounds seg1 = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
+		Sounds loop = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
+		
+		intro.play();
+		TemporalExecutor.onTrue(() -> intro.stopped() , () -> {
+		
+			seg1.play();
+			TemporalExecutor.onTrue(() -> seg1.stopped() , () -> restartLoop(loop));
+				
+		});
+
 		main = new Main(engine);
 		multi = new Multiplayer(engine);
 		multiplayerJoin = new MultiplayerJoiner(engine); 
@@ -168,7 +180,7 @@ public class MainMenu  {
 
 		public Main(Engine engine) {
 			
-			super("GAMEMAINMENU" , 760 , 540 , 400, 310, uiOptions , uiOptions);
+			super("GAMEMAINMENU" , 760 , 540 , 400, 310, uiOptions|NK_WINDOW_MOVABLE , uiOptions|NK_WINDOW_MOVABLE);
 			
 			layoutBody((frame) -> {
 				
@@ -198,19 +210,7 @@ public class MainMenu  {
 			
 			nk_layout_row_dynamic(context , 40 , 1);
 			if(nk_button_label(context , "Multiplayer")) {
-												
-//				Sounds intro = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
-//				Sounds seg1 = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
-//				Sounds loop = SoundEngine.add(COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
-//				
-//				intro.play();
-//				TemporalExecutor.onTrue(() -> intro.stopped() , () -> {
-//					
-//					seg1.play();
-//					TemporalExecutor.onTrue(() -> seg1.stopped() , () -> restartLoop(loop));
-//					
-//				});
-				
+					
 				menuState = MenuStates.MULTIPLAYER_MAIN;
 				
 			}

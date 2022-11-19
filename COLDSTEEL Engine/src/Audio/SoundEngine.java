@@ -24,10 +24,31 @@ import Game.Levels.MacroLevels;
 
 public abstract class SoundEngine {
 
+	private static final Thread AUDIO_THREAD;
+
 	private final static CSLinked<Sounds> sounds = new CSLinked<Sounds>();
 	private static String deviceName;
 	private static long ALDevice;	
 	private static long ALContext;
+	public static volatile boolean persist = true;
+	
+	static {
+		
+		AUDIO_THREAD = new Thread(() -> {
+			
+			initialize();
+			while(persist);
+			shutDown();
+			
+		});
+		
+	}	
+	
+	public static final void threadSpinup() {
+		
+		AUDIO_THREAD.start();
+		
+	}
 	
 	public static final void initialize() {
 
@@ -52,10 +73,6 @@ public abstract class SoundEngine {
 		newSound.ID(sounds.size() - 1);
 		return newSound;
 				
-	}
-	
-	public void removeDuplicates() {
-		
 	}
 	
 	public static void freeMacroLevel(MacroLevels freeThis) {
@@ -87,7 +104,8 @@ public abstract class SoundEngine {
 
 	public static void pause(Sounds sound) {
 		
-		sound.pause();		
+		sound.pause();
+	
 		
 	}
 
@@ -133,6 +151,8 @@ public abstract class SoundEngine {
 		alcCloseDevice(ALDevice);
 	
 		for(int i = 0 ; i < sounds.size() ; i ++) ((Sounds) sounds.getVal(i)).shutDown();
+		
+		System.out.println("Sound Engine Shut Down.");
 		
 	}
 	

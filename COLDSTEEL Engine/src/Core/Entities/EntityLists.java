@@ -171,7 +171,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 			
 	}	
 
-	public static final void activateHitBox(Entities E , int index) {
+	public static void activateHitBox(Entities E , int index) {
 		
 		if(E.has(ECS.HITBOXES)) ((EntityHitBoxes)E.components()[ECS.HITBOXES.offset]).activate(index);
 		
@@ -182,7 +182,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		if(E.has(ECS.HITBOXES))((EntityHitBoxes)E.components()[Entities.HOFF]).setupActive(E , (Direction)E.components()[Entities.DOFF]);
 		
 	}
-	
 	public static void overrideEntityAnimation(Entities E , int animIndex , int frameIndex , Direction animDirection) {
 		
 		if(E.has(ECS.ANIMATIONS)) {
@@ -211,7 +210,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		
 		super(owner , renderOrder , CSType.ENTITY);
 		this.camera = camera;
-		stepTimer.start();		
+		secondTimer.start();
 		
 	}
 	
@@ -1244,8 +1243,6 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 			}
 	
 		}
-		
-//		System.out.println("Number valid triangles: " + validTriangles.size());
 		
 		I.translate(speed, 0f);
 		
@@ -2334,11 +2331,18 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 				if(targetBoxes.active() == -1) return new hitboxScan(false , -1 , -1 , -1 , -1 , -1 , -1);
 							
 				float[][] callerActiveSet;
-				if(caller.has(ECS.DIRECTION)) callerActiveSet = callerBoxes.getActiveHitBoxes(caller, (Direction) caller.components()[Entities.DOFF]);
-				else callerActiveSet = callerBoxes.getActiveHitBoxes(caller, Direction.RIGHT);
+				if(caller.has(ECS.DIRECTION)) { 
+					
+					callerActiveSet = callerBoxes.getActiveHitBoxes(caller, (Direction) caller.components()[Entities.DOFF]);
+					
+				} else callerActiveSet = callerBoxes.getActiveHitBoxes(caller, Direction.RIGHT);
+				
 				float[][] targetActiveSet;
-				if(target.has(ECS.DIRECTION)) targetActiveSet = targetBoxes.getActiveHitBoxes(target, (Direction) target.components()[Entities.DOFF]);
-				else targetActiveSet = targetBoxes.getActiveHitBoxes(target, Direction.RIGHT);
+				if(target.has(ECS.DIRECTION)) { 
+					
+					targetActiveSet = targetBoxes.getActiveHitBoxes(target, (Direction) target.components()[Entities.DOFF]);
+					
+				} else targetActiveSet = targetBoxes.getActiveHitBoxes(target, Direction.RIGHT);
 							
 				for(int i = 0 ; i < callerActiveSet.length ; i ++) {
 					
@@ -2542,52 +2546,10 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		});
 		
 	}
-		
-	public void startNumberTicks() {
-		
-		stepTimer.start();
-		ticksLastSecond = ticksThisSecond;
-		ticksThisSecond = 0; 
-		framesLastSecond = frameThisSecond;
-		frameThisSecond = 0;
-		averageMillisPerFrameLastSecond = (float)framesLastSecond / 1000d;
-		averageMillisPerFrameThisSecond = 0;
-		
-	}
-
-	public float frameInterval() {
-		
-		return framesPerTick;
-		
-	}
 	
 	public int currentFrame() {
 		
 		return frameThisSecond;
-		
-	}
-	
-	public int numberTicks() {
-		
-		return ticksThisSecond;
-		
-	}
-
-	public int ticksLastSecond() {
-		
-		return ticksLastSecond;
-		
-	}
-	
-	public void setTargetTicksPerSecond(int numberPerSecond) {
-		
-		targetTicks = numberPerSecond;
-		
-	}
-	
-	public boolean isTickingFrame() {
-	
-		return ticksThisSecond == 0 || ((frameStep - frameThisSecond <= 1) && ticksThisSecond < targetTicks + 0.1 * targetTicks) ;
 		
 	}
 	
@@ -2652,24 +2614,14 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) internalRunFinalSystems(iter.val);
 
 			if(after != null) after.execute();
-			ticksThisSecond++;
 			
 		});
 		
 	}
 
-	private double averageMillisPerFrameLastSecond;
-	private double averageMillisPerFrameThisSecond;
-	
-	private int ticksThisSecond = 0;
-	private int framesLastSecond = 0;
-	private int ticksLastSecond = 0;	
+	public int framesLastSecond = 0;	
 	private int frameThisSecond = 0;
-
-	private float framesPerTick;
-	private int targetTicks = 60;
-	private float frameStep;
-	private Timer stepTimer = new Timer();
+	private Timer secondTimer = new Timer();
 	
 	/**
 	 * Update function for use in the editor. We need to know the current frame rate because we want to ensure physics occurs
@@ -2688,33 +2640,15 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		
 		if(!runSystems) return;
 		
-		if(stepTimer.getElapsedTimeSecs() >= 1) {
+		if(secondTimer.getElapsedTimeSecs() >= 1) {
 			
-			startNumberTicks();
-			framesPerTick = (float) framesLastSecond / (float) targetTicks;//frames between a tick
+			framesLastSecond = frameThisSecond;
+			frameThisSecond = 0;
 			
 		}
+				
+		internalRunSystems(start , inbetween , after);
 		
-		float addativeTick = (1f / framesPerTick) % 1; //if the currentFrame is a multiple of this, subtract one from the frameStep
-		frameStep = ticksThisSecond * framesPerTick;
-		
-		/*
-		 
-		 	if we calculate the average nanosecond per frame for every second, 
-		 	we can compare the current second's average nanosecond per frame against last second.
-		 	if we are going faster, we can get the difference in nanos and reduce frameStep by a little bit
-		  
-		  
-		 */
-		
-		//TODO create a way to adjust frames per tick if we are going faster or slower than the previous second
-		
-		if(frameThisSecond % addativeTick == 0) frameStep -= 1;		
-		averageMillisPerFrameThisSecond = (float)frameThisSecond / stepTimer.getElapsedTimeMillis();
-		double highResVariance = averageMillisPerFrameLastSecond - averageMillisPerFrameThisSecond;				
-		if(highResVariance < 0) frameStep += (highResVariance + highResVariance); 
-		
-		if(ticksThisSecond == 0 || ((frameStep - frameThisSecond <= 1) && ticksThisSecond < targetTicks)) internalRunSystems(start , inbetween , after);	
 		frameThisSecond++;	
 		
 	}

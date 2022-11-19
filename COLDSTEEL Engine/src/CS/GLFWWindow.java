@@ -10,6 +10,7 @@ import org.lwjgl.glfw.GLFWScrollCallback;
 import org.lwjgl.glfw.GLFWWindowSizeCallback;
 import org.lwjgl.nuklear.NkContext;
 import org.lwjgl.nuklear.NkVec2;
+import org.lwjgl.opengl.GL;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -195,7 +196,7 @@ public class GLFWWindow {
 	GLFWCharCallback onCharInp = GLFWCharCallback.create((window , codepoint) -> onCharPress(codepoint));
 	GLFWMouseButtonCallback onMouse = GLFWMouseButtonCallback.create((window , button , action , mods) -> onMouseInput(button , action));
 	GLFWScrollCallback onMouseScroll = GLFWScrollCallback.create((window , xOff , yOff) -> onMouseScroll(xOff , yOff));
-	GLFWCursorPosCallback onCursorMove = GLFWCursorPosCallback.create((window, xpos, ypos) -> nk_input_motion(NuklearContext, (int)xpos, (int)ypos));
+	GLFWCursorPosCallback onCursorMove;
 	
     void intialize(Engine engine){
 
@@ -229,22 +230,33 @@ public class GLFWWindow {
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(handle);
-
+      	
+    	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
+    	GL.createCapabilities();
+    	
     }
     
     void show() {
 
-		glfwShowWindow(handle);    	
+		glfwShowWindow(handle);
+		
     }
     
-    void swapBuffers() {
+    public void swapBuffers() {
 
-        glfwSwapBuffers(handle);    	
+        glfwSwapBuffers(handle);
+        
     }
     
     void moveTo(int x , int y) {
     	
     	glfwSetWindowPos(handle , x , y);
+    	
+    }
+    
+    public void setSwapInterval(int interval) {
+    	
+    	glfwSwapInterval(interval);
     	
     }
     
@@ -293,8 +305,8 @@ public class GLFWWindow {
 		
 	}
 
-	private void onKeyboardInput(int key , int action) {
-
+	private void onKeyboardInput(int key , int action) {	        
+		
 		boolean press = action == GLFW_PRESS;
 		switch(key){
 
@@ -2112,9 +2124,8 @@ public class GLFWWindow {
 	
 	private  void onMouseInput(int key , int action) {
 		
+		int nkButton = NK_BUTTON_MIDDLE;
 		try(MemoryStack stack = stackPush()){
-			
-			int nkButton = NK_BUTTON_LEFT;
 			
 			switch(key) {
 			
@@ -2125,10 +2136,10 @@ public class GLFWWindow {
 					switch(action) {
 					
     					case GLFW_PRESS:
-
+    						
     						glfwGetCursorPos(handle, startingX , startingY);
     						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());		    			
+    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
 
     						if(nk_window_is_any_hovered(NuklearContext)) break;
     						isRMouseStruck = true;
@@ -2136,7 +2147,7 @@ public class GLFWWindow {
     						break;
     						
     					case GLFW_RELEASE:
-
+    						
     						glfwGetCursorPos(handle , newX , newY);
             				
     						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
@@ -2164,7 +2175,7 @@ public class GLFWWindow {
 					switch(action) {
 					
     					case GLFW_PRESS:
-
+    						    						
             				glfwGetCursorPos(handle, startingX , startingY);
             				int[] windowDims = getWindowDimensions(); 
     						pressWorldX = (float)getSCToWCForX(startingX.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());
@@ -2184,7 +2195,7 @@ public class GLFWWindow {
     						break;
     						
     					case GLFW_RELEASE:
-    						
+
     						glfwGetCursorPos(handle , newX , newY);
             				
     						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
@@ -2266,13 +2277,13 @@ public class GLFWWindow {
 					}
 					
 					break;	    					
-					
+								
 			}
-			
-			nk_input_button(NuklearContext, nkButton , (int)startingX.get(0) , (int)startingY.get(0) , action == GLFW_PRESS);
 			
 		}    			
 
+		nk_input_button(UserInterface.context , nkButton , (int) startingX.get(0) , (int) startingY.get(0) , action == GLFW_PRESS);
+				
 	}
 	
 	private void onMouseScroll(double xOff , double yOff) {
@@ -2311,28 +2322,28 @@ public class GLFWWindow {
 	private void setCallbacks() {    	
 
 		glfwSetWindowSizeCallback(handle , onWindowResize);
+		glfwSetFramebufferSizeCallback(handle , onFramebufferResize);
     	glfwSetKeyCallback(handle , onKeyboard);    		
     	glfwSetCharCallback(handle , onCharInp);    		
     	glfwSetMouseButtonCallback(handle , onMouse);    		
     	glfwSetScrollCallback(handle , onMouseScroll);
-   		glfwSetCursorPosCallback(handle , onCursorMove);
    		glfwSetInputMode (handle , GLFW_CURSOR , GLFW_CURSOR_NORMAL);
-    	
+   		
     }
 
-    float r() {
+    public float r() {
     	
     	return r;
     	
     }
 
-    float g() {
+    public float g() {
     	
     	return g;
     	
     }
 
-    float b() {
+    public float b() {
     	
     	return b;
     	
@@ -2341,7 +2352,14 @@ public class GLFWWindow {
     void setNuklearContext(NkContext context) {
 
     	NuklearContext = context;
-
+    	onCursorMove = GLFWCursorPosCallback.create((window, xpos, ypos) -> {
+    		        
+    		nk_input_motion(NuklearContext, (int)xpos, (int)ypos);
+    		
+    	});
+    	
+   		glfwSetCursorPosCallback(handle , onCursorMove);
+   		
 	}
 
 	long getGlfwWindow() {

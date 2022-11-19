@@ -3,6 +3,7 @@ package Core;
 import java.util.function.Consumer;
 
 import CS.Engine;
+import CSUtil.Timer;
 import Core.Entities.EntityLists;
 import Core.Entities.EntityScriptingInterface;
 import Core.Statics.StaticLists;
@@ -31,8 +32,6 @@ public class Scene {
 	private final ItemScriptingInterface itemScriptingInterface;
 	private final TriggerScriptingInterface triggerScriptingInterface;
 	private final ProjectileScriptingInterface projectileScriptingInterface;
-	
-		
 	public Scene(Engine engine) {
 
 		this.quads1 = new ObjectLists(this , 1);
@@ -50,7 +49,7 @@ public class Scene {
 		this.itemScriptingInterface = new ItemScriptingInterface(this, engine.getConsole());            
 		this.triggerScriptingInterface = new TriggerScriptingInterface(this);      
 		this.projectileScriptingInterface = new ProjectileScriptingInterface(this);
-		
+				
 	}
 	
 	public void clear() {

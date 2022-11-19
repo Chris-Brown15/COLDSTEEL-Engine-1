@@ -2,21 +2,12 @@ package CS;
 
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
-import static CSUtil.BigMixin.getSCToWCForX;
-import static CSUtil.BigMixin.getSCToWCForY;
 import static org.lwjgl.Version.getVersion;
-import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT;
-import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
-import static org.lwjgl.glfw.GLFW.glfwSwapInterval;
 import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.nuklear.Nuklear.nk_input_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_input_end;
 import static org.lwjgl.nuklear.Nuklear.nk_window_is_any_hovered;
-import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
-import static org.lwjgl.opengl.GL11.glClear;
-import static org.lwjgl.opengl.GL11C.glClearColor;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,14 +15,11 @@ import java.nio.file.Paths;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
-import org.lwjgl.opengl.GL;
-
 import Audio.SoundEngine;
 import Audio.Sounds;
 import CS.Controls.Control;
 import CSUtil.CSLogger;
 import CSUtil.CSTFParser;
-import CSUtil.Profiler;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
@@ -79,6 +67,16 @@ public final class Engine {
 	//whatever the client is currently using as their bound controls
 	public static Controls clientControls;
 	
+	//update variables
+	private static final Timer engineTimer = new  Timer();
+    private static Timer frameTimer = new Timer();
+    private static int framesThisSecond = 1;
+    private static int framesLastSecond = 0;
+    private static double iterRate;
+	private static long totalNumberFrames = 0;
+	private static int runtimeSeconds = 0;
+    public static boolean printFPS = true;
+    	
 	static {
 		
 		MAIN_THREAD = Thread.currentThread();
@@ -94,10 +92,9 @@ public final class Engine {
 	
 	final Editor editor = new Editor();
 	final GameRuntime gameRuntime = new GameRuntime();	
-	private final Renderer renderer = new Renderer();
-	private volatile Camera camera = renderer.getCamera();
-		
+	private Renderer renderer;
 	private DebugInfo debugInfo;
+	private ReentrantLock shutDownOrder = new ReentrantLock();		
 	
 	public Engine(RuntimeState state) {
 	
@@ -111,23 +108,27 @@ public final class Engine {
 		System.out.println("Welcome to the COLDSTEEL Engine alpha undef, running LWJGL " + getVersion());		
 		System.out.println("Initializing Engine...");		
 		
-		SoundEngine.initialize();
+		SoundEngine.threadSpinup();
 		
 		WINDOW = new GLFWWindow();	
-		
 		WINDOW.intialize(this);
 		
-    	WINDOW.makeCurrent();
+    	//start the renderer
+    	renderer = new Renderer(shutDownOrder , null , WINDOW);
+    	
+    	//wait for renderer to finish before preceding
+    	while(!renderer.initialized);
+    	
+    	//enqueue and wait for renderer to initialize UI    	
+    	UserInterface.initialize();
+    	
+    	//wait for the UI to finish initializing
+    	while(!UserInterface.initialized());
+    	
+    	renderer.setNuklearEnv(UserInterface.getContext() , UserInterface.getCommands());
     	    	
-    	if(COLDSTEEL.DEBUG_CHECKS) GL.create();
-    	GL.createCapabilities();
-    	
-    	renderer.initialize(null , WINDOW , UserInterface.context , UserInterface.drawCommands);    	
     	engineConsole = new Console();
-    	
-        // disable v-sync while loading
-        glfwSwapInterval(0);
-        
+    	    	
     	WINDOW.setNuklearContext(UserInterface.context);  
 
         WINDOW.show();
@@ -137,20 +138,22 @@ public final class Engine {
 			case EDITOR:
 				
 	    		editor.initialize(this , currentLevel , engineConsole);
-	    		
 	    		renderer.toggleRenderDebug(null);	    		
+	    		
 				break;
 				
 			case GAME:
 				
 				gameRuntime.initialize(this);
-				renderer.renderScene(gameRuntime.gameScene());				
+				renderer.renderScene(gameRuntime.gameScene());		
+				
 				break;
 								
 			default:
 	
 				System.out.println("Fatal Error in initialization, closing program");
 				System.exit(-1);
+				
 				break;
 	
 		}
@@ -195,9 +198,7 @@ public final class Engine {
 			case EDITOR:
 
 	    		editor.initialize(this , currentLevel , engineConsole);
-
-	    		renderer.toggleRenderDebug(null);
-	    		
+	    		renderer.toggleRenderDebug(null);	    		
 	    		renderer.renderScene(editor.scene());
 	    		
 				break;
@@ -219,82 +220,54 @@ public final class Engine {
 				
 	}	
 	
-    private Timer frameTimer = new Timer();
-    private static int framesThisSecond = 1;
-    private static int framesLastSecond = 0;
-    private static final Timer engineTimer = new  Timer();
-    private static double iterRate;
-	private static double millisThisFrame;
-	private static long totalNumberFrames = 0;
-	private static int runtimeSeconds = 0;
-    public static boolean printFPS = true;
-    
+	private void updateEngineState() {
+
+		//handle enqueued events
+		lock.lock();
+		while(!events.empty()) events.dequeue().execute();
+		lock.unlock();
+		
+        frameTimer.start();
+
+    	if(engineTimer.getElapsedTimeMillis() >= 1000) {
+
+    		engineTimer.start();
+    		framesLastSecond = framesThisSecond;
+    		framesThisSecond = 0;
+    		totalNumberFrames += framesLastSecond;
+    		runtimeSeconds++;
+    		if(printFPS) System.out.println("Frames in second " + runtimeSeconds + ": " + framesLastSecond);
+    		        		
+    	}
+    	
+	}
+	
 	void run() {
 
-        glClearColor(WINDOW.r() , WINDOW.g() , WINDOW.b() , 1);
-        glfwSwapInterval(1);
-        System.out.println("Window running.");
+        while(!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
 
-        while (!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
-        	        	
-	    	nk_input_begin(UserInterface.context);
-	        glfwPollEvents();
-	        nk_input_end(UserInterface.context);
-	        
-	        handleEvents();        
-	        
-	        frameTimer.start();
+    		Renderer.clear = true;
+    			 
+        	nk_input_begin(UserInterface.context);
+        	glfwPollEvents(); 
+       		nk_input_end(UserInterface.context);        	
 
-        	if(engineTimer.getElapsedTimeMillis() >= 1000) {
+        	//lock us into 60 fps by waiting until 16 ms have passed
 
-        		engineTimer.start();
-        		framesLastSecond = framesThisSecond;
-        		iterRate = millisThisFrame / framesLastSecond;
-        		millisThisFrame = 0;
-        		framesThisSecond = 0;
-        		totalNumberFrames += framesLastSecond;
-        		runtimeSeconds++;
-        		if(printFPS) System.out.println("Frames in second " + runtimeSeconds + ": " + framesLastSecond);
-        		
-        	} 
-
-        	glClear(GL_COLOR_BUFFER_BIT); //wipe out previous frame
-        	Profiler p = new Profiler();
-
-        	switch (STATE){
-
-	        	case EDITOR:
-	        		
-	        		editor.run(this);
-	        		if(!nk_window_is_any_hovered(UserInterface.context) && WINDOW.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !WINDOW.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
-	        			
-	        			double[] pos = WINDOW.getCursorPos();
-	        			int[] windowDims = WINDOW.getWindowDimensions();	        			
-	        			//make cursorPos in world coordinates
-	        			pos[0] = getSCToWCForX(pos[0] , windowDims[0] , windowDims[1] , camera);
-	        			pos[1] = getSCToWCForY(pos[1] , windowDims[0] , windowDims[1] , camera);	        			
-	        			editor.resizeSelectionArea((float) pos[0], (float) pos[1]);
-	        				        			
-	        		}
-	        			        		
-	        		break;
-
-	        	case GAME:
-
-	        		p.call(() -> gameRuntime.run(this));
-//	        		System.out.println("GAME TIME NANOS: " + p.nanos());
-	        		
-	        		break;
-	        	
-        	}
-        	
-        	p.call(() -> renderer.run());
-//        	System.out.println("RENDER TIME NANOS:" + p.nanos());
-        	
-        	WINDOW.swapBuffers();
-            framesThisSecond++;
-            millisThisFrame += frameTimer.getElapsedTimeMillis();
-
+    		updateEngineState();
+    		
+    		switch (STATE){
+    		
+	    		case EDITOR -> editor.run(this);	        		
+	    		case GAME -> gameRuntime.run(this);
+    		
+    		}
+    		
+    		framesThisSecond++;
+    		
+    		while(16 - frameTimer.getElapsedTimeMillis() > 0.0d) Renderer.waitingForMainThread = true;
+    		Renderer.waitingForMainThread = false;
+    		
         }
 
     }
@@ -307,17 +280,15 @@ public final class Engine {
 		
 	}
 	
-	private void handleEvents() {
-		
-		lock.lock();
-		while(!events.empty()) events.dequeue().execute();
-		lock.unlock();
-		
-	}
-	
 	public float[] cursorWorldCoords() {
 		
 		return WINDOW.getCursorWorldCoords();
+		
+	}
+	
+	public boolean isUIHovered() {
+		
+		return nk_window_is_any_hovered(UserInterface.context);
 		
 	}
 	
@@ -339,18 +310,40 @@ public final class Engine {
 		renderer.setViewport(width , height);
 		
 	}
-
+	
+	/*
+	 * Steps to shutdown:
+	 * 		1) stop rendering
+	 * 		2) shutdown UI
+	 * 		3) shut down renderer
+	 * 		4) shutdown UI part 2
+	 * 		5) shutdown everything else
+	 */
 	void shutDown() {
     	
+		SoundEngine.persist = false;
+		shutDownOrder.lock();
+		
+		Renderer.continueRendering = false;
+		UserInterface.continueRunning = false;
+		
 		UserInterface.shutDown1();
-		renderer.shutDown();	        
-		INTERNAL_ENGINE_PYTHON.shutDown();
+		
+		shutDownOrder.unlock();
+		
+		// opengl shuts down
+		while(!renderer.shutDown);
+		
+		shutDownOrder.lock();
+		
 		UserInterface.shutDown2();
-		SoundEngine.shutDown();
+		INTERNAL_ENGINE_PYTHON.shutDown();
 		WINDOW.shutDown();
 		gameRuntime.shutDown();
 		CSLogger.shutDown();
-    	System.out.println("Program shut down, until next time...");    	
+    	System.out.println("Program shut down, until next time...");
+    	
+    	shutDownOrder.unlock();
     	
     }
 	
@@ -369,12 +362,6 @@ public final class Engine {
 	public static int currentFrame() {
 		
 		return framesThisSecond;
-		
-	}
-	
-	public static double millisThisFrame() {
-		
-		return millisThisFrame;
 		
 	}
 	
@@ -605,7 +592,7 @@ public final class Engine {
 			//this sets the player used load door to the load door linked to the one they just walked through
 			player.previouslyUsedLoadDoor(currentLevel.getLoadDoorByName(loadDoor.linkedLoadDoorName()));
 			float[] doorPos = player.previouslyUsedLoadDoor().getConditionArea().getMidpoint();
-			player.moveTo(doorPos);
+			player.moveTo(doorPos[0] , doorPos[1]);
 			gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
 
@@ -659,7 +646,7 @@ public final class Engine {
 					
 					cstf.endList();
 					
-					player.moveTo(playersPosition);
+					player.moveTo(playersPosition[0] , playersPosition[1]);
 					gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 									
 					GameRuntime.setState(targetState);				
@@ -697,7 +684,7 @@ public final class Engine {
 				
 				cstf.endList();
 				
-				player.moveTo(playersPosition);
+				player.moveTo(playersPosition[0] , playersPosition[1]);
 				gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 								
 				GameRuntime.setState(targetState);				

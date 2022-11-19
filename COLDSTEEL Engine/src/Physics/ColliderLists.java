@@ -107,7 +107,7 @@ public class ColliderLists extends AbstractGameObjectLists<Colliders>{
 		
 	}
 
-	public void translate(int index , float x , float y ){
+	public void translate(int index , float x , float y){
 
 		list.getVal(index).translate(x, y);
 

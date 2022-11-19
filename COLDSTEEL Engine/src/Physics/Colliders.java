@@ -496,12 +496,6 @@ public class Colliders extends Quads{
 		
 	}
 		
-	public void translate(float x , float y) {
-		
-		super.translate(x , y);
-				
-	}
-		
 	public void transformAndSnap(float x , float y) {
 		
 		this.translate(x , y);		

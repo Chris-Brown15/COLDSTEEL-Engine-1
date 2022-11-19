@@ -73,21 +73,19 @@ public final class FileExplorer extends UserInterface implements Acceptable {
 	private long UIMemory;
 	private MemoryStack allocator;
 	
-	{
-		show = true;
-	}
-	
 	private static final int options = NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE;
 	
 	FileExplorer(String title , int x , int y , boolean allowMultiple , boolean allowFolders , String startingPath){
 	
 		super(title , x , y , 500 , 650 , options , options);
+
+		show = true;
+	
+		System.out.println("allow multiple: " + allowMultiple);
 		
 		UIMemory = nmemCalloc(1 , 1024);
 		allocator = MemoryStack.ncreate(UIMemory, 1024);
-		
-		
-		
+				
 		this.allowMultiple = allowMultiple;
 		this.allowFolders = allowFolders;
 				
@@ -256,7 +254,7 @@ public final class FileExplorer extends UserInterface implements Acceptable {
 		//to avoid returning the string default of "null" when not assigned. We keep the result unassigned to allow to test if
 		//the file dialog has returned yet by checking if result is null
 		
-		if(result != null) {
+		if(result != null) {			
 			
 			result = result.substring(4 , result.length() -1);
 			if(allowFolders && !allowMultiple) {
@@ -278,8 +276,7 @@ public final class FileExplorer extends UserInterface implements Acceptable {
 		assetsTree.forOnly(tnode -> !tnode.ID.equals(node.ID) && tnode.attached.size() == 0 , tnode -> put(tnode.val , false));
 		deletedTree.forOnly(tnode -> !tnode.ID.equals(node.ID) && tnode.attached.size() == 0 , tnode -> put(tnode.val , false));
 		modsTree.forOnly(tnode -> !tnode.ID.equals(node.ID) && tnode.attached.size() == 0 , tnode -> put(tnode.val , false));
-		
-		
+				
 	}
 
 }

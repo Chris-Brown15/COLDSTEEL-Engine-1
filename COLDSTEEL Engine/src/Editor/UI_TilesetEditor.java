@@ -122,7 +122,7 @@ public class UI_TilesetEditor extends UserInterface {
 			nk_layout_row_dynamic(context , 30 , 1);
 			nk_property_float(context , "Move Tile Sheet Vertically" , -999 , height , 999 , 1.0f , 1.0f);
 			
-			currentTileSet.getTileSheet().translate(width.get() , height.get());	
+			editor.schedule(e -> e.translateTile(width.get() , height.get()));	
 			
 			nk_layout_row_dynamic(context , 30 , 1);
 			if(nk_button_label(context , "Save Selection Area As Tile") && editor.selection != null) {
@@ -245,7 +245,11 @@ public class UI_TilesetEditor extends UserInterface {
 								tile.toggleLowerLeftTriangle();							
 							
 							nk_layout_row_dynamic(context , 20 , 1);
-							if(nk_checkbox_label(context , "Platform" , toByte(frame , tile.isColliderPlatform()))) tile.togglePlatform();
+							if(nk_checkbox_label(context , "Platform" , toByte(frame , tile.isColliderPlatform()))) { 
+								
+								tile.togglePlatform();
+								
+							}
 							
 							if(tile.isColliderTriangle()) {
 								
@@ -264,8 +268,8 @@ public class UI_TilesetEditor extends UserInterface {
 								nk_property_float(context , "Mod Y Pos" , - 999 , triangleSliders.slice(3, 1) , 999 , 1 , 1);
 								
 								tile.modColliderWidth(triangleSliders.get());
-								tile.modColliderHeight(triangleSliders.get());
-								tile.modColliderOffset(triangleSliders.get() , triangleSliders.get());
+								tile.modColliderHeight(triangleSliders.get());								
+								editor.modColliderOffset(tile , triangleSliders.get() , triangleSliders.get());
 								
 							} 
 							

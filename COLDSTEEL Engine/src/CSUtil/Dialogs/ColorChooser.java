@@ -43,14 +43,12 @@ public final class ColorChooser extends UserInterface implements Acceptable {
 	
 	private static final int options = NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_MINIMIZABLE|NK_WINDOW_NO_SCROLLBAR;
 	
-	{
-		show = true;		
-	}
-	
 	ColorChooser(String title , int x , int y){
 		
 		super(title , (float) x , (float) y , 350f , 375f , options , options);
-		
+
+		show = true;		
+	
 		UIMemory = nmemCalloc(1 , 128);		
 		allocator = MemoryStack.ncreate(UIMemory, 128);
 		selectedColor = NkColorf.malloc(allocator);

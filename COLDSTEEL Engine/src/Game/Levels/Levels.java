@@ -77,7 +77,7 @@ public class Levels implements GameFiles<Levels>{
 	public Levels(Scene scene , CharSequence filepath) {
 		
 		this.scene = scene;
-		load((String) filepath);		
+		load(scene , (String) filepath);		
 		
 	}
 
@@ -114,7 +114,11 @@ public class Levels implements GameFiles<Levels>{
 		if(!tileSetName.equals("null")) {
 			
 			//if the tileset of this level is not the one already present in the scene, load this level's one into the scene
-			if(!tileSetName.equals("Unnamed Tile Set.CStf") && !tileSetName.equals(deployingTo.tiles1().name())) deployingTo.tiles1().load(tileSetName + ".CStf");
+			if(!tileSetName.equals("Unnamed Tile Set.CStf") && !tileSetName.equals(deployingTo.tiles1().name())) { 
+				
+				deployingTo.tiles1().load(tileSetName + ".CStf");
+				
+			}
 			
 			/*
 			 * This array is used to map an instance of Tiles to its ID, which represents when it should render
@@ -131,8 +135,9 @@ public class Levels implements GameFiles<Levels>{
 										
 					Tiles added = deployingTo.tiles1().copyInstanceTile(iter.val.getFirst());
 					//this fixes issues regarding the first time something is animated it gets warped
-					if(added.getAnimation() != null) added.animateFast();					
-					added.moveTo(iter.val.getSecond());
+					if(added.getAnimation() != null) added.animateFast();
+					float[] pos = iter.val.getSecond();
+					added.moveTo(pos[0] , pos[1]);
 					added.setID(iter.val.getThird());
 					//this is the important line that ensures tiles get placed in the right order
 					tiles[added.getID()] = added;
@@ -172,10 +177,10 @@ public class Levels implements GameFiles<Levels>{
 		
 		scene.clear();
 			
-		entities.forEachVal(tuple -> scene.entities().loadEntity(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));		
-		statics1.forEachVal(tuple -> scene.statics1().loadStatic(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
-		statics2.forEachVal(tuple -> scene.statics2().loadStatic(tuple.getFirst()).moveTo(tuple.getSecond()));
-		items.forEachVal(tuple -> scene.items().load(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()));
+		entities.forEachVal(tuple -> scene.entities().loadEntity(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()[0] , tuple.getSecond()[1]));
+		statics1.forEachVal(tuple -> scene.statics1().loadStatic(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()[0] , tuple.getSecond()[1]));
+		statics2.forEachVal(tuple -> scene.statics2().loadStatic(tuple.getFirst()).moveTo(tuple.getSecond()[0] , tuple.getSecond()[1]));
+		items.forEachVal(tuple -> scene.items().load(tuple.getFirst() + ".CStf").moveTo(tuple.getSecond()[0] , tuple.getSecond()[1]));
 		deployTileSet(tileSet1 , true , scene);
 		deployTileSet(tileSet2 , false , scene);
 	
@@ -185,7 +190,7 @@ public class Levels implements GameFiles<Levels>{
 			Quads newQ = scene.quads1().add();
 			newQ.setWidth(quad[2]);
 			newQ.setHeight(quad[3]);
-			newQ.moveTo(quad);
+			newQ.moveTo(quad[0] , quad[1]);
 			newQ.quickChangeColor(2, quad[4], quad[5], quad[6]);
 			newQ.quickChangeColor(3, quad[7], quad[8], quad[9]);
 			newQ.quickChangeColor(0, quad[10], quad[11], quad[12]);
@@ -198,7 +203,7 @@ public class Levels implements GameFiles<Levels>{
 			Quads newQ = scene.quads2().add();
 			newQ.setWidth(quad[2]);
 			newQ.setHeight(quad[3]);
-			newQ.moveTo(quad);
+			newQ.moveTo(quad[0] , quad[1]);
 			newQ.quickChangeColor(2, quad[4], quad[5], quad[6]);
 			newQ.quickChangeColor(3, quad[7], quad[8], quad[9]);
 			newQ.quickChangeColor(0, quad[10], quad[11], quad[12]);
@@ -739,7 +744,7 @@ public class Levels implements GameFiles<Levels>{
 		
 	}
 
-	@Override public void load(String filepath) {
+	@Override public void load(Scene scene , String filepath) {
 
 		try(BufferedReader reader = Files.newBufferedReader(Paths.get(filepath))){
 			

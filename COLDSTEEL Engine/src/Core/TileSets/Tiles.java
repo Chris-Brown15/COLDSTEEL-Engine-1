@@ -201,7 +201,7 @@ public class Tiles extends Statics {
 			colliders.get(0).makePlatform();
 			colliders.get(0).setWidth(getWidth());
 			colliders.get(0).setHeight(getHeight());
-			colliders.get(0).moveTo(getMidpoint());
+			colliders.get(0).moveTo(getMidpoint()[0] , getMidpoint()[1]);
 			
 		} if(isSource) instances.forEachVal(tile -> tile.togglePlatform());
 		
@@ -246,7 +246,7 @@ public class Tiles extends Statics {
 		if(isSource) instances.forEachVal(tile -> tile.moveCollider(x, y));
 		
 	}
-	
+
 	public float colliderWidth() {
 		
 		return colliders.get(0).getWidth();

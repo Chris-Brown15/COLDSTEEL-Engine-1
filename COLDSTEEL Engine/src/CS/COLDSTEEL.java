@@ -4,7 +4,6 @@ package CS;
 import static org.lwjgl.system.MemoryUtil.memReport;
 
 import org.lwjgl.system.Configuration;
-import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
 import CSUtil.CSLogger;
 
@@ -16,13 +15,32 @@ import CSUtil.CSLogger;
  */
 public class COLDSTEEL {
 
+	//perform safety checks and tests if this is true
+	public static boolean DEBUG_CHECKS = false;
+	public static int UI_MEMORY_SIZE_KILOS = 8;
+	public static int SOUND_MEMORY_SIZE_MEGAS = 64;
+		
 	public static final String assets;
 	public static final String data;
 	public static final String deleted;
 	public static final String mods;
 	public static final String logs;
 	public static final String root;
-	
+
+	static {
+		
+		System.out.println("STATIC:");
+		
+		assets = getPath("assets");		
+		data = getPath("data");
+		deleted = getPath("deleted");
+		mods = getPath("mods");
+		logs = getPath("logs");
+		String incorrectRoot = getPath("");
+		root = incorrectRoot.substring(0, incorrectRoot.length() -1);
+		
+	}
+
 	/**
 	 * Gets any file folder's filepath for the currently running program. 
 	 * This should work regardless of where the program is installed, but requires the queried folder to be located in the same folder
@@ -46,28 +64,8 @@ public class COLDSTEEL {
 		
 	}
 
-	static {
-		
-		System.out.println("STATIC:");
-		
-		assets = getPath("assets");		
-		data = getPath("data");
-		deleted = getPath("deleted");
-		mods = getPath("mods");
-		logs = getPath("logs");
-		String incorrectRoot = getPath("");
-		root = incorrectRoot.substring(0, incorrectRoot.length() -1);
-		
-	}
-	
-	//perform safety checks and tests if this is true
-	public static boolean DEBUG_CHECKS = false;
-	public static int UI_MEMORY_SIZE_KILOS = 8;
-	public static int SOUND_MEMORY_SIZE_MEGAS = 64;
-	static int NUMBER_LAYERS = 25;
-	
-	public static void main(String[] args)  {
-		
+	private static void preInitialize(String[] args) {
+
 		if(args[1].equals("debug=true")) {
 			
 			//config settings
@@ -79,7 +77,7 @@ public class COLDSTEEL {
 						
 		}
 		
-		if(args[5].contains("logging=true")) {
+		if(args[4].contains("logging=true")) {
 			
 			CSLogger.LOGGING_ENABLED = true;
 			CSLogger.initialize();
@@ -88,20 +86,27 @@ public class COLDSTEEL {
 		
 		UI_MEMORY_SIZE_KILOS = Integer.parseInt(args[2]);
 		SOUND_MEMORY_SIZE_MEGAS = Integer.parseInt(args[3]);
-		NUMBER_LAYERS = Integer.parseInt(args[4]);
+		
+	}
+	
+	public static void main(String[] args)  {
+		
+		preInitialize(args);
 		
 		Engine engine = new Engine(RuntimeState.valueOf(args[0]));
 		engine.initialize();
 		engine.run();
 		engine.shutDown();
-		
-	    
-		//report memory leaks at the very end
-	    System.out.println("\nMEMORY LEAK REPORT:");
-	    MemoryAllocationReport rep = (address , memory , threadID , threadName , element) ->
-	    	System.out.println("At " + address + "; " + memory + " bytes in " + threadName);
-	    
-	    memReport(rep);
+			    
+		//report memory leaks at the very ends	    
+		System.out.println("\nMEMORY LEAK REPORT:");
+	    memReport((address , memory , threadID , threadName , elements) -> {
+	    	
+	    	System.out.println(memory + " bytes in " + threadName + " at: ");
+	    	for(int i = 0 ; i < elements.length -1 ; i ++) System.out.println(elements[i]); 
+	    	System.out.println(elements[elements.length - 1] + "\n");
+	    		    	
+	    });
 	    
 	}
 

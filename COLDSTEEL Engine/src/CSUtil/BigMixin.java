@@ -643,7 +643,7 @@ public abstract class BigMixin {
     }
     
     /**
-     * Moves target array's position values according to xSpeed and ySpeed. 
+     * Moves target array's position values according to xSpeed and ySpeed with respect to delta time.
      * 
      * @param target — array to move 
      * @param xSpeed — amount to move target along the horizontal axis
@@ -665,7 +665,7 @@ public abstract class BigMixin {
 		return target;
     	
     }
-    
+
     /**
      * Creates and returns a string representation of this array, which itself should represent vertex data
      * 

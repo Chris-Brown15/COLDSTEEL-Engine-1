@@ -22,13 +22,6 @@ public class Joints extends Quads{
 		
 	}
 	
-	public Joints(float xCoord , float yCoord) {
-		
-		super(CSUtil.BigMixin.getJointFloatArray() , -1 , CSType.JOINT);
-		moveTo(xCoord , yCoord);
-		
-	}
-	
 	int select(float xCoord , float yCoord) {
 		
 		return selectQuad(xCoord , yCoord);

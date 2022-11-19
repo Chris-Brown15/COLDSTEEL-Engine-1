@@ -46,7 +46,7 @@ public class GameRuntime {
 	private NetworkClient client;
 	private boolean runEntitySystems = true;
 	private Scene gameScene;
-	
+		
 	public GameRuntime() {}	
 	
 	public void initialize(Engine engine) {
@@ -89,7 +89,7 @@ public class GameRuntime {
 	public void run(Engine engine) {
 		
 //		if(showPyUI) for(int i = 0 ; i < UIScriptingInterface.getPyUIs().size() ; i ++) UIScriptingInterface.getPyUIs().get(i).run();		
-		
+
 		switch(STATE) {
 		
 			case GAME_RUNTIME_SINGLEPLAYER -> {
@@ -202,7 +202,8 @@ public class GameRuntime {
 						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());
 						gameScene.entities().addStraightIn(player.playersEntity());
 						player.write(engine.currentLevel());
-						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
+						float[] conditionAreaPos = engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint();
+						player.moveTo(conditionAreaPos[0] , conditionAreaPos[1]);
 						setState(GameState.GAME_RUNTIME_SINGLEPLAYER);
 						creator.hideElements();
 						engine.fadeIn(250d);
@@ -230,7 +231,8 @@ public class GameRuntime {
 						engine.g_loadClearDeploy(data + "macrolevels/" + creator.startingLevel());						
 						gameScene.entities().addStraightIn(player.playersEntity());
 						player.write(engine.currentLevel());
-						player.moveTo(engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint());
+						float[] conditionAreaPos = engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint();
+						player.moveTo(conditionAreaPos[0] , conditionAreaPos[1]);
 						engine.fadeIn(250d);
 						STATE = GameState.MAIN_MENU;
 

@@ -16,8 +16,6 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
 import static org.lwjgl.glfw.GLFW.GLFW_MOUSE_BUTTON_LEFT;
-
-
 import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
@@ -169,7 +167,7 @@ public class Editor {
 		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on
 
 		Renderer.draw_foreground(selection.vertices);
-		
+				
 		if (toBool(uiManager.tilesetEditor.renderTileSheet)) {
 
 			if(scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
@@ -272,7 +270,14 @@ public class Editor {
 			break;
 
 		}
-
+		
+		if(!engine.isUIHovered() && Engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
+    			
+    		float[] cursorPos = engine.cursorWorldCoords();	        			
+    		resizeSelectionArea((float) cursorPos[0], (float) cursorPos[1]);
+    			        			
+    	}
+    			      
 	}
 
 	/**
@@ -286,7 +291,6 @@ public class Editor {
 		float[] cursor = engine.cursorWorldCoords();
 		if(cursorState == CursorState.DRAGGING && activeQuad != null) {
 			
-//			System.out.println("cursorCoords: ");
 			if (editorState == EditorState.EDITING_JOINT) activeJoint.moveTo(cursor[0] , cursor[1]);
 			else activeQuad.moveTo(cursor[0] , cursor[1]);			
 			
@@ -548,8 +552,7 @@ public class Editor {
 
 	public void translateActiveJoint(float x, float y) {
 
-		if (activeJoint != null)
-			activeJoint.translate(x, y);
+		if (activeJoint != null) activeJoint.translate(x, y);
 
 	}
 
@@ -1007,19 +1010,20 @@ public class Editor {
 
 	public void loadLevel() {
 
-		Supplier<String> filepath = DialogUtils.newFileExplorer("Load a Level", 5, 270, false, false,
-				data + "macrolevels/");
+		Supplier<String> filepath = DialogUtils.newFileExplorer("Load a Level" , 5, 270 , false , false , data + "macrolevels/");
 		TemporalExecutor.onTrue(() -> filepath.get() != null, () -> {
 
-			Levels newLevel = new Levels(scene , (CharSequence) filepath.get());
-			newLevel.deploy(scene);
-			setupTileSetUIImages(scene.tiles1() , background);
-			setupTileSetUIImages(scene.tiles2() , !background);
-			currentLevel = newLevel;
-			say("Loaded level: " + newLevel.gameName());
-			uiManager.loadDoorEditor.currentLoadDoor = null;
-			currentTrigger = null;
-			uiManager.loadDoorEditor.linkedLevel = null;
+			System.out.println(filepath.get());
+			
+//			Levels newLevel = new Levels(scene , (CharSequence) filepath.get());
+//			newLevel.deploy(scene);
+//			setupTileSetUIImages(scene.tiles1() , background);
+//			setupTileSetUIImages(scene.tiles2() , !background);
+//			currentLevel = newLevel;
+//			say("Loaded level: " + newLevel.gameName());
+//			uiManager.loadDoorEditor.currentLoadDoor = null;
+//			currentTrigger = null;
+//			uiManager.loadDoorEditor.linkedLevel = null;
 
 		});
 
@@ -2521,6 +2525,19 @@ public class Editor {
 
 		Supplier<String> animation = DialogUtils.newFileExplorer("Select Animation", 5, 270, data + "spritesets/");
 		TemporalExecutor.onTrue(() -> animation.get() != null , () -> tile.setAnimation(new SpriteSets(toNamePath(animation.get()))));	
+		
+	}
+	
+	void translateTile(float x , float y) {
+
+		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
+		currentTileSet.getTileSheet().translate(x , y);
+		
+	}
+	
+	void modColliderOffset(Tiles tile , float x , float y) {
+		
+		tile.modColliderOffset(x, y);
 		
 	}
 	

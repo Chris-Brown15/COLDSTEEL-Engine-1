@@ -8,8 +8,6 @@ import static CSUtil.BigMixin.getArrayWidth;
 import static CSUtil.BigMixin.getEntityFloatArray;
 import static CSUtil.BigMixin.toLocalDirectory;
 import static CSUtil.BigMixin.translateArray;
-import static CSUtil.CSLogger.LOGGING_ENABLED;
-import static CSUtil.CSLogger.log;
 import static Renderer.Renderer.loadTexture;
 
 import java.io.BufferedReader;
@@ -207,9 +205,6 @@ public class Entities extends Quads implements GameFiles<Entities>{
 		
 		super.translate(horiz , vert);
 		if(has(ECS.COLLISION_DETECTION)) if(comps[CDOFF] != null) comps[CDOFF] = translateArray((float[])comps[CDOFF] , horiz , vert);
-		
-		if(LOGGING_ENABLED && horiz != 0) log(name +  " moved X: " + horiz + ", Y: " + vert);
-		else if(LOGGING_ENABLED) log("");
 		
 	}
 	

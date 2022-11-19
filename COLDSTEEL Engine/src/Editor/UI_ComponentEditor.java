@@ -21,6 +21,7 @@ import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityFlags;
 import Core.Entities.EntityHitBoxes;
+import Core.Entities.EntityLists;
 import Core.Entities.EntityRPGStats;
 import Game.Items.Inventories;
 
@@ -189,7 +190,7 @@ public class UI_ComponentEditor extends UserInterface {
 			nk_layout_row_dynamic(context , 20 , 1);
 			if(nk_checkbox_label(context , "Vertical Displacement" , verticalDisplacementCheck)) {
 				
-				editor.scene.entities().toggleComponent(E, ECS.VERTICAL_DISPLACEMENT);
+				EntityLists.toggleComponent(E, ECS.VERTICAL_DISPLACEMENT);
 				
 			}
 			
@@ -396,7 +397,7 @@ public class UI_ComponentEditor extends UserInterface {
 			
 			nk_layout_row_end(context);
 			
-			if(renderHitBox) editor.scene.entities().updateHitBoxes(E);
+			if(renderHitBox) EntityLists.updateHitBoxes(E);
 
 		});
 
