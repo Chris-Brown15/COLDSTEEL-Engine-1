@@ -17,16 +17,18 @@ public class UserConnection {
 	public final int port;
 	public final InetAddress address;
 	public final Timer timer;
-	public final NetworkedEntities entity;		
+	public final NetworkedEntities entity;
+	//this boolean means we are not expecting a packet from this client because they are doing something which could
+	//cause their frame rate to drop such as loading a new level
+	volatile boolean busy = true;
 	
-	public UserConnection(short index , int port , InetAddress address , Timer timer , NetworkedEntities entity) {
+	public UserConnection(short index , int port , InetAddress address , NetworkedEntities entity) {
 		
 		this.index = index;
 		this.port = port;
 		this.address = address;
-		this.timer = timer;
 		this.entity = entity;
-		timer.start();
+		this.timer = new Timer();
 		
 	}
 	

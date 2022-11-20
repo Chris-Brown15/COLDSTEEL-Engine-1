@@ -522,7 +522,7 @@ public class Statics extends Quads implements GameFiles<Statics> {
 			CSTFParser cstf = new CSTFParser(writer);
 			
 			cstf.wname(name);
-			cstf.wlabelValue("texture" , toLocalPath(texture.imageInfo.path()));
+			cstf.wlabelValue("texture" , toLocalPath(texture.filepath()));
 			cstf.wlabelValue("removed" , new float[] {removedColor.x , removedColor.y , removedColor.z});
 			
 			cstf.wlabelValue("filter" , new float[] {filter.x , filter.y , filter.z});

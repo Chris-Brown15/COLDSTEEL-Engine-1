@@ -20,8 +20,6 @@ import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 
-import java.text.DecimalFormat;
-
 import Audio.SoundEngine;
 import CS.Engine;
 import CS.RuntimeState;
@@ -39,13 +37,8 @@ public class DebugInfo extends UserInterface {
 
 	private static final int uiOptions = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE ;
 	
-	private final DecimalFormat decimalFormatter = new DecimalFormat();
 	private boolean showAllEntities = false;
 	private boolean showAllSounds = false;
-	
-	{
-		decimalFormatter.setMaximumFractionDigits(1);
-	}
 	
 	private boolean seeAllLoadDoors = false;	
 	private boolean freeze = false;
@@ -73,16 +66,16 @@ public class DebugInfo extends UserInterface {
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Performance" , NK_TEXT_ALIGN_CENTERED);
 			
-			nk_layout_row_dynamic(context , 20 , 3);
-			nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
-			nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
+			nk_layout_row_dynamic(context , 20 , 2);
+			nk_text(context , "Logic Thread FPS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
+			nk_text(context , "Render Thread FPS: " + engine.renderFramesLastSecond() , NK_TEXT_ALIGN_LEFT);
 						
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "State:" , NK_TEXT_ALIGN_LEFT);
-			nk_text(context , GameRuntime.STATE.toString() , NK_TEXT_ALIGN_RIGHT);
+			nk_text(context , runtime.getState().toString() , NK_TEXT_ALIGN_RIGHT);
 			
 			nk_text(context , "Current Level:" , NK_TEXT_ALIGN_LEFT);
 			String level = engine.currentLevel() != null ? engine.currentLevel().gameName() : "null";
@@ -129,7 +122,7 @@ public class DebugInfo extends UserInterface {
 						nk_text(context , door.thisLoadDoorName() , NK_TEXT_ALIGN_LEFT);
 						nk_layout_row_push(context , 95);
 						float[] doorPos = door.conditionAreaSpecs();
-						nk_text(context , "X: " + decimalFormatter.format(doorPos[2]) + " Y: " + decimalFormatter.format(doorPos[3]) , NK_TEXT_ALIGN_LEFT);
+						nk_text(context , "X: " +doorPos[2] + " Y: " + doorPos[3] , NK_TEXT_ALIGN_LEFT);
 						
 						nk_layout_row_end(context);
 						

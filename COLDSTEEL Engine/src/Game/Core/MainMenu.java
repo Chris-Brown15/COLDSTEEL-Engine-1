@@ -24,13 +24,11 @@ import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import org.lwjgl.nuklear.NkRect;
-
 import Audio.SoundEngine;
-import Audio.Sounds;
 import CS.Engine;
 import CS.RuntimeState;
 import CS.UserInterface;
+import Core.Quads;
 import Core.TemporalExecutor;
 
 /**
@@ -55,52 +53,65 @@ public class MainMenu  {
 	private static final int uiOptions = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_NO_SCROLLBAR;
 	
 	MenuStates menuState = MenuStates.MAIN;
-	
-	public boolean menuReturned = false;	
-	NkRect rect;	
+		
 	ByteBuffer portAndInetAddrInput = memCalloc(1 , 23);
 	IntBuffer portAndInetAddrLength = memCallocInt(1);
 	private final Main main;
 	private final Multiplayer multi ;
 	private final MultiplayerJoiner multiplayerJoin;
 	private final Options options;
+	private final GameRuntime runtime;
+	private int mainPanelHeight;
+	Quads mainMenuBackground = new Quads(-1); 
 	
-	public MainMenu(Engine engine) {
-		
-		Sounds intro = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
-		Sounds seg1 = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
-		Sounds loop = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
-		
-		intro.play();
-		TemporalExecutor.onTrue(() -> intro.stopped() , () -> {
-		
-			seg1.play();
-			TemporalExecutor.onTrue(() -> seg1.stopped() , () -> restartLoop(loop));
+	public MainMenu(Engine engine , GameRuntime runtime) {
 				
-		});
+//		Sounds intro = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Intro.ogg");
+//		Sounds seg1 = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Segment1.ogg");
+//		Sounds loop = SoundEngine.add(CS.COLDSTEEL.assets + "sounds/" + "OST_SOTN Draculas Castle Loop.ogg");
+//		
+//		SoundEngine.play(intro);
+//		TemporalExecutor.onTrue(() -> intro.stopped() , () -> {
+//		
+//			SoundEngine.play(seg1);
+//			TemporalExecutor.onTrue(() -> seg1.stopped() , () -> restartLoop(loop));
+//				
+//		});
 
-		main = new Main(engine);
+		//if the user is loading the engine for the first time, we cannot show the Continue button, and so the rect should be smaller too
+		mainPanelHeight = engine.config.lastSinglePlayerSave != null ? 310 : 270;
+		this.runtime = runtime;		
+		
+		main = new Main(engine , runtime);
 		multi = new Multiplayer(engine);
 		multiplayerJoin = new MultiplayerJoiner(engine); 
 		options = new Options(engine);
 		
-	}
-	
-	private void restartLoop(Sounds start) {
+		mainMenuBackground.moveTo(0, 0);
+		engine.getCamera().scaleCamera(12);
 				
-		start.play();
-		TemporalExecutor.onTrue(() -> start.stopped() , () -> restartLoop(start));
-
+		Renderer.Renderer.loadTexture(mainMenuBackground.getTexture() , CS.COLDSTEEL.assets + engine.config.mainMenuWallpaper);
+		
+		TemporalExecutor.onTrue(() -> mainMenuBackground.getTexture().filledOut(), () -> {
+			
+			mainMenuBackground.setWidth(Engine.getWindowDimensions()[0]);
+			mainMenuBackground.setHeight(Engine.getWindowDimensions()[1]);			
+			
+		});
+		
 	}
 	
 	void layoutMainMenus() {
 		
 		TemporalExecutor.process();		
+		
+		Renderer.Renderer.drawBillboard_foreground(mainMenuBackground);
+		
 		switch(menuState) {
 			
 			case LOAD -> {
 			
-				GameRuntime.setState(GameState.LOAD_SAVE);
+				runtime.setState(GameState.LOAD_SAVE);
 				
 			}
 			
@@ -178,71 +189,53 @@ public class MainMenu  {
 	
 	class Main extends UserInterface {
 
-		public Main(Engine engine) {
+		public Main(Engine engine , GameRuntime runtime) {
 			
-			super("GAMEMAINMENU" , 760 , 540 , 400, 310, uiOptions|NK_WINDOW_MOVABLE , uiOptions|NK_WINDOW_MOVABLE);
+			super("GAMEMAINMENU" , 760 , 740 , 400, mainPanelHeight, uiOptions|NK_WINDOW_MOVABLE , uiOptions|NK_WINDOW_MOVABLE);
 			
 			layoutBody((frame) -> {
 				
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Continue")) {
-				
-				GameRuntime.STATE = GameState.GAME_RUNTIME_SINGLEPLAYER;
-				menuReturned = true;
-				
-			}	
-			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "New Character")) {
-				
-				GameRuntime.STATE = GameState.NEW_SINGLEPLAYER;
-				menuReturned = true;
-				
-			}			
-			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Load Character")) {
-
-				GameRuntime.STATE = GameState.LOAD_SAVE;
-				menuReturned = true;
-				
-			}			
-			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Multiplayer")) {
+				if(engine.config.lastSinglePlayerSave != null) {
 					
-				menuState = MenuStates.MULTIPLAYER_MAIN;
-				
-			}
-			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Options")) {
-				
-				menuState = MenuStates.OPTIONS;
-				
-			}
-			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Open Editor")) {
-				
-				engine.schedule(() -> {
+					nk_layout_row_dynamic(context , 40 , 1);
+					if(nk_button_label(context , "Continue")) { 
+						
+						engine.g_loadLastSave();
+						hideAll();
+						
+					}
 					
-					engine.switchState(RuntimeState.EDITOR);
-					GameRuntime.STATE = GameState.BUSY;
-					menuReturned = true;
-					hide();
+				}				
+				
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "New Character")) runtime.setState(GameState.NEW_SINGLEPLAYER);		
+				
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "Load Character")) runtime.setState(GameState.LOAD_SAVE);		
+				
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "Multiplayer")) menuState = MenuStates.MULTIPLAYER_MAIN;
+				
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "Options")) menuState = MenuStates.OPTIONS;
+				
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "Open Editor")) {
 					
-				});
+					engine.schedule(() -> {
+						
+						engine.switchState(RuntimeState.EDITOR);
+						runtime.setState(GameState.BUSY);
+						hide();
+						
+					});
+					
+				}	
 				
-			}	
+				nk_layout_row_dynamic(context , 40 , 1);
+				if(nk_button_label(context , "Close")) engine.closeOverride();
 			
-			nk_layout_row_dynamic(context , 40 , 1);
-			if(nk_button_label(context , "Close")) {
-				
-				engine.closeOverride();
-				menuReturned = true;
-				
-			}});
+			});
 			
 		}
 		
@@ -287,7 +280,7 @@ public class MainMenu  {
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Join Server With New Character")) {
 					
-					GameRuntime.setState(GameState.NEW_MULTIPLAYER);
+					runtime.setState(GameState.NEW_MULTIPLAYER);
 					menuState = MenuStates.MULTIPLAYER_MAIN;
 					
 				}
@@ -296,7 +289,7 @@ public class MainMenu  {
 				if(nk_button_label(context , "Join Server With Existing Character")) {
 					
 					menuState = MenuStates.MULTIPLAYER_JOINING;
-					GameRuntime.setState(GameState.LOAD_MULTIPLAYER);
+					runtime.setState(GameState.LOAD_MULTIPLAYER);
 				
 				}
 				
@@ -337,7 +330,7 @@ public class MainMenu  {
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Join")) { 
 					
-					GameRuntime.setState(GameState.JOIN_MULTIPLAYER);
+					runtime.setState(GameState.JOIN_MULTIPLAYER);
 					hideAll();
 					
 				}
@@ -404,12 +397,10 @@ public class MainMenu  {
 						engine.schedule(() -> engine.windowifyWindow());
 						put(borderlessFullscreen , (byte) 0);
 						
-						
 					}
 					
 				}					
-								
-							
+															
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MAIN;
 				

@@ -23,20 +23,12 @@ public class UI_Debug extends UserInterface {
 		layoutBody((frame) -> {
 			
 			nk_layout_row_dynamic(context , 20 , 2);
-			nk_label(context , "Iteration Rate (millis): " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , fpsFormat.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
-			
-			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Frames last second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 			nk_text(context , Integer.toString(Engine.framesLastSecond()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 			nk_layout_row_dynamic(context , 20 , 2);
 			nk_text(context , "Frames this second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 			nk_text(context , Integer.toString(editor.scene.entities().currentFrame()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);				
-			
-			nk_layout_row_dynamic(context , 20 , 2);
-			nk_text(context , "Average Frames Per Second: " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
-			nk_text(context , Integer.toString(Engine.averageFramerate()) , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
 			
 			nk_layout_row_dynamic(context , 20 , 2);				
 			nk_text(context , "Render Time (millis): " , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);

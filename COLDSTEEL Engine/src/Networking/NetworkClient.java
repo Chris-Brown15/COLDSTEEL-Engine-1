@@ -55,6 +55,7 @@ public class NetworkClient implements NetworkedInstance {
 	private final Levels level;
 	private ClientDebugUI debugUI = new ClientDebugUI();
 	private MultiplayerChatUI chatUI;
+	private GameRuntime gameRuntime;
 	private Scene scene;
 	private final DatagramSocket clientSocket;	
 	private final Thread clientListeningThread; //thread responsible for recieving messages
@@ -62,11 +63,12 @@ public class NetworkClient implements NetworkedInstance {
 	private NetworkedEntities networkedPlayer;
 	private Timer timeoutTimer = new Timer();
 	private short connectionID = -1;
-
-	public NetworkClient(Scene scene , Levels currentLevel) throws IOException {
+	
+	public NetworkClient(GameRuntime gameRuntime , Levels currentLevel) throws IOException {
 		
 		this.level = currentLevel;
-		this.scene = scene;
+		this.gameRuntime = gameRuntime;
+		this.scene = gameRuntime.gameScene();
 				
 		clientSocket = new DatagramSocket();
 		
@@ -74,7 +76,7 @@ public class NetworkClient implements NetworkedInstance {
 
 			@Override public void run() {
 
-				while (true) { 
+				while (true) {
 					
 					try {
 						
@@ -87,7 +89,6 @@ public class NetworkClient implements NetworkedInstance {
 					}
 					
 				}
-								
 			}
 			
 		});
@@ -163,7 +164,7 @@ public class NetworkClient implements NetworkedInstance {
 			System.err.println("Failed to connect to server.\n");
 			e.printStackTrace();
 			clientListeningThread.interrupt();
-			GameRuntime.setState(GameState.MAIN_MENU);
+			gameRuntime.setState(GameState.MAIN_MENU);
 			
 		}
 		
@@ -393,6 +394,7 @@ public class NetworkClient implements NetworkedInstance {
 
 			coder
 				.bflag(UPDATE)
+				.bupdateSequence(networkedPlayer.updateSequence++)
 				.bControlStrokes(networkedPlayer.controlStates())
 			;
 			

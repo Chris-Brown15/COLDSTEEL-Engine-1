@@ -209,8 +209,8 @@ public class Projectiles extends Entities {
 		
 		if(isTextured()) {
 			
-			setWidth(texture.imageInfo.width());
-			setHeight(texture.imageInfo.height());
+			setWidth(texture.width());
+			setHeight(texture.height());
 			
 		}
 		

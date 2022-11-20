@@ -162,9 +162,15 @@ public class EntityScripts extends PythonScriptEngine{
 			
 		}
 		
+	}
+	
+	public void call(String code) {
+		
+		python.exec(code);
 		
 	}
-		public boolean initialized() {
+
+	public boolean initialized() {
 		
 		return initialized;
 		

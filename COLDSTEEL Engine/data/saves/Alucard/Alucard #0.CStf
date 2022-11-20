@@ -1,5 +1,5 @@
-Alucard Hostr
-singleplayer -> no
+Alucard
+singleplayer -> yes
 Alucard
 texture -> entities/AlucardSpriteSheetUncompressed.png
 removed -> 0.5019608,0,0
@@ -118,8 +118,7 @@ components 15:
 		items 0:
 		equipped 0:
 	Flags:
-		flags 1:
-			Alucard_->_yes_->_yes_->_yes -> yes
+		flags 0:
 	Audio_Emit:
 		sounds 11:
 			e_Alucard 4.ogg
@@ -136,5 +135,5 @@ components 15:
 	Script:
 		script -> e_Alucard.py
 location:
-	level -> CityRuins/City House
-	position -> 850,260
+	level -> CityRuins/City Ruins Stage 1
+	position -> 628,260.5

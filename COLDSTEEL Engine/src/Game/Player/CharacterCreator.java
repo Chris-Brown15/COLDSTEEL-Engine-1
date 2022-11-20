@@ -37,13 +37,12 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
 import Core.ECS;
-import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
 import Core.Entities.EntityRPGStats;
 import Game.Core.GameRuntime;
 import Game.Core.GameState;
-import Renderer.Textures.ImageInfo;
+import Renderer.Textures;
 
 /**
  * 
@@ -54,7 +53,7 @@ import Renderer.Textures.ImageInfo;
  */
 public class CharacterCreator {
 
-	private static record CharacterCreatorData(String name , NkImage graphic , ImageInfo graphicInfo, String details , Entities entity) {}
+	private static record CharacterCreatorData(String name , NkImage graphic , Textures texture , String details , Entities entity) {}
 		
 	private final CSLinked<CharacterCreatorData> charactersToChooseFrom = new CSLinked<>();
 	private final boolean isForSingleplayer;
@@ -76,12 +75,12 @@ public class CharacterCreator {
 	private CharacterChooser characterChooser;
 	private CharacterStats stats;
 	private CharacterDetails details;
-	private Scene gameScene;
+	private GameRuntime runtime;
 	
-	public CharacterCreator(Scene scene , boolean isForSingleplayer) {
+	public CharacterCreator(GameRuntime runtime , boolean isForSingleplayer) {
 		
 		this.isForSingleplayer = isForSingleplayer;
-		gameScene = scene;
+		this.runtime = runtime;
 
 		try {
 			
@@ -120,8 +119,9 @@ public class CharacterCreator {
 					String image = cstf.rlabel("image");
 					String details = cstf.rlabel("details");	
 					NkImage imageStruct = NkImage.malloc(ALLOCATOR);
-					ImageInfo info = image(CS.COLDSTEEL.assets + image , imageStruct);
-					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , info , details , new Entities(gameScene , entityName + ".CStf")));
+					Textures texture = image(CS.COLDSTEEL.assets + image , imageStruct);
+					
+					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , texture , details , new Entities(runtime.gameScene() , entityName + ".CStf")));
 					cstf.endList();
 					
 				} catch (IOException e) {
@@ -152,11 +152,11 @@ public class CharacterCreator {
 						
 					}
 					
-					nk_layout_row_begin(context , NK_STATIC , iter.val.graphicInfo.height() / 2 , 2);
-					int padding = (int) ((730 - iter.val.graphicInfo.width() / 2));
+					nk_layout_row_begin(context , NK_STATIC , iter.val.texture.height() / 2 , 2);
+					int padding = (int) ((730 - iter.val.texture.width() / 2));
 					nk_layout_row_push(context , padding / 2);
 					nk_text_wrap(context , "");
-					nk_layout_row_push(context , iter.val.graphicInfo.width() / 2);
+					nk_layout_row_push(context , iter.val.texture.width() / 2);
 					nk_image(context , iter.val.graphic);
 					
 				}			
@@ -268,13 +268,20 @@ public class CharacterCreator {
 						Supplier<String> saveName = DialogUtils.newInputBox("Name This Save" , (1920/2) - 175, 540);					
 						TemporalExecutor.onTrue(() -> saveName.get() != null , () -> {
 							
-							newPlayer = new PlayerCharacter(gameScene , saveName.get() , selectedCharacter.entity , isForSingleplayer);
+							hideAll();
+							newPlayer = new PlayerCharacter(runtime.gameScene() , saveName.get() , selectedCharacter.entity , isForSingleplayer);
 							
-						});						
+						});				
+						
 					}
 				
 					nk_layout_row_dynamic(context , 50 , 1);
-					if(nk_button_label(context , "Back")) GameRuntime.setState(GameState.MAIN_MENU);
+					if(nk_button_label(context , "Back")) { 
+						
+						hideAll();
+						runtime.setState(GameState.MAIN_MENU);
+						
+					}
 					
 				}
 				
@@ -292,7 +299,7 @@ public class CharacterCreator {
 		
 	}
 		
-	public void hideElements() {
+	private void hideAll() {
 
 		characterChooser.hide();
 		stats.hide();
@@ -317,5 +324,5 @@ public class CharacterCreator {
 		return startingDoor;
 		
 	}
-		
+			
 }

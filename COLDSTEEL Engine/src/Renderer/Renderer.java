@@ -88,6 +88,8 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.joml.Matrix4f;
@@ -103,6 +105,7 @@ import org.lwjgl.nuklear.NkDrawVertexLayoutElement;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
+import CSUtil.BigMixin;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSQueue;
 import Core.Executor;
@@ -112,7 +115,6 @@ import CS.UserInterface;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSStack;
 import CSUtil.DataStructures.Tuple2;
-import CSUtil.DataStructures.Tuple3;
 import Core.CSType;
 import Core.Direction;
 import Core.ECS;
@@ -125,24 +127,26 @@ import Game.Items.Inventories;
 import Game.Items.ItemComponents;
 import Game.Levels.Levels;
 import Game.Levels.MacroLevels;
-import Renderer.Textures.ImageInfo;
 
 public final class Renderer {
 
 	private static volatile CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
 	private static volatile ReentrantLock REQUEST_LOCK = new ReentrantLock();
-	private static volatile CSStack<Tuple2<Textures , Tuple3<String , Integer , ImageInfo>>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
+	private static volatile CSStack<Tuple2<Textures , String>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
 	
 	private static CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
     private static CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
     private static CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
     private static CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
+    private static CSStack<Quads> FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS = new CSStack<Quads>();
 
     private static int drawCalls = 0;
     private static double renderTime;
 
     private static Thread theRenderThread;
-    
+    private static AtomicBoolean persisting = new AtomicBoolean(false);
+    private static volatile boolean shutDown = false;
+        
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -204,7 +208,7 @@ public final class Renderer {
 		if(!Thread.currentThread().equals(theRenderThread)) {
 			
 			REQUEST_LOCK.lock();
-			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(filepath , null , null)));
+			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , filepath));
 			REQUEST_LOCK.unlock();		
 			
 		} else {
@@ -225,36 +229,6 @@ public final class Renderer {
 				}
 				
 			} else REQUEST_LOCK.unlock();			
-			
-		}
-		
-	}
-
-	public static void loadTexture(Textures texture , int textureID , ImageInfo info) {
-
-		if(!Thread.currentThread().equals(theRenderThread)) { 
-			
-			REQUEST_LOCK.lock();
-			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , new Tuple3<>(null , textureID , info)));
-			REQUEST_LOCK.unlock();		
-			
-		} else {
-
-			REQUEST_LOCK.lock();
-			texture.initialize(textureID , info);
-			LOADED_TEXTURES.add(texture);
-			if(checkErrors()) { 
-				
-				try {
-					
-					throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + textureID + ", " + info);
-					
-				} finally {
-
-					REQUEST_LOCK.unlock();
-				}
-				
-			} else REQUEST_LOCK.unlock();
 			
 		}
 		
@@ -297,17 +271,16 @@ public final class Renderer {
 		
 		REQUEST_LOCK.lock();
 		
-		Tuple2<Textures , Tuple3<String , Integer , ImageInfo>> request;
+		Tuple2<Textures , String> request;
 		while(!TEXTURE_LOAD_REQUESTS.empty()) {
 			
 			request = TEXTURE_LOAD_REQUESTS.pop();
 			
-			if(request.getSecond() != null && request.getSecond().getFirst() != null) {
+			if(request.getSecond() != null) {
 				
-				loadTexture(request.getFirst() , request.getSecond().getFirst());
+				loadTexture(request.getFirst() , request.getSecond());
 							
 			} else if (request.getSecond() == null) loadTexture(request.getFirst());
-			else loadTexture(request.getFirst() , request.getSecond().getSecond() , request.getSecond().getThird());			
 			
 		}
 		
@@ -317,7 +290,7 @@ public final class Renderer {
 	
     public static void draw_background(Quads drawThis) {
     	
-    	if(!continueRendering) return;
+    	if(!persisting.get()) return;
     	
     	REQUEST_LOCK.lock();
     	if(!BACKGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) BACKGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    		
@@ -327,7 +300,7 @@ public final class Renderer {
     
     public static void draw_foreground(Quads drawThis) {
 
-    	if(!continueRendering) return;
+    	if(!persisting.get()) return;
     	REQUEST_LOCK.lock();
     	if(!FOREGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) FOREGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    	
     	REQUEST_LOCK.unlock();
@@ -336,7 +309,7 @@ public final class Renderer {
 	
     public static void draw_background(float[] drawThis) {
 
-    	if(!continueRendering) return;
+    	if(!persisting.get()) return;
     	REQUEST_LOCK.lock();
     	if(!BACKGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) BACKGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
     	REQUEST_LOCK.unlock();
@@ -345,9 +318,18 @@ public final class Renderer {
     
     public static void draw_foreground(float[] drawThis) {
 
-    	if(!continueRendering) return;
+    	if(!persisting.get()) return;
     	REQUEST_LOCK.lock();
     	if(!FOREGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) FOREGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
+    	REQUEST_LOCK.unlock();
+    	
+    }
+
+    public static void drawBillboard_foreground(Quads drawThis) {
+
+    	if(!persisting.get()) return;
+    	REQUEST_LOCK.lock();
+    	if(!FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.has(drawThis)) FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.push(drawThis);
     	REQUEST_LOCK.unlock();
     	
     }
@@ -377,6 +359,18 @@ public final class Renderer {
 
 	}
 
+	public boolean isPersisting() {
+		
+		return persisting.get();
+		
+	}
+	
+	public boolean isShutDown() {
+		
+		return shutDown;
+		
+	}
+	
     static final int[] elementArray = {
 
             2 , 1 , 0 ,
@@ -404,7 +398,8 @@ public final class Renderer {
 	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
 	private volatile CSQueue<Executor> rendererCallbacks = new CSQueue<Executor>();
-	
+	private AtomicBoolean readyToClear = new AtomicBoolean(true);
+
 	private GLFWWindow window;
 
     public volatile Quads screenQuad = new Quads(-1);
@@ -413,49 +408,38 @@ public final class Renderer {
     private volatile boolean renderDebug = false;
 
     private Timer renderTimer = new Timer();
-    private int framesLastSecond = 0;
+    public int framesLastSecond = 0;
     private int currentFrame = 0;
     private int totalSeconds = 0;
+    private Thread renderThread;
     
-	public Thread renderThread;
-	public volatile boolean initialized = false;
-	public static volatile boolean continueRendering = true;
-	public volatile boolean shutDown = false;
-	public static volatile boolean clear = true;
-	public static volatile boolean waitingForMainThread = false;
-	
     public Renderer(ReentrantLock shutDownLock , Scene renderScene , GLFWWindow window) {
-        	
+            	
     	renderThread = new Thread(() -> {
+
+    		initialize(renderScene , window);    		
+    		while(persisting.get()) { 
     		
-    		initialize(renderScene , window);
-    		while(continueRendering) { 
-    			
-    			if(clear) {
-
-    				glClearColor(window.r() , window.g() , window.b() , 1);
-    				glClear(GL_COLOR_BUFFER_BIT); //wipe out previous frame
-    				
-    			}
-    			
-    			clear = false;
-    			
-    			run();
-    			window.swapBuffers();
-    			while(waitingForMainThread);
-    			
-
+    			handleScheduledEvents();    			
+      			if(Engine.readyToClear.get() && readyToClear.get()) { 
+      				
+      				Future<?> UIAwait = BigMixin.async(UserInterface.NUKLEAR_RUNNABLE);
+      				clear();
+      				run(UIAwait);
+      				
+      			}
+      			
+      	    	window.swapBuffers();
+      	    	
     		}
     		
     		shutDown(shutDownLock);
-    			
+    		
     	});
     	
-    	theRenderThread = renderThread;
-    	
-    	renderThread.start();
-    	
+    	theRenderThread = renderThread;    	
     	renderThread.setName("OpenGL Thread");
+    	renderThread.start();    	
     	
     }
     
@@ -569,11 +553,12 @@ public final class Renderer {
         glViewport(0, 0, winDims[0], winDims[1]);
 		renderScene(renderScene);
 		System.out.println("Renderer initialization complete.");
-		initialized = true;
+
+		persisting.getAndSet(true);
 		
 	}
 	
-	public void enqueueRendererCallback(Executor callback) {
+	public void schedule(Executor callback) {
 		
 		synchronized(rendererCallbacks) {
 			
@@ -583,6 +568,33 @@ public final class Renderer {
 		
 	}
 	
+	public void schedule(RenderCommands command) {
+
+		synchronized(rendererCallbacks) {
+			
+			switch(command) {
+			
+				case INITIATE_SHUT_DOWN -> rendererCallbacks.enqueue(() -> persisting.getAndSet(false));
+				case INITIALIZE_NUKLEAR -> rendererCallbacks.enqueue(() -> initializeNuklear());
+				
+			}
+				
+		}
+		
+	}
+	
+	private void handleScheduledEvents() {
+		
+		handleTextureLoadRequests();
+		
+		synchronized(rendererCallbacks) {
+			
+			while(!rendererCallbacks.empty()) rendererCallbacks.dequeue().execute();
+			
+		}
+		
+	}
+		
     private FloatBuffer updateVAO(float [] target) {
 
     	vertexBuffer.clear();
@@ -770,10 +782,10 @@ public final class Renderer {
     			
     }
     
-    private void drawFadeToBlack() {
+    private void drawQuadParallax(Quads drawThis) {
     	
     	shader.uniformMatrix4("uView", new Matrix4f().identity());
-    	drawQuad(screenQuad);
+    	drawQuad(drawThis);
     	
     }
     
@@ -801,27 +813,30 @@ public final class Renderer {
     	
     }
     
-    private void run() {
+    private void clear() {
+
+		glClearColor(window.r() , window.g() , window.b() , 1);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		Engine.readyToClear.getAndSet(false);  
+		readyToClear.getAndSet(false);
     	
-    	if(renderTimer.getElapsedTimeSecs() >= 1) {
-    		
-    		renderTimer.start();
-    		framesLastSecond = currentFrame;
-    		currentFrame = 0;
-    		if(Engine.printFPS) System.out.println("Render Frames in Second " + totalSeconds + ": " + framesLastSecond);
-    		totalSeconds++;
-    		
-    	}
-    	
+    }
+    
+    private void run(Future<?> UIAwait) {
+
+		if(renderTimer.getElapsedTimeSecs() >= 1) {
+			
+			renderTimer.start();
+			framesLastSecond = currentFrame;
+			currentFrame = 0;
+			if(Engine.printFPS) System.out.println("Render Frames in Second " + totalSeconds + ": " + framesLastSecond);
+			totalSeconds++;
+			
+		}
+		
     	drawCalls = 0;
-    	
-    	handleTextureLoadRequests();
-    	synchronized(rendererCallbacks) {
     		
-    		while(!rendererCallbacks.empty()) rendererCallbacks.dequeue().execute();
-    		
-    	}
-    	
     	previousTexture = null;    	
     	
     	setVertexAttribPointersScene();
@@ -844,23 +859,16 @@ public final class Renderer {
     	
     	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
     	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
+    	while(!FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.empty()) drawQuadParallax(FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.pop());
     	
     	listModificationLock.unlock(); REQUEST_LOCK.unlock();
     	    
     	renderDebug();
     	
-    	if(nuklearInitialized) {
-
-    		if(UserInterface.ITERATED_ALL_ELEMENTS.get()) {
-    			
-    			renderUI();
-    			UserInterface.ITERATED_ALL_ELEMENTS.set(false);
-    			
-    		}    		
+    	if(initializedNuklear) {
     		
-    	} else if(context != null && commands != null) {
-    		
-    		initializeNuklear();
+    		BigMixin.TRY(() -> UIAwait.get()); 
+    		renderUI();
     		
     	}
     	
@@ -868,11 +876,13 @@ public final class Renderer {
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
     	shader.uniformMatrix4("uView", camera.getViewMatrix());
    	
-    	drawFadeToBlack();
+    	drawQuadParallax(screenQuad);
     	
     	for(Quads x : finals) drawQuad(x);
     
     	currentFrame++;
+
+    	readyToClear.getAndSet(true);
     	
     }
 
@@ -1014,8 +1024,7 @@ public final class Renderer {
 
     private int width , height;
     private int display_width , display_height;
-
-    private boolean nuklearInitialized = false;
+    private boolean initializedNuklear = false;
     
     private void initializeNuklear(){
         
@@ -1059,7 +1068,7 @@ public final class Renderer {
         		
    		});
         
-        nuklearInitialized = true;
+        initializedNuklear = true;
         
     }
 
@@ -1123,7 +1132,8 @@ public final class Renderer {
                 .arc_segment_count(22)
                 .global_alpha(1.0f)
                 .shape_AA(NK_ANTI_ALIASING_ON)
-                .line_AA(NK_ANTI_ALIASING_ON);
+                .line_AA(NK_ANTI_ALIASING_ON)
+            ;
 
             // setup buffers to load vertices and elements
             NkBuffer vbuf = NkBuffer.malloc(stack);
@@ -1203,5 +1213,18 @@ public final class Renderer {
         
     }
 
+    public void join() {
+    	
+    	try {
+    		
+			renderThread.join();
+			
+		} catch (InterruptedException e) {
+			
+			e.printStackTrace();
+			
+		}
+    	
+    }
+    
 }
-

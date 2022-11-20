@@ -4,7 +4,6 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
 import Renderer.Textures;
-import Renderer.Textures.ImageInfo;
 
 /**
  * Root Class of all renderable objects. This contains vertex data, a texture, a vector 3 for removing a color from the texture,
@@ -205,18 +204,10 @@ public class Quads{
     public void fitQuadToTexture(){
 
     	if(!texture.filledOut()) return;
-    	
-    	ImageInfo info = texture.imageInfo;
-    	
-    	setWidth(info.width());
-    	setHeight(info.height());
+    	    	
+    	setWidth(texture.width());
+    	setHeight(texture.height());
 
-    }
-    
-    public String getTextureName() {
-    	
-    	return CSUtil.BigMixin.toNamePath(texture.imageInfo.path());
-    	
     }
     
 	public void makeTranslucent(float opacity){

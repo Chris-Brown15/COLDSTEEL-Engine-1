@@ -116,8 +116,7 @@ components 15:
 		items 0:
 		equipped 0:
 	Flags:
-		flags 1:
-			Alucard_->_yes_->_yes_->_yes -> yes
+		flags 0:
 	Audio_Emit:
 		sounds 11:
 			e_Alucard 4.ogg

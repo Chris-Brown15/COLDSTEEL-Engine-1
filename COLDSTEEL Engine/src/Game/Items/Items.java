@@ -405,7 +405,7 @@ public class Items extends Quads implements GameFiles<Items>{
 			
 			CSTFParser cstf = new CSTFParser(writer);
 			cstf.wname(name);		
-			cstf.wlabelValue("texture" , CSUtil.BigMixin.toNamePath(texture.imageInfo.path()));
+			cstf.wlabelValue("texture" , CSUtil.BigMixin.toNamePath(texture.filepath()));
 			cstf.wlabelValue("removed" , removedColor.x , removedColor.y , removedColor.z);
 			cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);
 			cstf.wlabelValue("icon", iconSprite);

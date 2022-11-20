@@ -26,7 +26,6 @@ import Core.Quads;
 import Core.Scene;
 import Core.SpriteSets;
 import Renderer.Textures;
-import Renderer.Textures.ImageInfo;
 
 /**
  * 
@@ -186,12 +185,6 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	public void name(String name) {
 		
 		this.name = name;
-		
-	}
-	
-	public ImageInfo textureInfo() {
-		
-		return texture.imageInfo;
 		
 	}
 	
@@ -473,7 +466,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 			CSTFParser cstf = new CSTFParser(writer);
 			
 			cstf.wname(name);
-			cstf.wlabelValue("texture" , toLocalPath(texture.imageInfo.path()));
+			cstf.wlabelValue("texture" , toLocalPath(texture.filepath()));
 			cstf.wlabelValue("remove", remove);
 			
 			cstf.wlist("tiles" , sources.size());

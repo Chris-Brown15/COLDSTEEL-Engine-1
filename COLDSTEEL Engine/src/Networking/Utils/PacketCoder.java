@@ -46,7 +46,7 @@ public final class PacketCoder implements AutoCloseable {
 		CONNECTION_ID = 2 ,
 		STRING = -107 ,
 		REPITITION = 3,
-		//this code represents the seventh bit set. 
+		UPDATE_SEQUENCE = 4, 
 		/*
 		 * Control IDs will arrive at the server. these will consist of some of the first 6 bits set and possibly the 
 		 * last bit.
@@ -54,7 +54,7 @@ public final class PacketCoder implements AutoCloseable {
 		 * if the seventh bit is set, this tells the server to stop reading as controls.
 		 * 
 		 */
-		CONTROL_KEY_STROKES = 64
+		CONTROL_KEY_STROKES = 0b01000000
 
 	;
 
@@ -135,6 +135,13 @@ public final class PacketCoder implements AutoCloseable {
 		
 	}
 	
+	public PacketCoder bupdateSequence(byte update) {
+		
+		bytes.put(UPDATE_SEQUENCE).put(update);
+		return this;
+		
+	}
+	
 	public float[] rposition() {
 
 		boolean correct = bytes.get() == POSITION;
@@ -204,6 +211,14 @@ public final class PacketCoder implements AutoCloseable {
 		for(int i = 0 ; i < expandedControlView.length ; i ++) expandedControlView[i] = bytes.get();		
 		bytes.position(endingPos + 1);
 		return expandedControlView;
+		
+	}
+	
+	public int rupdateSequence() {
+		
+		boolean correct = bytes.get() == UPDATE_SEQUENCE;
+		if(!correct) except("buffer reawd update sequence at invalid position");
+		return bytes.get();
 		
 	}
 	

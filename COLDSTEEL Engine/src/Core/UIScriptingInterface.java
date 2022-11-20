@@ -70,23 +70,23 @@ public class UIScriptingInterface extends UserInterface{
 	public ImageInfo image(String filepath) {
 		
 		NkImage image = NkImage.malloc(ALLOCATOR);
-		var textureImageInfo = image(filepath, image);
-		return new ImageInfo(image , image.w() , image.h() , textureImageInfo.BPP());
+		var texture = image(filepath, image);
+		return new ImageInfo(image , image.w() , image.h() , texture.bitsPerPixel());
 		
 	}
 
 	public Tuple2<NkImage , NkRect> itemIconAsImageSubRegion(Items item){
 		
-		float textureWidth = item.getTexture().imageInfo.width() , textureHeight = item.getTexture().imageInfo.height();
+		float textureWidth = item.getTexture().width() , textureHeight = item.getTexture().height();
 		
 		float[] sprite = item.iconSprite();
 		short leftX = (short) (textureWidth * sprite[0]);
 		short topY = (short) (textureHeight - (textureHeight * sprite[2]));
 		
 		NkImage itemTextureAsImage = NkImage.malloc(ALLOCATOR);
-		image(item.texture.imageInfo.path() , itemTextureAsImage);
+		image(item.texture.filepath() , itemTextureAsImage);
 		
-		Tuple2<NkImage , NkRect> result = subRegion(itemTextureAsImage, item.texture.imageInfo , leftX, topY, (short)(sprite[4] * 2) , (short)(sprite[5] * 2));
+		Tuple2<NkImage , NkRect> result = subRegion(itemTextureAsImage, item.texture, leftX, topY, (short)(sprite[4] * 2) , (short)(sprite[5] * 2));
 		return result;
 		
 	}

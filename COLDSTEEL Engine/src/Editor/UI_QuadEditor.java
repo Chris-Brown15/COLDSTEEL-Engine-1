@@ -89,7 +89,7 @@ public class UI_QuadEditor extends UserInterface {
 			nk_layout_row_dynamic(context , 30 , 1);
 			nk_property_float(context , "Translucency" , 0f , quadTranslucency , 1f , 0.01f , 0.01f);
 			
-			editor.schedule(edi -> edi.activeQuad.makeTranslucent(quadTranslucency.get(0)));
+			editor.schedule(edi -> edi.activeQuad.modTranslucency(quadTranslucency.get(0)));
 			put(quadTranslucency , 0);
 			
 			nk_layout_row_dynamic(context , 30 , 4);

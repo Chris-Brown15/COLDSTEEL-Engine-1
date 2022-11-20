@@ -3,7 +3,6 @@ package Core;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_MOVABLE;
-import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_SCALABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
@@ -22,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
 import CS.UserInterface;
-import CSUtil.DataStructures.CircularQueue;
+import CSUtil.DataStructures.RingBuffer;
 
 
 /**
@@ -37,7 +36,7 @@ public class Console extends UserInterface {
 	private ByteBuffer inputBuffer = ALLOCATOR.malloc(100);
 	private IntBuffer inputBuffersLength = ALLOCATOR.mallocInt(1);
 	
-	private final CircularQueue<String> consoleText = new CircularQueue<String>(50);
+	private final RingBuffer<String> consoleText = new RingBuffer<>(50);
 	
 	/*
 	 * The console has to destroy old text because otherwise nuklear will slow to a crawl trying to display thousands of lines.
@@ -48,8 +47,8 @@ public class Console extends UserInterface {
 		
 	public Console() {
 		
-		super("Console", 5f , 5f , 400f , 700f , NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_SCALABLE , 
-												 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE|NK_WINDOW_SCALABLE);
+		super("Console", 5f , 5f , 400f , 700f , NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE , 
+												 NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_TITLE);
 		layoutBody((frame) -> {
 			
 			nk_layout_row_begin(context , NK_STATIC , 30 , 2);
@@ -76,22 +75,27 @@ public class Console extends UserInterface {
 		
 	}
 	
-	public synchronized void sayln(Object line) {
+	public void sayln(Object line) {
 		
-		consoleText.add(line.toString());
+		consoleText.put(line.toString());
 		
 	}
 	
-	public synchronized void enter() {
+	public void enter() {
 		
 		if(inputBuffersLength.get(0) != 0) {
 					
-			String ln = memUTF8(inputBuffer.slice(0 , inputBuffersLength.get()));
-			inputBuffer.reset();
-			inputBuffersLength.reset();
-			consoleText.add(ln);
+			String ln = memUTF8(inputBuffer.slice(0 , inputBuffersLength.get(0)));
+			inputBuffersLength.put(0 , 0);
+			consoleText.put(ln);
 					
 		}
+		
+	}
+	
+	public void toggle() {
+		
+		show = show ? false:true;
 		
 	}
 	

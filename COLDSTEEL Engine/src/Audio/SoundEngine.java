@@ -18,15 +18,19 @@ import org.lwjgl.openal.ALC;
 
 import CSUtil.RefInt;
 import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.CSStack;
+import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
+import Core.TemporalExecutor;
 import Game.Levels.MacroLevels;
 
 public abstract class SoundEngine {
 
 	private static final Thread AUDIO_THREAD;
 
-	private final static CSLinked<Sounds> sounds = new CSLinked<Sounds>();
+	private static volatile CSLinked<Sounds> sounds = new CSLinked<Sounds>();
+	private static volatile CSQueue<Tuple2<Sounds , SoundRequest>> soundQueue = new CSQueue<>(); 
 	private static String deviceName;
 	private static long ALDevice;	
 	private static long ALContext;
@@ -37,7 +41,7 @@ public abstract class SoundEngine {
 		AUDIO_THREAD = new Thread(() -> {
 			
 			initialize();
-			while(persist);
+			while(persist) while(!soundQueue.empty()) handleRequest(soundQueue.dequeue());
 			shutDown();
 			
 		});
@@ -98,26 +102,26 @@ public abstract class SoundEngine {
 
 	public static void play(Sounds sound) {
 		
-		sound.play();
+		soundQueue.enqueue(new Tuple2<>(sound , SoundRequest.PLAY));
 		
 	}
 
 	public static void pause(Sounds sound) {
 		
-		sound.pause();
+		soundQueue.enqueue(new Tuple2<>(sound , SoundRequest.PAUSE));
 	
 		
 	}
 
 	public static void rewind(Sounds sound) {
 		
-		sound.rewind();
+		soundQueue.enqueue(new Tuple2<>(sound , SoundRequest.REWIND));
 		
 	}
 
 	public static void resume(Sounds sound) {
 		
-		sound.resume();
+		soundQueue.enqueue(new Tuple2<>(sound , SoundRequest.RESUME));
 		
 	}
 
@@ -165,6 +169,41 @@ public abstract class SoundEngine {
 	public static float getGlobalVolume() {
 		
 		return alGetListenerf(AL_GAIN);
+		
+	}
+
+	/**
+	 * Plays the sound on repeat... indefinitely
+	 * 
+	 * @param loopThis
+	 */
+	public static void startLoop(Sounds loopThis) {
+		
+		SoundEngine.play(loopThis);
+		TemporalExecutor.onTrue(() -> loopThis.stopped() , () -> startLoop(loopThis));
+		
+	}
+	
+	private static void handleRequest(Tuple2<Sounds , SoundRequest> request) {
+	
+		switch(request.getSecond()) {
+		
+			case PLAY -> request.getFirst().play();
+			case PAUSE -> request.getFirst().pause();
+			case REWIND -> request.getFirst().rewind();
+			case RESUME -> request.getFirst().resume();
+					
+		}
+		
+	}
+	
+	private static enum SoundRequest {
+		
+		PLAY,
+		PAUSE,
+		REWIND,
+		RESUME
+		;
 		
 	}
 	

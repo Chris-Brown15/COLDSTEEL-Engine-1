@@ -9,7 +9,6 @@ import java.nio.file.Paths;
 
 import org.python.core.PyCode;
 
-import CS.Engine;
 import CS.PythonScriptEngine;
 
 public class TriggerScripts extends PythonScriptEngine {

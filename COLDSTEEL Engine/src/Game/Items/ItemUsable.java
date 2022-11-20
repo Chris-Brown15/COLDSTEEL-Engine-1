@@ -1,7 +1,5 @@
 package Game.Items;
 
-import java.util.Objects;
-
 import org.python.core.PyCode;
 import org.python.core.PyObject;
 

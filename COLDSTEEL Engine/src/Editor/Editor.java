@@ -98,13 +98,12 @@ public class Editor {
 	Joints activeJoint;
 	boolean renderJoints = true;
 
-	// Object used to mark up hitboxes with a quad. The active quad will be the quad referenced for the math relating to the hitboxset
 	Levels currentLevel;
 	MacroLevels currentMacroLevel;
 	Triggers currentTrigger;
 	Quads currentTriggerBound;
 	
-	public void initialize(Engine engine , Levels currentLevel , Console console) {
+	public void initialize(Engine engine , Console console) {
 
 		this.engine = engine;
 		uiManager = new UI_AAAManager(this);
@@ -113,7 +112,6 @@ public class Editor {
 		this.selection = new SelectionArea();
 		this.scene = new Scene(engine);
 		
-		this.currentLevel = currentLevel;
 		backupLevel.associate(data + "macrolevels/Editor/");
 		
 		System.out.println("Editor initialization complete.");
@@ -225,12 +223,7 @@ public class Editor {
 				
 			});
 
-			if (currentLevel != null) {
-
-				currentLevel.runScripts();
-				
-			}
-
+			if (currentLevel != null) currentLevel.runScripts();
 			break;
 
 		case HYBRID_MODE:
@@ -893,7 +886,6 @@ public class Editor {
 			for (String y : split) {
 
 				loaded = scene.entities().loadEntity(toNamePath(y));
-				System.out.println(loaded.getTexture().imageInfo);
 				if (spawnAtCursor) {
 
 					float[] cursor = engine.cursorWorldCoords();
@@ -1073,7 +1065,7 @@ public class Editor {
 		
 		NkImage tileSetSheet = background ? uiManager.tilesetEditor.backgroundTileSetSpriteSheet : uiManager.tilesetEditor.foregroundTileSetSpriteSheet;
 		
-		UserInterface.image(target.textureInfo().path(), tileSetSheet);
+		UserInterface.image(target.texture().filepath(), tileSetSheet);
 
 		Quads tileSheet = new Quads(-1);
 		tileSheet.setTexture(target.texture());
@@ -1089,7 +1081,7 @@ public class Editor {
 			short leftX = (short) (tileSheetWidth * tileSpecs[0]);
 			short topY = (short) (tileSheetHeight - (tileSheetHeight * tileSpecs[2]));
 
-			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
+			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.texture() , leftX , topY , 
 																	(short) tileSpecs[4], (short) tileSpecs[5]);
 			
 			CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
@@ -1144,7 +1136,7 @@ public class Editor {
 		}
 
 		target.load(toNamePath(filepath));
-		UserInterface.image(target.textureInfo().path(), tileSetSheet);
+		UserInterface.image(target.texture().filepath(), tileSetSheet);
 
 		Quads tileSheet = new Quads(-1);
 		tileSheet.setTexture(target.texture());
@@ -1160,7 +1152,7 @@ public class Editor {
 			short leftX = (short) (tileSheetWidth * tileSpecs[0]);
 			short topY = (short) (tileSheetHeight - (tileSheetHeight * tileSpecs[2]));
 
-			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.textureInfo() , leftX , topY , 
+			Tuple2<NkImage, NkRect> subRegionResult = UserInterface.subRegion(tileSetSheet , target.texture() , leftX , topY , 
 																	(short) tileSpecs[4], (short) tileSpecs[5]);
 			
 			CSLinked<NkImage> tileIcons = background ? uiManager.tilesetEditor.backgroundTileIcons : uiManager.tilesetEditor.foregroundTileIcons;
@@ -1172,11 +1164,8 @@ public class Editor {
 
 	}
 
-	public Consumer<Levels> onLevelLoad = newLevel -> currentLevel = newLevel;
-
 	public void leaveEditor() {
 
-		scene.clear();
 		setState(EditorState.BUSY);
 		engine.switchState(RuntimeState.GAME);
 
@@ -2495,7 +2484,7 @@ public class Editor {
 		currentTileSet.addSourceTile(new float[] {leftU , rightU , topV , bottomV , selectionDims[0] , selectionDims[1]});				
 		
 		Tuple2<NkImage , NkRect> subRegionResult = UserInterface.subRegion(
-				tilesImage , currentTileSet.textureInfo() , 
+				tilesImage , currentTileSet.texture() , 
 				(short)leftUDistance , (short)(vertices[10] - selection[10]) , (short)selectionDims[0] , (short)selectionDims[1]);
 		
 		return subRegionResult;

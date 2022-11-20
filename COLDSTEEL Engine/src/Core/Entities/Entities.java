@@ -35,7 +35,6 @@ import Core.Scene;
 import Core.SpriteSets;
 import Game.Items.Inventories;
 import Game.Items.Items;
-import Renderer.Textures.ImageInfo;
 
 public class Entities extends Quads implements GameFiles<Entities>{
 
@@ -814,9 +813,8 @@ public class Entities extends Quads implements GameFiles<Entities>{
 
 		CSTFParser cstf = new CSTFParser(writer);
 		
-		cstf.wname(name);
-		ImageInfo textureImageInfo = texture.imageInfo; 
-		if(textureImageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(textureImageInfo.path()));
+		cstf.wname(name); 
+		if(texture != null)  cstf.wlabelValue("texture", toLocalDirectory(texture.filepath()));
 		else cstf.wnullLabel("texture");
 		cstf.wlabelValue("removed", removedColor.x , removedColor.y , removedColor.z);
 		cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);
@@ -839,7 +837,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 			CSTFParser cstf = new CSTFParser(writer);
 			
 			cstf.wname(name);
-			if(texture != null && texture.imageInfo != null)  cstf.wlabelValue("texture", toLocalDirectory(texture.imageInfo.path()));
+			if(texture != null)  cstf.wlabelValue("texture", toLocalDirectory(texture.filepath()));
 			else cstf.wnullLabel("texture");
 			cstf.wlabelValue("removed", removedColor.x , removedColor.y , removedColor.z);
 			cstf.wlabelValue("filter" , filter.x , filter.y , filter.z);

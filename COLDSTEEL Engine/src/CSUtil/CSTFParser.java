@@ -881,6 +881,12 @@ public class CSTFParser {
 		
 	}
 
+	/**
+	 * Returns true if the value of the next label reads "null"
+	 * 
+	 * @return
+	 * @throws IOException
+	 */
 	public boolean rtestNull() throws IOException {
 		
 		//length of the line is the scope + length of the string +" -> null" 

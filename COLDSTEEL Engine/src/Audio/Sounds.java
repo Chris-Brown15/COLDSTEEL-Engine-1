@@ -127,21 +127,21 @@ public class Sounds {
 		
 	}	
 	
-	public void play() {
+	void play() {
 				
 		playing = true;		
 		alSourcePlay(ALSourcePtr);
 		
 	}
 	
-	public void pause() {
+	void pause() {
 		
 		playing = false;
 		alSourcePause(ALSourcePtr);
 		
 	}
 	
-	public void resume() {
+	void resume() {
 		
 		if(!playing) {
 			
@@ -152,7 +152,7 @@ public class Sounds {
 		
 	}
 	
-	public void rewind() {
+	void rewind() {
 		
 		playing = true;
 		alSourceRewind(ALSourcePtr);

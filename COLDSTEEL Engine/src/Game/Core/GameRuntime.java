@@ -23,21 +23,20 @@ import Networking.UserHostedServer.UserHostedServer;
  *
  */
 public class GameRuntime {
-
-	static GameState STATE = GameState.MAIN_MENU;
 		
-	public static void setState(GameState targetState) {
+	public void setState(GameState targetState) {
 		
-		STATE = targetState;
+		gameState = targetState;
 		
 	}
 
-	public static final GameState getState() {
+	public GameState getState() {
 		
-		return STATE;
+		return gameState;
 		
 	}
 	
+	private GameState gameState = GameState.MAIN_MENU;	
 	private MainMenu mainMenu;
 	private CharacterCreator creator;
 	private PlayerLoader loadScreen;
@@ -46,12 +45,14 @@ public class GameRuntime {
 	private NetworkClient client;
 	private boolean runEntitySystems = true;
 	private Scene gameScene;
-		
+	private GameMenu menu;	
+	
 	public GameRuntime() {}	
 	
 	public void initialize(Engine engine) {
 		
 		this.gameScene = new Scene(engine);
+		this.menu = new GameMenu(engine , this);
 		
 	}
 	
@@ -87,10 +88,8 @@ public class GameRuntime {
 	}
 	
 	public void run(Engine engine) {
-		
-//		if(showPyUI) for(int i = 0 ; i < UIScriptingInterface.getPyUIs().size() ; i ++) UIScriptingInterface.getPyUIs().get(i).run();		
 
-		switch(STATE) {
+		switch(gameState) {
 		
 			case GAME_RUNTIME_SINGLEPLAYER -> {
 				
@@ -134,7 +133,7 @@ public class GameRuntime {
 			
 			case MAIN_MENU -> {
 				
-				if(mainMenu == null) mainMenu = new MainMenu(engine);
+				if(mainMenu == null) mainMenu = new MainMenu(engine , this);
 				mainMenu.layoutMainMenus();
 				
 			}
@@ -171,7 +170,7 @@ public class GameRuntime {
 				
 				if(loadScreen.load() != null) { 
 					
-					STATE = GameState.MAIN_MENU;
+					gameState = GameState.MAIN_MENU;
 					loadScreen.hide();
 					
 				}
@@ -184,14 +183,13 @@ public class GameRuntime {
 				mainMenu.hideAll();
 				if(creator == null) { 
 					
-					creator = new CharacterCreator(gameScene , true);
+					creator = new CharacterCreator(this , true);
 										
 				}
 				
 				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
 				if(createdPlayer != null) {
 					
-					creator.hideElements();
 					setState(GameState.BUSY);
 					
 					engine.fadeToBlack(1000d);
@@ -205,7 +203,6 @@ public class GameRuntime {
 						float[] conditionAreaPos = engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint();
 						player.moveTo(conditionAreaPos[0] , conditionAreaPos[1]);
 						setState(GameState.GAME_RUNTIME_SINGLEPLAYER);
-						creator.hideElements();
 						engine.fadeIn(250d);
 						
 					});
@@ -217,11 +214,10 @@ public class GameRuntime {
 			case NEW_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
-				if(creator == null) creator = new CharacterCreator(gameScene , false);				
+				if(creator == null) creator = new CharacterCreator(this , false);				
 				PlayerCharacter createdPlayer = creator.newPlayer();//once this returns something other than null, we have finished making a character
 				if(createdPlayer != null) {
 
-					creator.hideElements();
 					setState(GameState.BUSY);
 					
 					engine.fadeToBlack(1000d);
@@ -234,12 +230,12 @@ public class GameRuntime {
 						float[] conditionAreaPos = engine.currentLevel().getLoadDoorByName(creator.startingDoor()).getConditionArea().getMidpoint();
 						player.moveTo(conditionAreaPos[0] , conditionAreaPos[1]);
 						engine.fadeIn(250d);
-						STATE = GameState.MAIN_MENU;
+						gameState = GameState.MAIN_MENU;
 
 						//multiplayer here
 						try {
 						
-							client = new NetworkClient(gameScene , engine.currentLevel());
+							client = new NetworkClient(this , engine.currentLevel());
 							clientSideUpdateMultiplayerVariables();
 							engine.fadeIn(1000);
 							
@@ -247,7 +243,7 @@ public class GameRuntime {
 
 							System.err.println("Error Connecting to Server.");
 							e.printStackTrace();
-							STATE = GameState.MAIN_MENU;
+							gameState = GameState.MAIN_MENU;
 							engine.fadeIn(100);
 							
 						}
@@ -267,7 +263,7 @@ public class GameRuntime {
 				//multiplayer here
 				try {
 				
-					client = new NetworkClient(gameScene , engine.currentLevel());
+					client = new NetworkClient(this , engine.currentLevel());
 					clientSideUpdateMultiplayerVariables();
 					((EntityScripts)player.playersEntity().components()[Entities.SOFF]).recompile();
 					
@@ -293,21 +289,25 @@ public class GameRuntime {
 		
 	}
 	
+	void leaveGame() {
+		
+		gameScene.clear();
+		gameState = GameState.MAIN_MENU;		
+		
+	}
+	
 	public void toggleMultiplayerUI() {
 		
 		if(hostedServer != null) hostedServer.toggleUI();
 		
-		if(STATE != GameState.GAME_RUNTIME_MULTIPLAYER) return;
+		if(gameState != GameState.GAME_RUNTIME_MULTIPLAYER) return;
 		client.toggleUI();
 		
 	}
-	
-	public void shutDown() {
 		
-		if(client != null) client.shutDown();
-		if(hostedServer != null) hostedServer.shutDown();
-		mainMenu.shutDown();
-		gameScene.entityScriptingInterface().shutDown();
+	public void toggleGameMenu() {
+		
+		if(gameState == GameState.GAME_RUNTIME_MULTIPLAYER || gameState == GameState.GAME_RUNTIME_SINGLEPLAYER) menu.toggle();
 		
 	}
 	
@@ -334,5 +334,14 @@ public class GameRuntime {
 		return client;
 		
 	}
-	
+
+	public void shutDown() {
+		
+		if(client != null) client.shutDown();
+		if(hostedServer != null) hostedServer.shutDown();
+		mainMenu.shutDown();
+		gameScene.entityScriptingInterface().shutDown();
+		
+	}
+			
 }

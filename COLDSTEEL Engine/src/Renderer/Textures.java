@@ -17,7 +17,6 @@ import static org.lwjgl.opengl.GL11.glGenTextures;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
 import static org.lwjgl.opengl.GL13.glActiveTexture;
-import static org.lwjgl.opengl.GL13.glIsTexture;
 import static org.lwjgl.stb.STBImage.stbi_image_free;
 import static org.lwjgl.stb.STBImage.stbi_load;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -27,24 +26,23 @@ import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.lwjgl.system.MemoryStack;
 
+import CSUtil.DataStructures.Tuple4;
+
 public class Textures {
 
-	public static record ImageInfo(String path , int width , int height , int BPP){};
-	
 	private int textureID;
 	private ByteBuffer data;	
-	public ImageInfo imageInfo;
 	private boolean initialized = false;
-	private Consumer<Integer> onInitialize;
+	String filepath;
+	int width;
+	int height;
+	int bitsPerPixel;
 	
-	String filepath() {
-	
-		return imageInfo.path;
-		
-	}	
+	private Function<Integer , Tuple4<String , Integer , Integer , Integer>> onInitialize;
 	
 	void free() {
 
@@ -70,8 +68,11 @@ public class Textures {
 				
 			}
 			
-			imageInfo = new ImageInfo(filepath , widthPtr.get(0) , heightPtr.get(0) , bitsPerPixelPtr.get(0));
-						
+			this.filepath = filepath;
+			this.width = widthPtr.get(0);
+			this.height = heightPtr.get(0);
+			this.bitsPerPixel = bitsPerPixelPtr.get(0);
+			
 		}
 			
 		textureID = glGenTextures();
@@ -80,40 +81,35 @@ public class Textures {
     	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexImage2D(GL_TEXTURE_2D , 0 , GL_RGB8 , imageInfo.width() , imageInfo.height() , 0 , GL_RGBA , GL_UNSIGNED_BYTE , data);
+		glTexImage2D(GL_TEXTURE_2D , 0 , GL_RGB8 , width , height , 0 , GL_RGBA , GL_UNSIGNED_BYTE , data);
 		glBindTexture(GL_TEXTURE_2D , 0);
 		stbi_image_free(data);
 		
 		initialized = true;
 		
 	}
-	
-	void initialize(int textureID , ImageInfo image) {
 		
-		assert glIsTexture(textureID) : "ERROR: " + textureID + " is not a valid openGL texture handle.";
-		
-		this.textureID = textureID;
-		this.imageInfo = image;
-		
-		if(onInitialize != null) onInitialize.accept(textureID);		
-		
-		initialized = true;
-		
-	}
-	
 	void initialize() {
 
 		textureID = glGenTextures();
 		glBindTexture(GL_TEXTURE_2D, textureID);
-		if(onInitialize != null) onInitialize.accept(textureID);
-		glBindTexture(GL_TEXTURE_2D , 0);
+		if(onInitialize != null) { 
+			
+			var info = onInitialize.apply(textureID);
+			filepath = info.getFirst();
+			width = info.getSecond();
+			height = info.getThird();
+			bitsPerPixel = info.getFourth();
+			
+		}
 		
+		glBindTexture(GL_TEXTURE_2D , 0);		
 		
 	}
 	
-	public void onInitialize(Consumer<Integer> initializeCallback) {
+	public void onInitialize(Function<Integer , Tuple4<String , Integer , Integer , Integer>> initializeCallback) {
 		
-		this.onInitialize = (ID) -> initializeCallback.accept(ID);
+		this.onInitialize = (ID) -> initializeCallback.apply(ID);
 				
 	}
 		
@@ -142,9 +138,33 @@ public class Textures {
 		
 	}
 	
+	public int width() {
+		
+		return width;
+				
+	}
+
+	public int height() {
+		
+		return height;
+				
+	}
+
+	public int bitsPerPixel() {
+		
+		return bitsPerPixel;
+				
+	}
+
+	public String filepath() {
+	
+		return filepath;
+		
+	}	
+	
 	public String toString() {
 		
-		return "Texture " + imageInfo.path + ", GL TextureID: " + textureID;
+		return "Texture " + filepath + ", GL TextureID: " + textureID;
 		
 	}
 	

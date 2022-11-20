@@ -22,6 +22,8 @@ public class NetworkedEntities {
 
 	private final Entities networked;
 	private short connectionIndex;
+	byte updateSequence = 0;
+	public boolean inSync = true;
 
 	/**
 	 * The values within this array represent IDs of controls.
@@ -34,7 +36,6 @@ public class NetworkedEntities {
 		this.connectionIndex = connectionIndex;
 		System.out.println("NetworkedEntity created with entity: " + networked.name());
 		if(!clientOwned) networked.removeComponents(ECS.CAMERA_TRACK);
-		
 		
 	}
 	
@@ -131,6 +132,18 @@ public class NetworkedEntities {
 	public void unStrikeKeys() {
 		
 		for(int i = 0 ; i < syncedControls.length ; i ++) syncedControls[i] &= ~CONTROL_STRUCK_MASK;
+		
+	}
+	
+	public int updateSequence() {
+		
+		return updateSequence;
+		
+	}
+	
+	public int advanceUpdateSequence() {
+		
+		return updateSequence++;
 		
 	}
 	

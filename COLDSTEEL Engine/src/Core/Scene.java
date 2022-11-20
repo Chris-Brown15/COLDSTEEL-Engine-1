@@ -3,7 +3,6 @@ package Core;
 import java.util.function.Consumer;
 
 import CS.Engine;
-import CSUtil.Timer;
 import Core.Entities.EntityLists;
 import Core.Entities.EntityScriptingInterface;
 import Core.Statics.StaticLists;

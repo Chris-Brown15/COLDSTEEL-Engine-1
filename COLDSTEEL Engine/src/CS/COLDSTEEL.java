@@ -72,7 +72,7 @@ public class COLDSTEEL {
 			Configuration.DEBUG_MEMORY_ALLOCATOR.set(true);
 			Configuration.DEBUG_STACK.set(true);
 			Configuration.OPENGL_EXPLICIT_INIT.set(true);
-			Configuration.DEBUG.set(true);
+//			Configuration.DEBUG.set(true);
 			DEBUG_CHECKS = true;
 						
 		}
@@ -89,6 +89,20 @@ public class COLDSTEEL {
 		
 	}
 	
+	private static void debugPrintLeaks() {
+	    
+		//report memory leaks at the very ends	    
+		System.out.println("\nMEMORY LEAK REPORT:");
+	    memReport((address , memory , threadID , threadName , elements) -> {
+	    	
+	    	System.out.println(memory + " bytes in " + threadName + " at: ");
+	    	for(int i = 0 ; i < elements.length -1 ; i ++) if(!elements[i].toString().contains("MemoryUtil")) System.out.println(elements[i]); 
+	    	System.out.println(elements[elements.length - 1] + "\n");
+	    		    	
+	    });
+	    
+	}
+	
 	public static void main(String[] args)  {
 		
 		preInitialize(args);
@@ -97,17 +111,9 @@ public class COLDSTEEL {
 		engine.initialize();
 		engine.run();
 		engine.shutDown();
-			    
-		//report memory leaks at the very ends	    
-		System.out.println("\nMEMORY LEAK REPORT:");
-	    memReport((address , memory , threadID , threadName , elements) -> {
-	    	
-	    	System.out.println(memory + " bytes in " + threadName + " at: ");
-	    	for(int i = 0 ; i < elements.length -1 ; i ++) System.out.println(elements[i]); 
-	    	System.out.println(elements[elements.length - 1] + "\n");
-	    		    	
-	    });
-	    
+		
+		debugPrintLeaks();
+		
 	}
 
 }

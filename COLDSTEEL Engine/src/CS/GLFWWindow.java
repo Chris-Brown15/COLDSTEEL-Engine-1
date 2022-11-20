@@ -5,6 +5,7 @@ import org.lwjgl.glfw.GLFWCursorPosCallback;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWFramebufferSizeCallback;
 import org.lwjgl.glfw.GLFWKeyCallback;
+import org.lwjgl.glfw.GLFWKeyCallbackI;
 import org.lwjgl.glfw.GLFWMouseButtonCallback;
 import org.lwjgl.glfw.GLFWScrollCallback;
 import org.lwjgl.glfw.GLFWWindowSizeCallback;
@@ -14,7 +15,6 @@ import org.lwjgl.opengl.GL;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL11C.glViewport;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memReport;
@@ -198,6 +198,8 @@ public class GLFWWindow {
 	GLFWScrollCallback onMouseScroll = GLFWScrollCallback.create((window , xOff , yOff) -> onMouseScroll(xOff , yOff));
 	GLFWCursorPosCallback onCursorMove;
 	
+	GLFWKeyCallbackI sam = (window , key , scancode , action , mods) -> {};
+	
     void intialize(Engine engine){
 
     	this.engine = engine;
@@ -286,6 +288,12 @@ public class GLFWWindow {
 
     }
 
+	boolean persist() {
+		
+		return !glfwWindowShouldClose(handle);
+		
+	}
+	
 	/**
 	 * Fill out as needed
 	 */
@@ -300,8 +308,7 @@ public class GLFWWindow {
 	 */
 	void onFramebufferResize(int widthPx , int heightPx) {
 		
-		System.out.println("width: " + widthPx + " height: " + heightPx);
-		glViewport(0, 0, widthPx , heightPx);
+		engine.setViewPort(widthPx , heightPx);
 		
 	}
 
@@ -317,8 +324,8 @@ public class GLFWWindow {
 
 					case GLFW_PRESS:
 
-						System.out.println("Escape key pressed.");
-						glfwSetWindowShouldClose(handle, true); 
+						engine.e_returnToMainMenu();
+						engine.g_openGameMenu();
 						break;
 
 					case GLFW_RELEASE:break;
@@ -333,20 +340,16 @@ public class GLFWWindow {
 				switch(action){
 
 					case GLFW_PRESS:
+ 
+						engine.getConsole().toggle();
+						
+						break;
 
-						try(MemoryStack stack = stackPush()){
-
-							IntBuffer width = stack.mallocInt(1);
-							IntBuffer height = stack.mallocInt(1);
-							glfwGetWindowSize(handle , width , height);
-							glViewport(0, 0, width.get(0), height.get(0));
-
-						}
-
-						if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) glPolygonMode(GL_FRONT_AND_BACK , GL_FILL);
-						else if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
+					case GLFW_RELEASE:
+						
+						if (keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
 							
-							MemoryAllocationReport report = (address , memory , threadID , threadName , element) ->{
+							MemoryAllocationReport report = (address , memory , threadID , threadName , element) -> {
 							    
 						    	System.out.println("At Address: " + address + "; " + memory + " bytes");
 						    	
@@ -355,10 +358,9 @@ public class GLFWWindow {
 						    memReport(report);
 						    
 						}
-
+						
 						break;
-
-					case GLFW_RELEASE:break;
+						
 					case GLFW_REPEAT:break;
 
 				}
@@ -398,7 +400,11 @@ public class GLFWWindow {
 
 				switch(action){
 
-					case GLFW_PRESS:break;
+					case GLFW_PRESS:
+						
+						if(keyboardPressed(GLFW_KEY_LEFT_ALT)) glfwSetWindowShouldClose(handle , true);
+						
+						break;
 					case GLFW_RELEASE:break;
 					case GLFW_REPEAT:break;
 
@@ -2212,13 +2218,6 @@ public class GLFWWindow {
             							            					
             				} 
         				
-            				if(Engine.STATE == RuntimeState.EDITOR && keyboardPressed(GLFW_KEY_LEFT_SHIFT) && keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
-            					
-            					engine.editor.say("Cursor X: " + releaseWorldX);
-            					engine.editor.say("Cursor Y: " + releaseWorldY);
-            					
-            				}
-            				
     						break;
     						
     						

@@ -73,29 +73,33 @@ public class MultiplayerChatUI extends UserInterface {
 				
 				String input = org.lwjgl.system.MemoryUtil.memUTF8(stringInputBuffer.slice(0 , stringInputLength.get(0)));
 				
-				PacketCoder coder = new PacketCoder()
-					.bflag(CHAT_MESSAGE)
-					.bstring(playerName + " says: " + input);
-				;
+				try(PacketCoder coder = new PacketCoder()){
+					
+					coder
+						.bflag(CHAT_MESSAGE)
+						.bstring(playerName + " says: " + input);
+					;
 
-				chatLog.add("You: " + input);
+					chatLog.add("You: " + input);
 
-				try {
-					
-					if(instance instanceof UserHostedServer) ((UserHostedServer) instance).broadCastReliable(coder.get() , 413890341 , 1500); 
-					else instance.sendReliable(coder.get() , 413890341 , 1500);
-					
-				} catch (IOException e) {
+					try {
+						
+						if(instance instanceof UserHostedServer) ((UserHostedServer) instance).broadCastReliable(coder.get() , 413890341 , 1500); 
+						else instance.sendReliable(coder.get() , 413890341 , 1500);
+						
+					} catch (IOException e) {
 
-					e.printStackTrace();
-					
-				} finally { 
-					
-					stringInputBuffer.clear();
-					stringInputLength.put(0 , 0);
+						e.printStackTrace();
+						
+					} finally { 
+						
+						stringInputBuffer.clear();
+						stringInputLength.put(0 , 0);
+						
+					}
 					
 				}
-				
+
 			}
 			
 			nk_layout_row_end(context);

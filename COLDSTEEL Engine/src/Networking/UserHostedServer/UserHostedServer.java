@@ -95,10 +95,18 @@ public class UserHostedServer implements NetworkedInstance {
 	});
 	
 	private final Thread serverUpdateThread = new Thread(new Runnable() {
+
+		private Timer updateThreadTimer = new Timer();
 		
 		@Override public void run() {
 			
-			while(true) instanceUpdate();
+			while(true) { 
+				
+				updateThreadTimer.start();
+				instanceUpdate();
+				while(16 - updateThreadTimer.getElapsedTimeMillis() > 0.0d); 
+				
+			}
 			
 		}
 		
@@ -106,10 +114,10 @@ public class UserHostedServer implements NetworkedInstance {
 	
 	private final DatagramSocket serverSocket;
 	
-	{
+	{	
 		serverUpdateThread.setDaemon(true);
 		serverListeningThread.setDaemon(true);
-	}
+	}	
 	
 	public UserHostedServer(Engine engine) {
 		
@@ -252,14 +260,13 @@ public class UserHostedServer implements NetworkedInstance {
 									new Entities(scene , entrantName) , 
 									false
 								);
-								
+																
 								newClientNetworkedEntity.setNetworkControlled();
 								
 								newClient = new UserConnection(
 									connectionID , 
 									packet.getPort() , 
-									packet.getAddress() , 
-									new Timer() , 
+									packet.getAddress() ,
 									newClientNetworkedEntity
 								);
 								
@@ -272,7 +279,6 @@ public class UserHostedServer implements NetworkedInstance {
 							} else {
 								
 								players.forEachVal(player -> TRY(() ->  {
-									
 									//send the packet to players outside the level the entrant is in to each player not in entrants level
 									sendReliable(toOthersOutside.get() , 102892191 + player.index , 1000 , player.address , player.port);
 
@@ -295,14 +301,13 @@ public class UserHostedServer implements NetworkedInstance {
 								new Entities(newLevelScene , entrantName) , 
 								false
 							);
-							
+														
 							newClientNetworkedEntity.setNetworkControlled();
 							
 							newClient = new UserConnection(
 								connectionID , 
 								packet.getPort() , 
-								packet.getAddress() , 
-								new Timer() , 
+								packet.getAddress() ,
 								newClientNetworkedEntity
 							);
 							
@@ -355,6 +360,7 @@ public class UserHostedServer implements NetworkedInstance {
 				
 				//someone has left their old level and new one is encoded in this packet
 				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
+				sender.busy = true;
 				
 				boolean foundNewLevelYet = false;
 				
@@ -528,13 +534,25 @@ public class UserHostedServer implements NetworkedInstance {
 			
 			case UPDATE -> {
 				
-				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
+				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));				
+				sender.timer.start();
+				sender.busy = false;
 				byte[] controls;
+				int sequence;
 				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
 					
+					sequence = coder.rupdateSequence();
 					controls = coder.rControlStrokes();
 					
 				}
+				
+				if(sequence != sender.entity.advanceUpdateSequence()) System.out.println(sequence);
+				
+//				if(sequence != 0 && sequence < sender.entity.advanceUpdateSequence()) { 
+//					
+//					sender.entity.inSync = false;
+//					
+//				} else sender.entity.inSync = true;
 				
 				/*
 				 * Sets the server's view of the keystrokes sender made last 
@@ -662,7 +680,17 @@ public class UserHostedServer implements NetworkedInstance {
 					//release server view of connection's keys
 					() -> {
 						
-						listOfConnections.forEachVal(connection -> connection.entity.unStrikeKeys());
+						listOfConnections.forEachVal(connection -> {
+							
+//							if(!connection.busy && connection.timer.getElapsedTimeMillis() > 17) { 
+//								
+//								System.err.print("LIKELY LOST PACKET FROM:" + connection.index);
+//								System.err.println(" ELAPSED SINCE UPDATE: " + connection.timer.getElapsedTimeMillis());
+//								
+//							}
+							connection.entity.unStrikeKeys();
+							
+						});
 						
 					}		
 					

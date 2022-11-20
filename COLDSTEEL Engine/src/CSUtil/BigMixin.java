@@ -15,8 +15,10 @@ import java.nio.ShortBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -38,9 +40,15 @@ public abstract class BigMixin {
 	
 	private static final ExecutorService exe = Executors.newCachedThreadPool();
 	
-	public static final void async(Runnable r) {
+	public static final Future<?> async(Runnable r) {
 		
-		exe.execute(r);
+		return exe.submit(r);
+		
+	}
+	
+	public static final <T> Future<T> async(Callable<T> callable){
+		
+		return exe.submit(callable);
 		
 	}
 	
@@ -1237,6 +1245,12 @@ public abstract class BigMixin {
     		System.exit(-1);
     		
     	}
+    	
+    }
+    
+    public static final void asyncShutDown() {
+    	
+    	exe.shutdownNow();
     	
     }
      

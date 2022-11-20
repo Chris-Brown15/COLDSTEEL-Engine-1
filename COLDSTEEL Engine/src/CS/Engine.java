@@ -4,20 +4,24 @@ import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
 import static org.lwjgl.Version.getVersion;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
-import static org.lwjgl.glfw.GLFW.glfwWindowShouldClose;
 import static org.lwjgl.nuklear.Nuklear.nk_input_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_input_end;
 import static org.lwjgl.nuklear.Nuklear.nk_window_is_any_hovered;
+import static org.lwjgl.opengl.GL11C.glViewport;
+
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 import Audio.SoundEngine;
 import Audio.Sounds;
 import CS.Controls.Control;
+import CSUtil.BigMixin;
 import CSUtil.CSLogger;
 import CSUtil.CSTFParser;
 import CSUtil.Timer;
@@ -41,6 +45,7 @@ import Game.Levels.MacroLevels;
 import Game.Player.PlayerCharacter;
 import Networking.NetworkClient;
 import Renderer.Camera;
+import Renderer.RenderCommands;
 import Renderer.Renderer;
 
 /**
@@ -57,11 +62,10 @@ import Renderer.Renderer;
 public final class Engine {
 	
 	public static RuntimeState STATE;
-	private static final Thread MAIN_THREAD;
 	
 	/*engine static objects*/
 	
-	private static GLFWWindow WINDOW;
+	private static GLFWWindow window;
 	//publicly accessable python interpreter
 	private static final EnginePython INTERNAL_ENGINE_PYTHON = new EnginePython();
 	//whatever the client is currently using as their bound controls
@@ -69,29 +73,22 @@ public final class Engine {
 	
 	//update variables
 	private static final Timer engineTimer = new  Timer();
-    private static Timer frameTimer = new Timer();
+    private static final Timer frameTimer = new Timer();
     private static int framesThisSecond = 1;
     private static int framesLastSecond = 0;
     private static double iterRate;
-	private static long totalNumberFrames = 0;
 	private static int runtimeSeconds = 0;
-    public static boolean printFPS = true;
-    	
-	static {
-		
-		MAIN_THREAD = Thread.currentThread();
-		
-	}
-		
-	private ReentrantLock lock = new ReentrantLock();
+    public static boolean printFPS = false;
+    
+	public EngineConfig config = new EngineConfig();	
 	private final CSQueue<Executor> events = new CSQueue<>();
 	
 	private Levels currentLevel;
 	private MacroLevels currentMacroLevel;
 	private Console engineConsole;
 	
-	final Editor editor = new Editor();
-	final GameRuntime gameRuntime = new GameRuntime();	
+	private Editor editor;
+	private GameRuntime gameRuntime;	
 	private Renderer renderer;
 	private DebugInfo debugInfo;
 	private ReentrantLock shutDownOrder = new ReentrantLock();		
@@ -110,40 +107,41 @@ public final class Engine {
 		
 		SoundEngine.threadSpinup();
 		
-		WINDOW = new GLFWWindow();	
-		WINDOW.intialize(this);
+		window = new GLFWWindow();	
+		window.intialize(this);
 		
     	//start the renderer
-    	renderer = new Renderer(shutDownOrder , null , WINDOW);
+    	renderer = new Renderer(shutDownOrder , null , window);
     	
-    	//wait for renderer to finish before preceding
-    	while(!renderer.initialized);
-    	
-    	//enqueue and wait for renderer to initialize UI    	
-    	UserInterface.initialize();
+    	UserInterface.initialize(renderer);
     	
     	//wait for the UI to finish initializing
     	while(!UserInterface.initialized());
     	
+    	//setup renderer nuklear environment
     	renderer.setNuklearEnv(UserInterface.getContext() , UserInterface.getCommands());
+    	renderer.schedule(RenderCommands.INITIALIZE_NUKLEAR);
     	    	
     	engineConsole = new Console();
     	    	
-    	WINDOW.setNuklearContext(UserInterface.context);  
-
-        WINDOW.show();
+    	window.setNuklearContext(UserInterface.context);  
+    	UserInterface.currentWindowDimensions = window.getWindowDimensions();    	
+        window.show();
         		
 		switch(STATE) {
 			
 			case EDITOR:
 				
-	    		editor.initialize(this , currentLevel , engineConsole);
-	    		renderer.toggleRenderDebug(null);	    		
+				editor = new Editor();
+	    		editor.initialize(this , engineConsole);
+	    		renderer.toggleRenderDebug(null);
+	    		renderer.renderScene(editor.scene());
 	    		
 				break;
 				
 			case GAME:
 				
+				gameRuntime = new GameRuntime();
 				gameRuntime.initialize(this);
 				renderer.renderScene(gameRuntime.gameScene());		
 				
@@ -180,7 +178,6 @@ public final class Engine {
 			
 		}
 
-		UserInterface.threadSpinup();
 		System.gc();
 		CSLogger.log("Successfully initialized");
 		System.out.println("Engine Initialization Complete.");
@@ -197,17 +194,30 @@ public final class Engine {
 			
 			case EDITOR:
 
-	    		editor.initialize(this , currentLevel , engineConsole);
-	    		renderer.toggleRenderDebug(null);	    		
+				if(editor == null) { 
+					
+					editor = new Editor();
+					editor.initialize(this , engineConsole);
+					renderer.toggleRenderDebug(null);	    		
+					
+				}
+				
 	    		renderer.renderScene(editor.scene());
 	    		
 				break;
 				
 			case GAME:
 				
-				GameRuntime.setState(GameState.MAIN_MENU);
-				gameRuntime.initialize(this);
+				if(gameRuntime == null) { 
+					
+					gameRuntime = new GameRuntime();
+					gameRuntime.initialize(this);
+										
+				}
 				
+				gameRuntime.setState(GameState.MAIN_MENU);
+				renderer.renderScene(gameRuntime.gameScene());
+								
 				break;
 				
 			default:
@@ -223,9 +233,11 @@ public final class Engine {
 	private void updateEngineState() {
 
 		//handle enqueued events
-		lock.lock();
-		while(!events.empty()) events.dequeue().execute();
-		lock.unlock();
+		synchronized(events) {
+			
+			while(!events.empty()) events.dequeue().execute();
+			
+		}	
 		
         frameTimer.start();
 
@@ -234,7 +246,6 @@ public final class Engine {
     		engineTimer.start();
     		framesLastSecond = framesThisSecond;
     		framesThisSecond = 0;
-    		totalNumberFrames += framesLastSecond;
     		runtimeSeconds++;
     		if(printFPS) System.out.println("Frames in second " + runtimeSeconds + ": " + framesLastSecond);
     		        		
@@ -242,21 +253,19 @@ public final class Engine {
     	
 	}
 	
+	public static AtomicBoolean readyToClear = new AtomicBoolean(false);
+	
 	void run() {
 
-        while(!glfwWindowShouldClose(WINDOW.getGlfwWindow())) {
+        while(window.persist()) {
 
-    		Renderer.clear = true;
-    			 
         	nk_input_begin(UserInterface.context);
         	glfwPollEvents(); 
        		nk_input_end(UserInterface.context);        	
 
-        	//lock us into 60 fps by waiting until 16 ms have passed
-
     		updateEngineState();
     		
-    		switch (STATE){
+    		switch (STATE) {
     		
 	    		case EDITOR -> editor.run(this);	        		
 	    		case GAME -> gameRuntime.run(this);
@@ -265,24 +274,30 @@ public final class Engine {
     		
     		framesThisSecond++;
     		
-    		while(16 - frameTimer.getElapsedTimeMillis() > 0.0d) Renderer.waitingForMainThread = true;
-    		Renderer.waitingForMainThread = false;
+        	//I lock us into 62 fps by waiting until 16 ms have passed because 
+       		//I don't think theres any real benefit of high frame rates
+       		//for this engine, although they certainly could be achieved 
+    		while(16 - frameTimer.getElapsedTimeMillis() > 0.0d);
+
+    		readyToClear.getAndSet(true);    		
     		
         }
-
+        
     }
 		
 	public void schedule(Executor code) {
 		
-		lock.lock();
-		events.enqueue(code);
-		lock.unlock();
+		synchronized(events) {
+			
+			events.enqueue(code);
+			
+		}
 		
 	}
 	
 	public float[] cursorWorldCoords() {
 		
-		return WINDOW.getCursorWorldCoords();
+		return window.getCursorWorldCoords();
 		
 	}
 	
@@ -293,21 +308,28 @@ public final class Engine {
 	}
 	
 	public void windowifyWindow() {
-		
-		WINDOW.windowify();
+
+		window.windowify();		
 		
 	}
 	
 	public void fullscreenifyWindow() {
 		
-		WINDOW.fullscreenify();
+		window.fullscreenify();
 		
 	}
 	
 	void updateWorldOnWindowResize(int width , int height) {
 		
-		System.out.println("window resized");
-		renderer.setViewport(width , height);
+		renderer.schedule(() -> renderer.setViewport(width , height));
+		UserInterface.currentWindowDimensions[0] = width;
+		UserInterface.currentWindowDimensions[1] = height;
+		
+	}
+	
+	void setViewPort(int width , int height) {
+		
+		renderer.schedule(() -> glViewport(0, 0, width , height));
 		
 	}
 	
@@ -320,36 +342,53 @@ public final class Engine {
 	 * 		5) shutdown everything else
 	 */
 	void shutDown() {
-    	
+		
+		//initiates shutdown of the sound engine
 		SoundEngine.persist = false;
+		
+		//write the current state of EngineConfig.cstf
+		try(BufferedWriter writer = Files.newBufferedWriter(Paths.get(data + "engine/EngineConfig.cstf"))) {
+			
+			CSTFParser parser = new CSTFParser(writer);
+			
+			parser.wlist("previous saves");
+			
+			if(config.lastSinglePlayerSave != null) parser.wlabelValue("singleplayer" , config.lastSinglePlayerSave);
+			else parser.wnullLabel("singleplayer");
+			
+			parser.endList();
+			
+			parser.wlabelValue("main menu wallpaper" , config.mainMenuWallpaper);
+			
+		} catch (IOException e) {
+			
+			e.printStackTrace();
+			
+		}		
+		
+		renderer.schedule(RenderCommands.INITIATE_SHUT_DOWN);
+		
+		renderer.join();
+		
 		shutDownOrder.lock();
 		
-		Renderer.continueRendering = false;
-		UserInterface.continueRunning = false;
+		UserInterface.static_shutDown();
 		
-		UserInterface.shutDown1();
-		
-		shutDownOrder.unlock();
-		
-		// opengl shuts down
-		while(!renderer.shutDown);
-		
-		shutDownOrder.lock();
-		
-		UserInterface.shutDown2();
 		INTERNAL_ENGINE_PYTHON.shutDown();
-		WINDOW.shutDown();
-		gameRuntime.shutDown();
+		window.shutDown();
+	 	if(gameRuntime != null) gameRuntime.shutDown();
 		CSLogger.shutDown();
     	System.out.println("Program shut down, until next time...");
-    	
+    	    	
     	shutDownOrder.unlock();
+    	
+    	BigMixin.asyncShutDown();
     	
     }
 	
 	public void closeOverride() {
 		
-		WINDOW.overrideCloseWindow();
+		window.overrideCloseWindow();
 		
 	}
 	
@@ -358,16 +397,16 @@ public final class Engine {
 		return framesLastSecond;
 		
 	}
+
+	public int renderFramesLastSecond() {
+		
+		return renderer.framesLastSecond;
+		
+	}
 	
 	public static int currentFrame() {
 		
 		return framesThisSecond;
-		
-	}
-	
-	public static int averageFramerate() {
-		
-		return (int) (totalNumberFrames / runtimeSeconds);
 		
 	}
 	
@@ -417,7 +456,7 @@ public final class Engine {
 	
 	public void releaseKeys() {
 		
-		WINDOW.releaseKeys();
+		window.releaseKeys();
 		
 	}
 	
@@ -513,13 +552,13 @@ public final class Engine {
 	
 	public static boolean keyboardPressed(int glfwKey) { 
 		
-		return WINDOW.keyboardPressed(glfwKey);
+		return window.keyboardPressed(glfwKey);
 		
 	}
 	
 	public static boolean keyboardStruck(int glfwKey) { 
 		
-		return WINDOW.keyboardStruck(glfwKey);
+		return window.keyboardStruck(glfwKey);
 		
 	}
 	
@@ -529,13 +568,13 @@ public final class Engine {
 	public static boolean mousePressed(int glfwKey) { 
 		
 		//if a ui wigit is hovered, we will say the key is not pressed for the purposes of checking if a mouse control is pressed
-		return !nk_window_is_any_hovered(WINDOW.NuklearContext) && WINDOW.mousePressed(glfwKey);
+		return !nk_window_is_any_hovered(window.NuklearContext) && window.mousePressed(glfwKey);
 		
 	}
 
 	public static boolean mouseStruck(int glfwKey) {
 		
-		return WINDOW.mouseStruck(glfwKey);
+		return window.mouseStruck(glfwKey);
 		
 	}
 	
@@ -550,6 +589,12 @@ public final class Engine {
      *
      */
 
+	void g_openGameMenu() {
+		
+		if(STATE.equals(RuntimeState.GAME)) gameRuntime.toggleGameMenu();
+		
+	}
+	
 	/**
 	 * In charge of calling scripts and checking players against load doors
 	 * 
@@ -581,9 +626,9 @@ public final class Engine {
 	 */
 	public void g_loadLevelFromLoadDoor(LevelLoadDoors loadDoor) {
 				
-		GameState previousState = GameRuntime.getState();
+		GameState previousState = gameRuntime.getState();
 		
-		GameRuntime.setState(GameState.BUSY);
+		gameRuntime.setState(GameState.BUSY);
 		fadeToBlack(100d);
 		TemporalExecutor.onElapseOf(100d , () -> {
 			
@@ -612,29 +657,42 @@ public final class Engine {
 				
 			}
 			
-			GameRuntime.setState(previousState);
+			gameRuntime.setState(previousState);
 			fadeIn(100d);
 			
 		});
 		
 	}
 	
-	public void g_loadSave(String selectedSaveNamePath , GameState targetState , boolean fade) {
+	public void g_loadLastSave() {
+
+		int endOfSaveName = config.lastSinglePlayerSave.indexOf("#");		
+//		g_loadSave(data + "saves/" + config.lastSinglePlayerSave.substring(0, endOfSaveName - 1) , GameState.GAME_RUNTIME_SINGLEPLAYER, true);
+		
+		g_loadSave(
+			data + "saves/" + config.lastSinglePlayerSave.substring(0, endOfSaveName - 1) + "/" + config.lastSinglePlayerSave , 
+			GameState.GAME_RUNTIME_SINGLEPLAYER , 
+			true
+		);
+	
+	}
+	
+	public void g_loadSave(String selectedSaveAbsPath , GameState targetState , boolean fade) {
 		
 		if(fade) {
 
 			fadeToBlack(2000);
-			GameRuntime.setState(GameState.BUSY);
+			gameRuntime.setState(GameState.BUSY);
 			
 			TemporalExecutor.onElapseOf(2400d , () -> {
 				
-				try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
+				try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveAbsPath))){
 					
 					PlayerCharacter player = gameRuntime.player();
 					
 					if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
 					player.load(reader);
-					player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
+					player.nextSave(Character.getNumericValue(selectedSaveAbsPath.charAt(selectedSaveAbsPath.length() - 6)));
 					player.playersEntity().LID(0);
 					
 					CSTFParser cstf = new CSTFParser(reader);
@@ -649,9 +707,11 @@ public final class Engine {
 					player.moveTo(playersPosition[0] , playersPosition[1]);
 					gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 									
-					GameRuntime.setState(targetState);				
+					gameRuntime.setState(targetState);				
 					gameRuntime.player(player);
-									
+										
+					config.lastSinglePlayerSave = CSUtil.BigMixin.toNamePath(selectedSaveAbsPath);
+					
 					fadeIn(1000);
 					
 				} catch (IOException e) {
@@ -664,15 +724,15 @@ public final class Engine {
 		
 		} else {
 
-			GameRuntime.setState(GameState.BUSY);
+			gameRuntime.setState(GameState.BUSY);
 
-			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveNamePath))){
+			try (BufferedReader reader = Files.newBufferedReader(Paths.get(selectedSaveAbsPath))){
 				
 				PlayerCharacter player = gameRuntime.player();
 				
 				if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
 				player.load(reader);
-				player.nextSave(Character.getNumericValue(selectedSaveNamePath.charAt(selectedSaveNamePath.length() - 6)));
+				player.nextSave(Character.getNumericValue(selectedSaveAbsPath.charAt(selectedSaveAbsPath.length() - 6)));
 				player.playersEntity().LID(0);
 				
 				CSTFParser cstf = new CSTFParser(reader);
@@ -687,7 +747,7 @@ public final class Engine {
 				player.moveTo(playersPosition[0] , playersPosition[1]);
 				gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
 								
-				GameRuntime.setState(targetState);				
+				gameRuntime.setState(targetState);				
 				gameRuntime.player(player);
 							
 			} catch (IOException e) {
@@ -704,7 +764,7 @@ public final class Engine {
 		
 		//play sounds and queue all the next ones.
 		cdNode<Sounds> iter = introSegments.get(0);
-		iter.val.play();
+		SoundEngine.play(iter.val);
 		
 		if(introSegments.size() > 1) {
 
@@ -713,7 +773,7 @@ public final class Engine {
 			for(int i = 1 ; i < introSegments.size() ; i ++ , iter = iter.next) {
 				
 				cdNode<Sounds> node = iter;
-				TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> node.val.play());
+				TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> SoundEngine.play(node.val));
 				
 			}
 			
@@ -724,14 +784,14 @@ public final class Engine {
 	private void g_buildOSTLoop(CSLinked<Sounds> loopSegments) {
 		
 		cdNode<Sounds> iter = loopSegments.get(0);
-		iter.val.play();
+		SoundEngine.play(iter.val);		
 		if (loopSegments.size() > 1) {
 
 			iter = iter.next;
 			for(int i = 1 ; i < loopSegments.size() - 1; i ++ , iter = iter.next) {
 				
 				cdNode<Sounds> node = iter;
-				TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> node.val.play());
+				TemporalExecutor.onTrue(() -> node.prev.val.stopped() , () -> SoundEngine.play(node.val));
 				
 			}
 			
@@ -798,7 +858,7 @@ public final class Engine {
 
 	public boolean g_keyPressed(int key) {
 		
-		return WINDOW.keyboardPressed(key); 
+		return window.keyboardPressed(key); 
 		
 	}
 	
@@ -853,6 +913,12 @@ public final class Engine {
      * �뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗뗗�
      *
      */
+	
+	void  e_returnToMainMenu() {
+		
+		if(STATE == RuntimeState.EDITOR) editor.leaveEditor();
+		
+	}
 	
 	Editor e_getEditor() {
 
@@ -1088,10 +1154,52 @@ public final class Engine {
     	
     }
     
-    public static boolean isMainThread() {
+    public static int[] getWindowDimensions() {
     	
-    	return Thread.currentThread() == MAIN_THREAD;
+    	return window.getWindowDimensions();
     	
     }
+    
+    /**
+     * Class representing config files the engine loads, the contents of which will be publicly accessable.
+     *
+     */
+    public class EngineConfig {
+    
+    	public String lastSinglePlayerSave;
+    	public String mainMenuWallpaper;
+    	
+    	EngineConfig() {
+    		
+    		try(BufferedReader reader = Files.newBufferedReader(Paths.get(data + "engine/EngineConfig.cstf"))){
+
+    			CSTFParser parser = new CSTFParser(reader);
+    			
+    			parser.rlist();
+    			if(!parser.rtestNull()) {
+    				
+    				lastSinglePlayerSave = parser.rlabel("singleplayer");	
+    				
+    			} else {
+    				
+    				parser.rlabel();
+    				lastSinglePlayerSave = null;
+    				
+    			}    	
+    			
+    			parser.endList();
+    			
+    			mainMenuWallpaper = parser.rlabel("main menu wallpaper");
+    			    			
+    		} catch (IOException e) {
+    			
+    			e.printStackTrace();
+    			throw new IllegalStateException("Failed to initialize engine");
+				
+			}
+    		
+    	}
+    	    	
+    }    
     
 }

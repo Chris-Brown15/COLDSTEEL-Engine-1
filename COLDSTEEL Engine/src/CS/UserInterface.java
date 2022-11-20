@@ -2,8 +2,6 @@ package CS;
 
 import static org.lwjgl.system.MemoryUtil.nmemAlloc;
 import static org.lwjgl.system.MemoryUtil.nmemFree;
-import static org.lwjgl.system.MemoryUtil.memPutByte;
-import static org.lwjgl.system.MemoryUtil.memGetBoolean;
 
 import static org.lwjgl.nuklear.Nuklear.nk_begin;
 import static org.lwjgl.nuklear.Nuklear.nk_end;
@@ -14,8 +12,6 @@ import static org.lwjgl.opengl.GL11.GL_RGBA8;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
 import static org.lwjgl.opengl.GL11.GL_UNPACK_ALIGNMENT;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
-import static org.lwjgl.opengl.GL11.glBindTexture;
-import static org.lwjgl.opengl.GL11.glGenTextures;
 import static org.lwjgl.opengl.GL11.glPixelStorei;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
 import static org.lwjgl.opengl.GL30.glGenerateMipmap;
@@ -26,7 +22,6 @@ import static org.lwjgl.stb.STBImage.stbi_set_flip_vertically_on_load;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import org.lwjgl.nuklear.NkBuffer;
@@ -39,12 +34,12 @@ import org.lwjgl.system.MemoryStack;
 import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
-import static CSUtil.BigMixin.toByte;
 import CSUtil.DataStructures.Tuple2;
+import CSUtil.DataStructures.Tuple4;
 import Core.Console;
 import Core.Executor;
+import Renderer.Renderer;
 import Renderer.Textures;
-import Renderer.Textures.ImageInfo;
 
 /**
  * Exposes useful and necessary functionality to the implementor while encapsulating UI threading within itself.
@@ -66,11 +61,7 @@ public abstract class UserInterface {
 	
 	private static volatile ConcurrentLinkedQueue<UserInterface> ELEMENTS = new ConcurrentLinkedQueue<>();
 	private static volatile ConcurrentLinkedQueue<Tuple2<UserInterface , Consumer<MemoryStack>>> LAYOUT_BODY_COMMANDS = new ConcurrentLinkedQueue<>();
-	static volatile boolean continueRunning = true;
-	
-	public static AtomicBoolean ITERATED_ALL_ELEMENTS = new AtomicBoolean(false);
-//	public static AtomicBoolean AWAITING_INPUT_UPDATE = new AtomicBoolean(true);
-	
+	protected static volatile int[] currentWindowDimensions = new int[2];
 	
 	/*
 	 * All actions on the Nuklear data structures must be synchronized. One of three threads may want to modify them
@@ -81,46 +72,42 @@ public abstract class UserInterface {
 	 * The actions of the render thread must be synchronized against this thread, and the actions of the main thread must
 	 * be synchronized against this thread, but the actions the main thread and the render thread take on Nuklear structs
 	 * +++I dont think+++ need to be synchronized against each other.
-	 * 
-	 * Nevertheless, this thread may only run through its ELEMENTS data structure so long as both other threads have completed.
-	 * 
+	 *  
 	 */
-	
-	private static final Thread NUKLEAR_THREAD = new Thread(new Runnable() {
+	public static final Runnable NUKLEAR_RUNNABLE = () -> {
 
-		@Override public void run() {
+		layoutElements();
+		handleNewLayoutCommands();
+		
+	};
 
-			while(continueRunning) {
-								
-				if(!ITERATED_ALL_ELEMENTS.get()) {
-					
-					ELEMENTS.forEach((element) -> {
-					
-						if(element.end) { 
-							
-							ELEMENTS.remove(element);
-							element.onEnd.execute();
-							
-						} else element.layout();
-						
-					});
-					
-					ITERATED_ALL_ELEMENTS.set(true);
-					
-				} else while (!LAYOUT_BODY_COMMANDS.isEmpty()) {
-					
-					Tuple2<UserInterface , Consumer<MemoryStack>> command = LAYOUT_BODY_COMMANDS.remove();
-					command.getFirst().layoutBody = command.getSecond();
-					
-				}
+	private static void layoutElements() {
+
+		ELEMENTS.forEach((element) -> {
+		
+			if(element.end) { 
 				
-			}
+				ELEMENTS.remove(element);
+				element.onEnd.execute();
+				
+			} else element.layout();
+			
+		});
+		
+	}
+		
+	private static void handleNewLayoutCommands() {
+		 		
+		while (!LAYOUT_BODY_COMMANDS.isEmpty()) {
+			
+			Tuple2<UserInterface , Consumer<MemoryStack>> command = LAYOUT_BODY_COMMANDS.remove();
+			command.getFirst().layoutBody = command.getSecond();	
 			
 		}
 		
-	});
-
-	static void initialize() {
+	}
+		
+	static void initialize(Renderer renderer) {
 		
 		/*
 		 * Requires code to execute which must be called from the renderer thread.
@@ -129,8 +116,6 @@ public abstract class UserInterface {
 		 */
 		staticInitializer.setupFont();
 		
-		System.out.println("finished requst to initialize nuklear on opengl");
-
 		//wait until opengl initializes this
 		while(!staticInitializer.initialized);
 				
@@ -139,8 +124,6 @@ public abstract class UserInterface {
 		
     	context = staticInitializer.getContext(); 
     	drawCommands = staticInitializer.getCommands();
-    	NUKLEAR_THREAD.setDaemon(true);
-    	NUKLEAR_THREAD.setName("Nuklear UI Thread");
     	
     	staticInitializer.initialized = true;
     	
@@ -152,40 +135,6 @@ public abstract class UserInterface {
 		
 	}
 	
-	static final void threadSpinup() {
-		
-		NUKLEAR_THREAD.start();
-		
-	}
-	
-	static void setNuklearKey(int nkKeyCode , boolean state) {
-		
-		long kbKey = context.input().keyboard().keys().get(nkKeyCode).address();
-		memPutByte(kbKey , toByte(state));		
-			
-	}
-	
-	static boolean isNuklearKeyPressed(int nkKeyCode) {
-		
-		long kb = context.input().keyboard().keys().get(nkKeyCode).address();
-		return memGetBoolean(kb);
-		
-	}
-	
-	static void setNuklearMouse(int nkMouseCode , boolean state) {
-		
-		long mb = context.input().mouse().buttons(nkMouseCode).address();
-		memPutByte(mb , toByte(state));
-		
-	}
-	
-	static boolean getNuklearMouse(int nkMouseCode) {
-		
-		long mb = context.input().mouse().buttons(nkMouseCode).address();
-		return memGetBoolean(mb);
-		
-	}
-	
 	/**
 	 * Creates and returns an image for nuklear, specifically {@code nk_image()}. The returned object is a record info about the image, as well as its
 	 * width, height, and bits per pixel
@@ -193,50 +142,46 @@ public abstract class UserInterface {
 	 * @param filepath — filepath to an image
 	 * @return a record containing useful info about the image, as well as the NkImage object itself.
 	 */
-	public static ImageInfo image(String filepath , NkImage image) {
+	public static Textures image(String filepath , NkImage image) {
 		
-		int textureID = glGenTextures();
+		Textures texture = new Textures();
 		
-		try(MemoryStack frame = MemoryStack.stackPush()) {
+		texture.onInitialize(textureID -> {
 			
-			IntBuffer stats = frame.mallocInt(3);
+			try(MemoryStack stack = MemoryStack.stackPush()){
+				
+				IntBuffer width = stack.mallocInt(1) , height = stack.mallocInt(1) , bitsPerPixel = stack.mallocInt(1);
+
+				stbi_set_flip_vertically_on_load(false);
+				ByteBuffer imageData = stbi_load(filepath , width , height , bitsPerPixel , 3);
+				
+				if(imageData == null) throw new IllegalStateException("Failed to allocate memory for image: " + filepath);
+
+				glPixelStorei(GL_UNPACK_ALIGNMENT , 1);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width.get() , height.get() , 0, bitsPerPixel.get() == 32 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, imageData);
+				glGenerateMipmap(GL_TEXTURE_2D);
+				
+				image.handle(it -> it.id(textureID));
+				
+				stbi_image_free(imageData);
+				stbi_set_flip_vertically_on_load(true);
+				
+				return new Tuple4<>(filepath , width.get(0) , height.get(0) , bitsPerPixel.get(0));
+				
+			}
 			
-			stbi_set_flip_vertically_on_load(false);
-			ByteBuffer imageData = stbi_load(filepath , stats.slice(0, 1) , stats.slice(1, 1) , stats.slice(2, 1) , 3);
-			
-			if(imageData == null) throw new IllegalStateException("Failed to allocate memory for image: " + filepath);
-			
-			glBindTexture(GL_TEXTURE_2D , textureID);
-			glPixelStorei(GL_UNPACK_ALIGNMENT , 1);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, stats.get() , stats.get() , 0, stats.get() == 32 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, imageData);
-			glGenerateMipmap(GL_TEXTURE_2D);
-			
-			image.handle(it -> it.id(textureID));
-			
-			//undo setup
-			glBindTexture(GL_TEXTURE_2D , 0);
-			stbi_image_free(imageData);
-			stbi_set_flip_vertically_on_load(true);
-			
-			//create a java texture object so we can free this GPU memory later
-			stats.rewind();
-			ImageInfo newImageInfo = new ImageInfo(filepath , stats.get() , stats.get() , stats.get());
-			
-			Textures texture = new Textures();
-			
-			Renderer.Renderer.loadTexture(texture , textureID , newImageInfo);
-			
-			return newImageInfo;
-			
-		}
+		});
+					
+		Renderer.loadTexture(texture);
+		return texture;	
 		
 	}   
 	
-	public static Tuple2<NkImage , NkRect> subRegion(NkImage source , ImageInfo sourceImageInfo , short topLeftX , short topLeftY , short width , short height) {
+	public static Tuple2<NkImage , NkRect> subRegion(NkImage source , Textures sourceTexture , short topLeftX , short topLeftY , short width , short height) {
 		
 		NkImage newImage = NkImage.malloc(ALLOCATOR);
 		NkRect subsection = NkRect.malloc(ALLOCATOR).set(topLeftX , topLeftY , width , height);
-		nk_subimage_id(source.handle().id() , (short)sourceImageInfo.width() , (short)sourceImageInfo.height() , subsection , newImage);		
+		nk_subimage_id(source.handle().id() , (short) sourceTexture.width() , (short) sourceTexture.height() , subsection , newImage);		
 		return new Tuple2<>(newImage , subsection);
 		
 	}
@@ -248,22 +193,16 @@ public abstract class UserInterface {
 								
 	}
 		
-	public static final void shutDown1() {
+	public static final void static_shutDown() {
 		
-		//wait to exit the main while loop of the UI thread
-		while(continueRunning);
-		
-		NUKLEAR_THREAD.interrupt();
 		staticInitializer.shutDown();
 		DEFAULT_FILTER.free();
 		NUMBER_FILTER.free();
 		nmemFree(UI_MEMORY);
 		
-	}
-	
-	public static final void shutDown2() {
-		
 		staticInitializer.shutDownAllocator();
+		
+	
 		
 	}
 	

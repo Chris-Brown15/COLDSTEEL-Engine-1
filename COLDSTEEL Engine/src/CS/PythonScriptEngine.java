@@ -13,8 +13,9 @@ public abstract class PythonScriptEngine {
 	
 	static {
 		
-		System.out.println("Beginning Python initialization...");
-		PythonInterpreter.initialize(System.getProperties(), System.getProperties() , null);
+		System.out.println("Beginning static Jython initialization...");
+		PythonInterpreter.initialize(null , null , null);
+		System.out.println("Finished static Jython initialization.");
 		
 	}
 	
