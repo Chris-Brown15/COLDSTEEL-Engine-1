@@ -213,7 +213,7 @@ public abstract class BigMixin {
 		return vertices;
 		
 	}
-
+	
 	public static final String read(ByteBuffer text){
 
 		return org.lwjgl.system.MemoryUtil.memASCII(text);
@@ -838,7 +838,7 @@ public abstract class BigMixin {
 			
 			vertices[9] = cursorX;
 			vertices[10] = cursorY;
-			vertices[27] = cursorX;
+			vertices[27] = cursorX; 
 			vertices[19] = cursorY;
 						
 		}

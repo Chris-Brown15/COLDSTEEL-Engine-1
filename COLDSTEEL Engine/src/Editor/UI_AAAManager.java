@@ -62,6 +62,7 @@ public class UI_AAAManager {
 		quadEditor = new UI_QuadEditor(editor , "Quad Editor" , 5 , 45 , 320 , 885 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
 		spriteSetEditor = new UI_SpriteSetEditor(editor , this , "Sprite Set Editor" , 330 , 45 , 340 , 475 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
 		jointEditor = new UI_SpriteSetJointEditor(editor , this , "Sprite Joint Editor" , 330 , 525 , 340 , 220 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
+		spriteEditor = new UI_SpriteEditor(editor, this, "Sprite Editor", 500, 500, 400 , 400, TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
 		colliderEditor = new UI_ColliderEditor(editor , "Collider Editor" , 675 , 45 , 300 , 480 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
 		staticEditor = new UI_StaticEditor(editor , this ,  "Static Editor" , 980 , 45 , 300 , 860 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
 		staticInfo = new UI_StaticInfo(editor , this , "Static Info" , 1285 , 125 , 300 , 400 , TYPICAL_OPENED_OPTIONS , TYPICAL_UNOPENED_OPTIONS);
@@ -89,6 +90,7 @@ public class UI_AAAManager {
 		levelEditor.show();
 		loadDoorEditor.show();		
 		quadEditor.show();
+		spriteEditor.show();
 		spriteSetEditor.show();
 		colliderEditor.show();
 		staticEditor.show();
@@ -113,6 +115,7 @@ public class UI_AAAManager {
 		loadDoorEditor.hide();		
 		quadEditor.hide();
 		spriteSetEditor.hide();
+		spriteEditor.hide();
 		colliderEditor.hide();
 		staticEditor.hide();
 		componentView.hide();

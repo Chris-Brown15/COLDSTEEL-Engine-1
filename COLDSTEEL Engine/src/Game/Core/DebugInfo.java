@@ -26,6 +26,7 @@ import CS.RuntimeState;
 import CS.UserInterface;
 import Core.Entities.Entities;
 import Game.Player.PlayerCharacter;
+import Renderer.Renderer;
 
 /**
  * Intended to be a debug UI for viewing during game play
@@ -70,6 +71,9 @@ public class DebugInfo extends UserInterface {
 			nk_text(context , "Logic Thread FPS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
 			nk_text(context , "Render Thread FPS: " + engine.renderFramesLastSecond() , NK_TEXT_ALIGN_LEFT);
 						
+			nk_layout_row_dynamic(context , 20 , 1);
+			nk_text(context , "Draw Calls: " + Renderer.sceneDrawCalls() , NK_TEXT_ALIGN_LEFT);
+			
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);
 			

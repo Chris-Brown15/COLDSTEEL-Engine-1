@@ -58,6 +58,13 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
 
     }
 
+    public void toggle(Quads toggleThis) {
+    	
+    	if(!list.has(toggleThis)) list.add(toggleThis);
+    	else list.removeIfHas(toggleThis);
+    	
+    }
+    
     public Quads selectQuad(float cursorX , float cursorY) {
     	
     	Quads x;

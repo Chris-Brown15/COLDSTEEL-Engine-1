@@ -83,10 +83,12 @@ import static org.lwjgl.system.MemoryUtil.memAllocFloat;
 import static org.lwjgl.system.MemoryUtil.memAllocInt;
 import static org.lwjgl.system.MemoryUtil.memFree;
 
+import static CSUtil.BigMixin.async;
+import static CSUtil.BigMixin.TRY;
+
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
-import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -105,7 +107,6 @@ import org.lwjgl.nuklear.NkDrawVertexLayoutElement;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
-import CSUtil.BigMixin;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSQueue;
 import Core.Executor;
@@ -133,12 +134,6 @@ public final class Renderer {
 	private static volatile CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
 	private static volatile ReentrantLock REQUEST_LOCK = new ReentrantLock();
 	private static volatile CSStack<Tuple2<Textures , String>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
-	
-	private static CSStack<Quads> BACKGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static CSStack<float[]> BACKGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-    private static CSStack<Quads> FOREGROUND_QUAD_DRAW_COMMANDS = new CSStack<Quads>();
-    private static CSStack<float[]> FOREGROUND_ARRAY_DRAW_COMMANDS = new CSStack<float[]>();
-    private static CSStack<Quads> FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS = new CSStack<Quads>();
 
     private static int drawCalls = 0;
     private static double renderTime;
@@ -146,7 +141,12 @@ public final class Renderer {
     private static Thread theRenderThread;
     private static AtomicBoolean persisting = new AtomicBoolean(false);
     private static volatile boolean shutDown = false;
-        
+
+    static final int[] elementArray = {
+        2 , 1 , 0 ,
+        0 , 1 , 3
+    };
+
 	private static boolean checkErrors() {
 		
 		int errorCode;
@@ -198,6 +198,13 @@ public final class Renderer {
 		}	
 		
 		return error;
+		
+	}
+	
+	private static void checkedGL(Executor code) {
+		
+		code.execute();
+		if(checkErrors()) throw new IllegalStateException();
 		
 	}
 	
@@ -274,13 +281,9 @@ public final class Renderer {
 		Tuple2<Textures , String> request;
 		while(!TEXTURE_LOAD_REQUESTS.empty()) {
 			
-			request = TEXTURE_LOAD_REQUESTS.pop();
-			
-			if(request.getSecond() != null) {
-				
-				loadTexture(request.getFirst() , request.getSecond());
-							
-			} else if (request.getSecond() == null) loadTexture(request.getFirst());
+			request = TEXTURE_LOAD_REQUESTS.pop();			
+			if(request.getSecond() != null) loadTexture(request.getFirst() , request.getSecond());
+			else if (request.getSecond() == null) loadTexture(request.getFirst());
 			
 		}
 		
@@ -288,52 +291,6 @@ public final class Renderer {
 		
 	}
 	
-    public static void draw_background(Quads drawThis) {
-    	
-    	if(!persisting.get()) return;
-    	
-    	REQUEST_LOCK.lock();
-    	if(!BACKGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) BACKGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    		
-    	REQUEST_LOCK.unlock();
-    	
-    }
-    
-    public static void draw_foreground(Quads drawThis) {
-
-    	if(!persisting.get()) return;
-    	REQUEST_LOCK.lock();
-    	if(!FOREGROUND_QUAD_DRAW_COMMANDS.has(drawThis)) FOREGROUND_QUAD_DRAW_COMMANDS.push(drawThis);    	
-    	REQUEST_LOCK.unlock();
-    	
-    }
-	
-    public static void draw_background(float[] drawThis) {
-
-    	if(!persisting.get()) return;
-    	REQUEST_LOCK.lock();
-    	if(!BACKGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) BACKGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
-    	REQUEST_LOCK.unlock();
-    	
-    }
-    
-    public static void draw_foreground(float[] drawThis) {
-
-    	if(!persisting.get()) return;
-    	REQUEST_LOCK.lock();
-    	if(!FOREGROUND_ARRAY_DRAW_COMMANDS.has(drawThis)) FOREGROUND_ARRAY_DRAW_COMMANDS.push(drawThis);
-    	REQUEST_LOCK.unlock();
-    	
-    }
-
-    public static void drawBillboard_foreground(Quads drawThis) {
-
-    	if(!persisting.get()) return;
-    	REQUEST_LOCK.lock();
-    	if(!FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.has(drawThis)) FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.push(drawThis);
-    	REQUEST_LOCK.unlock();
-    	
-    }
-    
     /**
      * To free a macro level, we free all textures pushed onto the macro level's loaded texture stack. This stack represents
      * the indices of the loaded textures so we will first populate a linked list with the textures, then free them all while 
@@ -358,7 +315,13 @@ public final class Renderer {
 		return drawCalls + numberNuklearDrawCalls;
 
 	}
-
+	
+	public static int sceneDrawCalls() { 
+		
+		return drawCalls;
+		
+	}
+	
 	public boolean isPersisting() {
 		
 		return persisting.get();
@@ -371,12 +334,6 @@ public final class Renderer {
 		
 	}
 	
-    static final int[] elementArray = {
-
-            2 , 1 , 0 ,
-            0 , 1 , 3
-    };
-
 	private Textures previousTexture = null;
 	
 	private volatile Camera camera = new Camera(new Vector2f(0 , 0));
@@ -390,15 +347,8 @@ public final class Renderer {
 	private IntBuffer elementBuffer;
 
 	private boolean renderOthers = true;
-	
-	//I use locks for this but probably synchronized(this) would work too
-	private ReentrantLock listModificationLock = new ReentrantLock();
-	private ArrayList<Quads> others = new ArrayList<Quads>();
-	private ArrayList<float[]> raw = new ArrayList<float[]>();
-	private ArrayList<Quads> finals = new ArrayList<Quads>();
 
 	private volatile CSQueue<Executor> rendererCallbacks = new CSQueue<Executor>();
-	private AtomicBoolean readyToClear = new AtomicBoolean(true);
 
 	private GLFWWindow window;
 
@@ -420,15 +370,11 @@ public final class Renderer {
     		initialize(renderScene , window);    		
     		while(persisting.get()) { 
     		
-    			handleScheduledEvents();    			
-      			if(Engine.readyToClear.get() && readyToClear.get()) { 
-      				
-      				Future<?> UIAwait = BigMixin.async(UserInterface.NUKLEAR_RUNNABLE);
-      				clear();
-      				run(UIAwait);
-      				
-      			}
-      			
+    		 	Future<?> uiDrawFuture = async(UserInterface.NUKLEAR_RUNNABLE);
+    			checkedGL(() -> handleScheduledEvents());
+    			clear();
+    			run(uiDrawFuture);
+    			
       	    	window.swapBuffers();
       	    	
     		}
@@ -616,73 +562,6 @@ public final class Renderer {
 
 	}
 
-	public void addToOthers(Quads addThis){
-
-		others.add(addThis);
-		
-	}
-
-	public void removeFromOthers(Quads object){
-
-		others.remove(object);
-		
-	}
-	
-	public void addToFinals(Quads addThis) {
-
-		listModificationLock.lock();
-		finals.add(addThis);
-		listModificationLock.unlock();
-		
-	}
-	
-	public void addToFinalsSafe(Quads addThis) {
-
-		listModificationLock.lock();
-		if(!finals.contains(addThis)) finals.add(addThis);
-		listModificationLock.unlock();
-		
-	}
-
-	public void removeFromFinals(Quads removeThis) {
-
-		listModificationLock.lock();
-		finals.remove(removeThis);
-		listModificationLock.unlock();
-		
-	}
-	
-	public void addToRawData(float[] addThis) {
-
-		listModificationLock.lock();
-		raw.add(addThis);
-		listModificationLock.unlock();
-				
-	}
-	
-	public void removeFromRawData(float[] removeThis) {
-
-		listModificationLock.lock();
-		raw.remove(removeThis);
-		listModificationLock.unlock();
-		
-	}
-	
-	public boolean rawHas(float[] array) {
-		
-		return raw.contains(array);
-		
-	}
-	
-	public void rawReplaceWith(int replaceIndex , float[] with) {
-
-		listModificationLock.lock();
-		raw.add(replaceIndex, with);
-		raw.remove(replaceIndex + 1);
-		listModificationLock.unlock();
-		
-	}
-	
 	public void toggelRenderOthers(){
 
 		renderOthers = renderOthers ? false:true;
@@ -794,13 +673,23 @@ public final class Renderer {
     	return renderTime;
 
     }
-
+    
     private void drawByType(Quads quad , CSType type) {
     	
     	switch(type) {
     		
-			case STATIC -> drawStatic((Statics)quad);			
-			case COLLIDER -> {}
+			case STATIC -> drawStatic((Statics)quad);
+			case ENTITY -> {
+				
+				if(((Entities)quad).has(ECS.CAMERA_TRACK)) {
+
+			    	shader.uniformMatrix4("uView", camera.getViewMatrix());
+			    	drawQuad(quad);
+			    	
+				}
+				
+			}
+			
 			default -> drawQuad(quad);
     	
     	}
@@ -818,12 +707,9 @@ public final class Renderer {
 		glClearColor(window.r() , window.g() , window.b() , 1);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		Engine.readyToClear.getAndSet(false);  
-		readyToClear.getAndSet(false);
-    	
     }
     
-    private void run(Future<?> UIAwait) {
+    private void run(Future<?> uiDrawFuture) {
 
 		if(renderTimer.getElapsedTimeSecs() >= 1) {
 			
@@ -843,63 +729,48 @@ public final class Renderer {
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
     	shader.uniformMatrix4("uView", camera.getViewMatrix());
     	
-    	listModificationLock.lock(); REQUEST_LOCK.lock();
+    	REQUEST_LOCK.lock();
     	
-    	while(!BACKGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(BACKGROUND_QUAD_DRAW_COMMANDS.pop());
-    	while(!BACKGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(BACKGROUND_ARRAY_DRAW_COMMANDS.pop());
-    	
-    	if(renderScene != null) renderScene.forEach(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));
-    	
-    	if(renderOthers) {
+    	if(renderScene != null) { 
     		
-			for(Quads x : others) drawQuad(x);			
-    		for(float[] x : raw) drawData(x);	
-			
-    	}
-    	
-    	while(!FOREGROUND_QUAD_DRAW_COMMANDS.empty()) drawQuad(FOREGROUND_QUAD_DRAW_COMMANDS.pop());
-    	while(!FOREGROUND_ARRAY_DRAW_COMMANDS.empty()) drawData(FOREGROUND_ARRAY_DRAW_COMMANDS.pop());
-    	while(!FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.empty()) drawQuadParallax(FOREGROUND_QUAD_BILLBOARD_DRAW_COMMANDS.pop());
-    	
-    	listModificationLock.unlock(); REQUEST_LOCK.unlock();
-    	    
-    	renderDebug();
+    		renderScene.forDefault(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));    		
+    		renderScene.finalArrays().forEachVal(array -> drawData(array));
+    		
+    	}    	
+    	        
+        REQUEST_LOCK.unlock();
+        
+		if(renderDebug) renderDebug();
     	
     	if(initializedNuklear) {
     		
-    		BigMixin.TRY(() -> UIAwait.get()); 
+    		TRY(() -> uiDrawFuture.get());
     		renderUI();
     		
     	}
-    	
+
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
     	shader.uniformMatrix4("uView", camera.getViewMatrix());
-   	
+    	
     	drawQuadParallax(screenQuad);
     	
-    	for(Quads x : finals) drawQuad(x);
-    
     	currentFrame++;
 
-    	readyToClear.getAndSet(true);
-    	
     }
 
 	private void renderDebug() {
 
-		if(!renderDebug) return;
-		
-		renderScene.colliders().forEach(Renderer::draw_foreground);
+		renderScene.colliders().forEach(quad -> drawQuad(quad));
 		renderScene.entities().forEach(entity -> {
 			
 			Object[] comps = entity.components();
-			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) Renderer.draw_foreground((float[]) comps[Entities.CDOFF]);
+			if(entity.has(ECS.COLLISION_DETECTION) && comps[Entities.CDOFF] != null) drawData((float[]) comps[Entities.CDOFF]);
 			if(entity.has(ECS.HITBOXES)) {
 				
 				EntityHitBoxes entityHitBoxes = (EntityHitBoxes) comps[Entities.HOFF];
 				float[][] boxes = entityHitBoxes.getActiveHitBoxes(entity, (Direction)comps[Entities.DOFF]);
-				if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
+				if(boxes != null) for(float[] x : boxes) drawData(x);
 				
 			}
 			
@@ -910,7 +781,7 @@ public final class Renderer {
 					if(item.has(ItemComponents.HITBOXABLE)) {
 						
 						float[][] boxes = item.componentData().getActiveHitBoxes();
-						if(boxes != null) for(float[] x : boxes) Renderer.draw_foreground(x);
+						if(boxes != null) for(float[] x : boxes) drawData(x);
 						
 					}
 					
@@ -920,11 +791,11 @@ public final class Renderer {
 			
 			if(debugRenderLevel != null){
 				
-				debugRenderLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
+				debugRenderLevel.forEachLoadDoor(loadDoor -> drawQuad(loadDoor.getConditionArea()));
 				debugRenderLevel.forEachTrigger(trigger -> {
 					
-					trigger.forEachConditionArea(Renderer::draw_foreground);
-					trigger.forEachEffectArea(Renderer::draw_foreground);
+					trigger.forEachConditionArea(conditionArea -> drawQuad(conditionArea));
+					trigger.forEachEffectArea(effectArea -> drawQuad(effectArea));
 					
 				});
 				

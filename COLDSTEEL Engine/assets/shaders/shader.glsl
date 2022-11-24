@@ -8,9 +8,6 @@ uniform mat4 uView;
 uniform mat4 rotation;
 uniform mat4 translation;
 
-float xAlphaOffset;
-float yAlphaOffset;
-
 out vec4 Color;
 out vec2 TexCoord;
 

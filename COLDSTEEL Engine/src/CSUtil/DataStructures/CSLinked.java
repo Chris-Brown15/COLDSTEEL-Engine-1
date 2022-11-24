@@ -576,6 +576,19 @@ public class CSLinked<T> {
 		
 	}
 		
+	public boolean addIfAbsent(T object) {
+		
+		if(!has(object)) {
+			
+			add(object);
+			return true;
+			
+		}
+		
+		return false;
+		
+	}
+	
 	public void removeFirstIf(Predicate<T> removeTest) {
 		
 		cdNode<T> iter = head;

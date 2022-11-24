@@ -138,4 +138,16 @@ public abstract class AbstractGameObjectLists<T extends Quads> {
 		
 	}
 	
+	public boolean has(T object) {
+		
+		return list.has(object);
+		
+	}
+	
+	public void addIfAbsent(T object) {
+		
+		if(!list.has(object)) list.add(object); 
+		
+	}
+	
 }

@@ -334,11 +334,6 @@ public class Kinematics {
 				force.collidedY = owner.entities().moveVertChecked((Items) object , values[1]);
 				
 				break;				
-				
-			case STATIC_ENTITY:
-				
-				break;
-			
 			
 			case GENERIC: case PARTICLE:
 				
@@ -408,12 +403,7 @@ public class Kinematics {
 					owner.entities().moveVertChecked((Items) currentPair.obj , values[1]);
 					
 					break;				
-					
-				case STATIC_ENTITY:
-					
-					break;
-				
-				
+								
 				case GENERIC: case PARTICLE:
 					
 					currentPair.obj.translate(values[0] , values[1]);

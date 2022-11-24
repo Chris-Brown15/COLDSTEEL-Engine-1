@@ -81,15 +81,18 @@ public class Console extends UserInterface {
 		
 	}
 	
-	public void enter() {
+	public String enter() {
 		
 		if(inputBuffersLength.get(0) != 0) {
 					
 			String ln = memUTF8(inputBuffer.slice(0 , inputBuffersLength.get(0)));
 			inputBuffersLength.put(0 , 0);
 			consoleText.put(ln);
+			return ln;
 					
 		}
+		
+		return null;
 		
 	}
 	

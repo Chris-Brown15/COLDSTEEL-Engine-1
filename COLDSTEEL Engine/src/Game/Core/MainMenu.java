@@ -81,7 +81,7 @@ public class MainMenu  {
 		//if the user is loading the engine for the first time, we cannot show the Continue button, and so the rect should be smaller too
 		mainPanelHeight = engine.config.lastSinglePlayerSave != null ? 310 : 270;
 		this.runtime = runtime;		
-		
+				
 		main = new Main(engine , runtime);
 		multi = new Multiplayer(engine);
 		multiplayerJoin = new MultiplayerJoiner(engine); 
@@ -89,7 +89,9 @@ public class MainMenu  {
 		
 		mainMenuBackground.moveTo(0, 0);
 		engine.getCamera().scaleCamera(12);
-				
+		
+		runtime.gameScene().finalObjects().add(mainMenuBackground);
+		
 		Renderer.Renderer.loadTexture(mainMenuBackground.getTexture() , CS.COLDSTEEL.assets + engine.config.mainMenuWallpaper);
 		
 		TemporalExecutor.onTrue(() -> mainMenuBackground.getTexture().filledOut(), () -> {
@@ -104,9 +106,7 @@ public class MainMenu  {
 	void layoutMainMenus() {
 		
 		TemporalExecutor.process();		
-		
-		Renderer.Renderer.drawBillboard_foreground(mainMenuBackground);
-		
+				
 		switch(menuState) {
 			
 			case LOAD -> {
@@ -166,6 +166,7 @@ public class MainMenu  {
 	
 	void hideAll() {
 		
+		runtime.gameScene().finalObjects().delete(mainMenuBackground);
 		options.hide();
 		multi.hide();
 		multiplayerJoin.hide();

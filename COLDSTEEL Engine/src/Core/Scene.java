@@ -3,6 +3,7 @@ package Core;
 import java.util.function.Consumer;
 
 import CS.Engine;
+import CSUtil.DataStructures.CSLinked;
 import Core.Entities.EntityLists;
 import Core.Entities.EntityScriptingInterface;
 import Core.Statics.StaticLists;
@@ -31,6 +32,9 @@ public class Scene {
 	private final ItemScriptingInterface itemScriptingInterface;
 	private final TriggerScriptingInterface triggerScriptingInterface;
 	private final ProjectileScriptingInterface projectileScriptingInterface;
+	private final ObjectLists finalObjects;
+	private final CSLinked<float[]> finalArrays;
+	
 	public Scene(Engine engine) {
 
 		this.quads1 = new ObjectLists(this , 1);
@@ -48,6 +52,8 @@ public class Scene {
 		this.itemScriptingInterface = new ItemScriptingInterface(this, engine.getConsole());            
 		this.triggerScriptingInterface = new TriggerScriptingInterface(this);      
 		this.projectileScriptingInterface = new ProjectileScriptingInterface(this);
+		finalObjects = new ObjectLists(this , 10);
+		finalArrays = new CSLinked<>();
 				
 	}
 	
@@ -76,6 +82,20 @@ public class Scene {
 		function.accept(tiles2);
 		function.accept(statics2);
 		function.accept(colliders);
+		
+	}
+
+	public void forDefault(Consumer<AbstractGameObjectLists<? extends Quads>> function) {
+		
+		function.accept(quads1);
+		function.accept(tiles1);
+		function.accept(statics1);
+		function.accept(entities);
+		function.accept(items);
+		function.accept(quads2);
+		function.accept(tiles2);
+		function.accept(statics2);
+		function.accept(finalObjects);
 		
 	}
 	
@@ -166,6 +186,18 @@ public class Scene {
 	public ProjectileScriptingInterface projectileScriptingInterface() {
 		
 		return projectileScriptingInterface;
+		
+	}
+	
+	public ObjectLists finalObjects() {
+		
+		return finalObjects;
+		
+	}
+
+	public CSLinked<float[]> finalArrays() {
+		
+		return finalArrays;
 		
 	}
 	

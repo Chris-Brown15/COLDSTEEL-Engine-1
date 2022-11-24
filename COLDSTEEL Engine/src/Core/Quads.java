@@ -106,7 +106,7 @@ public class Quads{
 		vertexData[19] += ySpeed; 	// top right
 		vertexData[28] += ySpeed; 	//bottom left
 	
-		if(snapToPixels && !(type == CSType.ENTITY || type == CSType.STATIC_ENTITY || type == CSType.JOINT)) snapQuadToPixels();
+		if(snapToPixels && !(type == CSType.ENTITY || type == CSType.JOINT)) snapQuadToPixels();
 	
 	}
 
@@ -822,6 +822,15 @@ public class Quads{
 				
 	}
 
+	public void setColor(float r , float g , float b) {
+		
+		quickChangeColor(0 , r , g , b);
+		quickChangeColor(1 , r , g , b);
+		quickChangeColor(2 , r , g , b);
+		quickChangeColor(3 , r , g , b);
+		
+	}
+	
 	public Matrix4f rotation() {
 		
 		return rotation;

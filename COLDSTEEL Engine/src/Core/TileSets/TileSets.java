@@ -54,7 +54,7 @@ public class TileSets extends AbstractGameObjectLists<Tiles> implements GameFile
 	
 	public TileSets(Scene owningScene , int renderOrder) {
 		
-		super(owningScene , renderOrder , CSType.ENTITY);
+		super(owningScene , renderOrder , CSType.TILE);
 		
 	}
 	

@@ -14,7 +14,6 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -78,7 +77,7 @@ public final class Engine {
     private static int framesLastSecond = 0;
     private static double iterRate;
 	private static int runtimeSeconds = 0;
-    public static boolean printFPS = false;
+    public static boolean printFPS = true;
     
 	public EngineConfig config = new EngineConfig();	
 	private final CSQueue<Executor> events = new CSQueue<>();
@@ -88,7 +87,7 @@ public final class Engine {
 	private Console engineConsole;
 	
 	private Editor editor;
-	private GameRuntime gameRuntime;	
+	private GameRuntime gameRuntime;
 	private Renderer renderer;
 	private DebugInfo debugInfo;
 	private ReentrantLock shutDownOrder = new ReentrantLock();		
@@ -130,30 +129,23 @@ public final class Engine {
         		
 		switch(STATE) {
 			
-			case EDITOR:
+			case EDITOR -> {
 				
 				editor = new Editor();
-	    		editor.initialize(this , engineConsole);
-	    		renderer.toggleRenderDebug(null);
-	    		renderer.renderScene(editor.scene());
-	    		
-				break;
+				editor.initialize(this , engineConsole);
+				renderer.toggleRenderDebug(null);
+				renderer.renderScene(editor.scene());
 				
-			case GAME:
+			}
+				
+			case GAME -> {
 				
 				gameRuntime = new GameRuntime();
 				gameRuntime.initialize(this);
 				renderer.renderScene(gameRuntime.gameScene());		
 				
-				break;
-								
-			default:
-	
-				System.out.println("Fatal Error in initialization, closing program");
-				System.exit(-1);
-				
-				break;
-	
+			}			
+			
 		}
 	
 		debugInfo = new DebugInfo(this , gameRuntime);
@@ -253,12 +245,12 @@ public final class Engine {
     	
 	}
 	
-	public static AtomicBoolean readyToClear = new AtomicBoolean(false);
-	
 	void run() {
 
         while(window.persist()) {
-
+        	
+        	//starts the UI processing thread and gives a future to the renderer to use to determine if to renderUI
+        	
         	nk_input_begin(UserInterface.context);
         	glfwPollEvents(); 
        		nk_input_end(UserInterface.context);        	
@@ -269,7 +261,7 @@ public final class Engine {
     		
 	    		case EDITOR -> editor.run(this);	        		
 	    		case GAME -> gameRuntime.run(this);
-    		
+	    		    		
     		}
     		
     		framesThisSecond++;
@@ -278,9 +270,7 @@ public final class Engine {
        		//I don't think theres any real benefit of high frame rates
        		//for this engine, although they certainly could be achieved 
     		while(16 - frameTimer.getElapsedTimeMillis() > 0.0d);
-
-    		readyToClear.getAndSet(true);    		
-    		
+    		    		
         }
         
     }
@@ -297,7 +287,7 @@ public final class Engine {
 	
 	public float[] cursorWorldCoords() {
 		
-		return window.getCursorWorldCoords();
+		return window.getCursorWorldPos();
 		
 	}
 	
@@ -931,6 +921,16 @@ public final class Engine {
 
 		if(STATE != RuntimeState.EDITOR) return;
 		editor.toggleCursorState();
+		
+	}
+	
+	void e_moveCamera(float xWorld , float yWorld) {
+		
+		if(Engine.STATE == RuntimeState.EDITOR && editor.getState() == EditorMode.BUILD_MODE && editor.activeQuad() == null) {
+			
+			renderer.getCamera().moveCamera(xWorld, yWorld);
+			
+		}
 		
 	}
 	

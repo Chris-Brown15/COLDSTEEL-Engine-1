@@ -2,7 +2,6 @@ package Editor;
 
 import static CS.COLDSTEEL.assets;
 import static CS.COLDSTEEL.data;
-import static CSUtil.BigMixin.changeColorTo;
 import static CSUtil.BigMixin.toBool;
 import static CSUtil.BigMixin.toNamePath;
 import static Physics.MExpression.toNumber;
@@ -111,6 +110,7 @@ public class Editor {
 		this.console = console;
 		this.selection = new SelectionArea();
 		this.scene = new Scene(engine);
+		scene.finalObjects().add(selection);
 		
 		backupLevel.associate(data + "macrolevels/Editor/");
 		
@@ -163,18 +163,23 @@ public class Editor {
 	public void run(Engine engine) {
 
 		// render collision bounds, hitboxes, and joints for all entities in the scene if render debug is on
-
-		Renderer.draw_foreground(selection.vertices);
 				
 		if (toBool(uiManager.tilesetEditor.renderTileSheet)) {
 
-			if(scene.tiles1().getTileSheet() != null) Renderer.draw_background(scene.tiles1().getTileSheet());
-			if(scene.tiles2().getTileSheet() != null) Renderer.draw_background(scene.tiles2().getTileSheet());
+			if(scene.tiles1().getTileSheet() != null && !scene.quads1().has(scene.tiles1().getTileSheet())) { 
+				
+				scene.quads1().add(scene.tiles1().getTileSheet());
+				
+			} if(scene.tiles2().getTileSheet() != null && !scene.quads1().has(scene.tiles2().getTileSheet())) { 
+				
+				scene.quads1().add(scene.tiles2().getTileSheet());
+				
+			}
 
 		}
 		
-		jointMarkers.forEach(Renderer::draw_foreground);
-		hitboxMarker.hitboxes().forEach(Renderer::draw_foreground);
+		jointMarkers.forEach(joint -> scene.finalObjects().addIfAbsent(joint));
+		hitboxMarker.hitboxes().forEach(hitbox -> scene.finalArrays().addIfAbsent(hitbox));
 		
 		handleEvents();
 		
@@ -266,8 +271,8 @@ public class Editor {
 		
 		if(!engine.isUIHovered() && Engine.mousePressed(GLFW_MOUSE_BUTTON_LEFT) && !Engine.keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
     			
-    		float[] cursorPos = engine.cursorWorldCoords();	        			
-    		resizeSelectionArea((float) cursorPos[0], (float) cursorPos[1]);
+    		float[] cursorPos = engine.cursorWorldCoords();
+    		selection.resize((float) cursorPos[0], (float) cursorPos[1]);
     			        			
     	}
     			      
@@ -552,12 +557,6 @@ public class Editor {
 	public Quads activeQuad() {
 
 		return activeQuad;
-
-	}
-
-	public void resizeSelectionArea(float width, float height) {
-
-		selection.resize(width, height);
 
 	}
 
@@ -1340,7 +1339,7 @@ public class Editor {
 	void setSelectionColorColor() {
 
 		Supplier<float[]> colors = DialogUtils.newColorChooser("Set Selection Area to this color" , 5 , 270);
-		TemporalExecutor.onTrue(() -> colors.get() != null , () -> changeColorTo(selection.vertices , colors.get()[0], colors.get()[1], colors.get()[2]));
+		TemporalExecutor.onTrue(() -> colors.get() != null , () -> selection.setColor(colors.get()[0], colors.get()[1], colors.get()[2]));
 	
 	}
 	
@@ -1378,11 +1377,11 @@ public class Editor {
 
 	void renderLoadDoors() {
 
-		currentLevel.forEachLoadDoor(loadDoor -> Renderer.draw_foreground(loadDoor.getConditionArea()));
+		currentLevel.forEachLoadDoor(loadDoor -> scene.finalObjects().addIfAbsent((loadDoor.getConditionArea())));
 		if (currentTrigger != null) { 
 			
-			currentTrigger.forEachConditionArea(Renderer::draw_foreground);
-			currentTrigger.forEachEffectArea(Renderer::draw_foreground);
+			currentTrigger.forEachConditionArea(conditionArea -> scene.finalObjects().addIfAbsent(conditionArea));
+			currentTrigger.forEachEffectArea(effectArea -> scene.finalObjects().addIfAbsent(effectArea));
 			
 		}
 		
@@ -1609,7 +1608,7 @@ public class Editor {
 		//gets the U and V coordinates from the proportion of the selection area's position  
 		//over the object divided by the total width or height of the quad.						
 		float[] vertices = activeQuad.getData();
-		float[] selection = this.selection.vertices;
+		float[] selection = this.selection.getData();
 		
 		float leftUDistance = selection[27] - vertices[27];
 		float rightUDistance = selection[0] - vertices[27];
@@ -1728,7 +1727,7 @@ public class Editor {
 	void replaceSprite() {
 		
 		float[] vertices = activeQuad.getData();
-		float[] selection = this.selection.vertices;
+		float[] selection = this.selection.getData();
 		
 		float leftUDistance = selection[27] - vertices[27];
 		float rightUDistance = selection[0] - vertices[27];
@@ -2211,7 +2210,7 @@ public class Editor {
 		Items activeItem = (Items) activeQuad;
 		
 		float[] vertices = activeItem.getData();
-		float[] selection = this.selection.vertices;
+		float[] selection = this.selection.getData();
 		
 		float leftUDistance = selection[27] - vertices[27];
 		float rightUDistance = selection[0] - vertices[27];
@@ -2458,7 +2457,7 @@ public class Editor {
 		TileSets currentTileSet = background ? scene.tiles1() : scene.tiles2();
 		
 		float[] vertices = currentTileSet.getTileSheet().getData();
-		float[] selection = this.selection.vertices;
+		float[] selection = this.selection.getData();
 		
 		float leftUDistance = selection[27] - vertices[27];
 		float rightUDistance = selection[0] - vertices[27];

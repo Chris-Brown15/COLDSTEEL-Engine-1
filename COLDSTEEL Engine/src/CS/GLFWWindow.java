@@ -18,9 +18,6 @@ import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.NULL;
 import static org.lwjgl.system.MemoryUtil.memReport;
-import static org.lwjgl.system.MemoryUtil.memCallocDouble;
-import static org.lwjgl.system.MemoryUtil.memAllocInt;
-import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.nuklear.Nuklear.*;
 import org.lwjgl.system.*;
 import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
@@ -173,19 +170,13 @@ public class GLFWWindow {
 	private Engine engine;
 	NkContext NuklearContext;	
 
-	private DoubleBuffer startingX = memCallocDouble(1);
-	private DoubleBuffer startingY = memCallocDouble(1);
-	private DoubleBuffer newX = memCallocDouble(1);
-	private DoubleBuffer newY = memCallocDouble(1);
+	private double cursorScreenXOnPress;
+	private double cursorScreenYOnPress;
 	
-	private float pressWorldX = -1;
-	private float pressWorldY = -1;
-	
-	private float releaseWorldX = -1;
-	private float releaseWorldY = -1;
-	
-	private IntBuffer winWidth = memAllocInt(1).put(0 , 1080);
-	private IntBuffer winHeight = memAllocInt(1).put(0 , 1920);
+	private float cursorWorldXOnPress;
+	private float cursorWorldYOnPress;
+	private float cursorWorldXOnRelease;
+	private float cursorWorldYOnRelease;
 
     private long handle;
     private float r = 0.15f , g = 0.15f , b = 0.15f;
@@ -2133,6 +2124,23 @@ public class GLFWWindow {
 		int nkButton = NK_BUTTON_MIDDLE;
 		try(MemoryStack stack = stackPush()){
 			
+			if(action == GLFW_PRESS) {
+
+				double[] cursorScreenPos = getCursorPos();
+				cursorScreenXOnPress = cursorScreenPos[0];
+				cursorScreenYOnPress = cursorScreenPos[1];
+				
+				float[] cursorWorldPos = getCursorWorldPos();
+				cursorWorldXOnPress = cursorWorldPos[0];
+				cursorWorldYOnPress = cursorWorldPos[1];
+				
+			} else if (action == GLFW_RELEASE) {
+
+				float[] cursorWorldPos = getCursorWorldPos();
+				cursorWorldXOnRelease = cursorWorldPos[0];
+				cursorWorldYOnRelease = cursorWorldPos[1];
+			}
+			
 			switch(key) {
 			
 				case GLFW_MOUSE_BUTTON_RIGHT:
@@ -2143,28 +2151,17 @@ public class GLFWWindow {
 					
     					case GLFW_PRESS:
     						
-    						glfwGetCursorPos(handle, startingX , startingY);
-    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-
     						if(nk_window_is_any_hovered(NuklearContext)) break;
     						isRMouseStruck = true;
     						  
     						break;
     						
     					case GLFW_RELEASE:
-    						
-    						glfwGetCursorPos(handle , newX , newY);
-            				
-    						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-    						releaseWorldY = (float)getSCToWCForY(newY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
 
-            				double deltaX = pressWorldX - releaseWorldX;
-            				double deltaY = releaseWorldY - pressWorldY;
+            				double deltaXWorld = cursorWorldXOnPress - cursorWorldXOnRelease;
+            				double deltaYWorld = cursorWorldYOnPress - cursorWorldYOnRelease;
             				
-            				//to move the camera, either no list is focused or no object is selected.
-            				if(Engine.STATE == RuntimeState.EDITOR && engine.e_getEditor().getState() == EditorMode.BUILD_MODE)
-            					engine.getCamera().moveCamera((float)deltaX, -(float)deltaY);
+            				engine.e_moveCamera((float)deltaXWorld, -(float)deltaYWorld);
             				
     						break;		    						
     						
@@ -2181,18 +2178,14 @@ public class GLFWWindow {
 					switch(action) {
 					
     					case GLFW_PRESS:
-    						    						
-            				glfwGetCursorPos(handle, startingX , startingY);
-            				int[] windowDims = getWindowDimensions(); 
-    						pressWorldX = (float)getSCToWCForX(startingX.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());
-    						pressWorldY = (float)getSCToWCForY(startingY.get(0) , windowDims[0] , windowDims[1] , engine.getCamera());		    			
+    								    			
 
     						if(!keyboardPressed(GLFW_KEY_LEFT_CONTROL)) {
 
             					if(nk_window_is_any_hovered(NuklearContext)) break;
             					isLMouseStruck = true;
 
-            					boolean selectedSame = engine.e_select((float)pressWorldX , (float) pressWorldY);
+            					boolean selectedSame = engine.e_select((float)cursorWorldXOnPress , (float) cursorWorldYOnPress);
             					if(selectedSame && engine.e_cursorState() == CursorState.DRAGGING) engine.e_setCursorState(CursorState.SELECTABLE);
             					else if (selectedSame) engine.e_setCursorState(CursorState.DRAGGING);
             								       		            							            					
@@ -2201,19 +2194,14 @@ public class GLFWWindow {
     						break;
     						
     					case GLFW_RELEASE:
-
-    						glfwGetCursorPos(handle , newX , newY);
-            				
-    						releaseWorldX = (float)getSCToWCForX(newX.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
-    						releaseWorldY = (float)getSCToWCForY(newY.get(0) , winWidth.get(0) , winHeight.get(0), engine.getCamera());
             				
             				//click-drag selection box        				
             				if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) {
             					        					
-            					float xDim = (float) releaseWorldX - pressWorldX;
-            					float yDim = (float) releaseWorldY - pressWorldY;
+            					float xDim = (float) cursorWorldXOnRelease - cursorWorldXOnPress;
+            					float yDim = (float) cursorWorldYOnRelease - cursorWorldYOnPress;
     
-            					engine.e_getEditor().moveSelectionAreaTo((float) pressWorldX, (float)pressWorldY);
+            					engine.e_getEditor().moveSelectionAreaTo((float) cursorWorldXOnPress, (float)cursorWorldYOnPress);
             					engine.e_getEditor().setSelectionAreaDimensions(xDim, yDim);
             							            					
             				} 
@@ -2281,7 +2269,7 @@ public class GLFWWindow {
 			
 		}    			
 
-		nk_input_button(UserInterface.context , nkButton , (int) startingX.get(0) , (int) startingY.get(0) , action == GLFW_PRESS);
+		nk_input_button(UserInterface.context , nkButton , (int) cursorScreenXOnPress , (int) cursorScreenYOnPress , action == GLFW_PRESS);
 				
 	}
 	
@@ -2411,7 +2399,7 @@ public class GLFWWindow {
 	
 	}
 
-	float[] getCursorWorldCoords() {
+	float[] getCursorWorldPos() {
 	
 		double[] coords = getCursorPos();		
 		int[] winDims = getWindowDimensions();
@@ -2708,22 +2696,8 @@ public class GLFWWindow {
 		
 	}
 
-	public double newX() {
-		
-		return newX.get(0);
-		
-	}
-	
-	public double newY() {
-		
-		return newY.get(0);
-		
-	}
-	
     void shutDown() {
     	
-    	System.out.println("Shutting down GLFW...");
-
 	    onWindowResize.free();
 	    onFramebufferResize.free();
 	    onKeyboard.free();
@@ -2737,14 +2711,6 @@ public class GLFWWindow {
 	    glfwTerminate();
 	    glfwSetErrorCallback(null).free();	    
 		
-	    memFree(startingX);
-	    memFree(startingY);
-	    memFree(newX);
-	    memFree(newY);
-	    
-	    memFree(winWidth);
-	    memFree(winHeight);
-	    
 	    System.out.println("GLFW shut down.");
     	
     }
