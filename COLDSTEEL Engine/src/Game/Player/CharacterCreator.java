@@ -121,7 +121,7 @@ public class CharacterCreator {
 					NkImage imageStruct = NkImage.malloc(ALLOCATOR);
 					Textures texture = image(CS.COLDSTEEL.assets + image , imageStruct);
 					
-					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , texture , details , new Entities(runtime.gameScene() , entityName + ".CStf")));
+					charactersToChooseFrom.add(new CharacterCreatorData(entityName , imageStruct , texture , details , new Entities(runtime.scene() , entityName + ".CStf")));
 					cstf.endList();
 					
 				} catch (IOException e) {
@@ -269,7 +269,7 @@ public class CharacterCreator {
 						TemporalExecutor.onTrue(() -> saveName.get() != null , () -> {
 							
 							hideAll();
-							newPlayer = new PlayerCharacter(runtime.gameScene() , saveName.get() , selectedCharacter.entity , isForSingleplayer);
+							newPlayer = new PlayerCharacter(runtime.scene() , saveName.get() , selectedCharacter.entity , isForSingleplayer);
 							
 						});				
 						

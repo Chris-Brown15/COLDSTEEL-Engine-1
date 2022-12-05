@@ -1,5 +1,6 @@
 package CSUtil.DataStructures;
 
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -229,6 +230,12 @@ public class CSArray<T> {
  	@SuppressWarnings("unchecked") public void forEach(Consumer<T> function) {
 		
 		for(int i = 0 ; i < size ; i ++) if(arr[i] != null) function.accept((T) arr[i]);
+		
+	}
+
+ 	@SuppressWarnings("unchecked") public void forEachIndexed(BiConsumer<Integer , T> function) {
+		
+		for(int i = 0 ; i < size ; i ++) if(arr[i] != null) function.accept(i , (T) arr[i]);
 		
 	}
  	

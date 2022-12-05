@@ -113,7 +113,7 @@ public class Textures {
 				
 	}
 		
-	int textureID() {
+	public int textureID() {
 		
 		return textureID;
 		
@@ -174,6 +174,25 @@ public class Textures {
 		
 	}
 		
+	/**
+	 * Make {@code this} identical in its fields to {@code filledOutTexture}
+	 * 
+	 * @param filledOutTexture — a previously filled out texture
+	 */
+	void viewOf(Textures filledOutTexture) {
+	
+		assert filledOutTexture.filledOut() : "ERROR, source texture for viewOf() not filled out";
+
+		textureID = filledOutTexture.textureID;
+		data = filledOutTexture.data;	
+		initialized = filledOutTexture.initialized;
+		filepath = filledOutTexture.filepath;
+		width = filledOutTexture.width;
+		height = filledOutTexture.height;
+		bitsPerPixel = filledOutTexture.bitsPerPixel;
+		
+	}
+	
 	public void activateForNuklear(Consumer<Integer> code) {
 		
 		activate(0);

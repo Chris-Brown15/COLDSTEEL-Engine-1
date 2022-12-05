@@ -90,7 +90,7 @@ public class MainMenu  {
 		mainMenuBackground.moveTo(0, 0);
 		engine.getCamera().scaleCamera(12);
 		
-		runtime.gameScene().finalObjects().add(mainMenuBackground);
+		runtime.scene().finalObjects().add(mainMenuBackground);
 		
 		Renderer.Renderer.loadTexture(mainMenuBackground.getTexture() , CS.COLDSTEEL.assets + engine.config.mainMenuWallpaper);
 		
@@ -166,7 +166,7 @@ public class MainMenu  {
 	
 	void hideAll() {
 		
-		runtime.gameScene().finalObjects().delete(mainMenuBackground);
+		runtime.scene().finalObjects().delete(mainMenuBackground);
 		options.hide();
 		multi.hide();
 		multiplayerJoin.hide();

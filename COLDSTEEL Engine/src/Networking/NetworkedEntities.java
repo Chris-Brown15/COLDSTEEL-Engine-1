@@ -1,9 +1,9 @@
 package Networking;
 
-import static CSUtil.CSLogger.*;
-
 import static Networking.Utils.NetworkingConstants.*;
 
+import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.Tuple2;
 import Core.ECS;
 import Core.Entities.Entities;
 /**
@@ -22,8 +22,9 @@ public class NetworkedEntities {
 
 	private final Entities networked;
 	private short connectionIndex;
-	byte updateSequence = 0;
+	private byte updateSequence = 1;
 	public boolean inSync = true;
+	private CSLinked<Tuple2<String , Object>> previousSyncedFrame = new CSLinked<Tuple2<String , Object>>();
 
 	/**
 	 * The values within this array represent IDs of controls.
@@ -73,19 +74,9 @@ public class NetworkedEntities {
 	public void controlsState(byte[] controlsStates) {
 		
 		this.syncedControls = controlsStates;
-		
-		for(int i = 0 ; i < controlsStates.length ; i ++) {
+		//i = 1 because index 0 == the tick number, a number between 1 and 60
+		for(int i = 1 ; i < controlsStates.length ; i ++) {
 
-			if(LOGGING_ENABLED) { 
-				
-				if((syncedControls[i] & CONTROL_PRESSED_MASK) != 0 && (controlsStates[i] & CONTROL_PRESSED_MASK) == 0) {
-					
-					log("key un pressed");
-					
-				}
-				
-			}					
-			
 			/*
 			 * If the incoming byte says it was pressed (its eighth bit is set) but {@code this}'s view of the key
 			 * is that it is not pressed (the eighth bit is unset), this will set the seventh and eighth bit. This  
@@ -135,15 +126,20 @@ public class NetworkedEntities {
 		
 	}
 	
-	public int updateSequence() {
+	public byte updateSequence() {
 		
 		return updateSequence;
 		
 	}
 	
-	public int advanceUpdateSequence() {
+	public void advanceUpdateSequence() {
 		
-		return updateSequence++;
+		++updateSequence;
+		if(updateSequence == 61) updateSequence = 1;		
+		
+	}
+	
+	public void captureSyncedVariables() {
 		
 	}
 	

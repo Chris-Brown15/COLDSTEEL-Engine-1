@@ -60,7 +60,6 @@ public abstract class UserInterface {
 	public static final NkPluginFilter NUMBER_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_float);
 	
 	private static volatile ConcurrentLinkedQueue<UserInterface> ELEMENTS = new ConcurrentLinkedQueue<>();
-	private static volatile ConcurrentLinkedQueue<Tuple2<UserInterface , Consumer<MemoryStack>>> LAYOUT_BODY_COMMANDS = new ConcurrentLinkedQueue<>();
 	protected static volatile int[] currentWindowDimensions = new int[2];
 	
 	/*
@@ -76,13 +75,6 @@ public abstract class UserInterface {
 	 */
 	public static final Runnable NUKLEAR_RUNNABLE = () -> {
 
-		layoutElements();
-		handleNewLayoutCommands();
-		
-	};
-
-	private static void layoutElements() {
-
 		ELEMENTS.forEach((element) -> {
 		
 			if(element.end) { 
@@ -94,19 +86,8 @@ public abstract class UserInterface {
 			
 		});
 		
-	}
-		
-	private static void handleNewLayoutCommands() {
-		 		
-		while (!LAYOUT_BODY_COMMANDS.isEmpty()) {
+	};
 			
-			Tuple2<UserInterface , Consumer<MemoryStack>> command = LAYOUT_BODY_COMMANDS.remove();
-			command.getFirst().layoutBody = command.getSecond();	
-			
-		}
-		
-	}
-		
 	static void initialize(Renderer renderer) {
 		
 		/*
@@ -172,7 +153,7 @@ public abstract class UserInterface {
 			
 		});
 					
-		Renderer.loadTexture(texture);
+		Renderer.initializeTexture(texture , filepath);
 		return texture;	
 		
 	}   
@@ -241,13 +222,13 @@ public abstract class UserInterface {
 	
 	protected void layoutBody(Consumer<MemoryStack> body) {
 		
-		LAYOUT_BODY_COMMANDS.add(new Tuple2<>(this , body));
-		
+		layoutBody = body;
+				
 	}
 	
 	protected void layoutBody(PyObject callable) {
 		
-		LAYOUT_BODY_COMMANDS.add(new Tuple2<>(this , (frame) -> callable.__call__(new ClassicPyObjectAdapter().adapt(frame))));
+		layoutBody = (frame) -> callable.__call__(new ClassicPyObjectAdapter().adapt(frame));
 		
 	}
 	

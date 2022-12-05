@@ -140,6 +140,7 @@ public class UI_AAAManager {
 		loadDoorEditor.hide();		
 		quadEditor.hide();
 		spriteSetEditor.hide();
+		spriteEditor.hide();
 		colliderEditor.hide();
 		staticEditor.hide();
 		componentView.hide();

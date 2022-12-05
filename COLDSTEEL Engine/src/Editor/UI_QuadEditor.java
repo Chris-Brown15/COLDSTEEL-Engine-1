@@ -76,20 +76,20 @@ public class UI_QuadEditor extends UserInterface {
 			nk_layout_row_dynamic(context , 30 , 1);				
 			nk_property_float(context , "Mod Quad Width" , -10 , quadWidthMod  , 10 , 1 , 1);
 			
-			editor.schedule(edi -> edi.activeQuad.modWidthBi(quadWidthMod .get(0)));
+			editor.schedule(e -> e.modActiveWidthBi(quadWidthMod.get(0)));
 			quadWidthMod.put(0 , 0);
 			
 			nk_layout_row_dynamic(context , 30 , 1);				
 			nk_property_float(context , "Mod Quad Height" , -10 , quadHeightMod , 10 , 1 , 1);
 			
-			editor.schedule(edi -> edi.activeQuad.modHeightUp(quadHeightMod.get(0)));				
+			editor.schedule(e -> e.modActiveHeightUp(quadHeightMod.get(0)));				
 			quadHeightMod.put(0 , 0);
 			
 			quadTranslucency.put(0 , editor.activeQuad.getTranslucency());
 			nk_layout_row_dynamic(context , 30 , 1);
 			nk_property_float(context , "Translucency" , 0f , quadTranslucency , 1f , 0.01f , 0.01f);
 			
-			editor.schedule(edi -> edi.activeQuad.modTranslucency(quadTranslucency.get(0)));
+			editor.schedule(e -> e.modActiveTranslucency(quadTranslucency.get(0)));
 			put(quadTranslucency , 0);
 			
 			nk_layout_row_dynamic(context , 30 , 4);
@@ -135,7 +135,7 @@ public class UI_QuadEditor extends UserInterface {
 				else if (bottomRightRadioButtons.get(0) == 1)corner.set(1);
 				else if (bottomLeftRadioButtons.get(0) == 1) corner.set(0);
 				
-				editor.schedule(edi -> edi.activeQuad.quickChangeColor(corner.get(), selectedColor.r(), selectedColor.g(), selectedColor.b()));
+				editor.schedule(e -> e.changeActiveColor(corner.get(), selectedColor.r(), selectedColor.g(), selectedColor.b()));
 				
 			}
 							

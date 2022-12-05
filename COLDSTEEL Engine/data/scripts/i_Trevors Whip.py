@@ -14,8 +14,8 @@ if not initialized:
 		I.shouldRender(FALSE)
 
 	initialized = TRUE
+	render()
 
-render()
 I.shouldRender(TRUE)
 userActiveAnimSpriteIndex = E_animList.active().getCurrentSprite()
 whipAnim.setCurrentSprite(userActiveAnimSpriteIndex)

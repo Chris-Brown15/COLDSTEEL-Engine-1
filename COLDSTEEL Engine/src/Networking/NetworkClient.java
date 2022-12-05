@@ -68,7 +68,7 @@ public class NetworkClient implements NetworkedInstance {
 		
 		this.level = currentLevel;
 		this.gameRuntime = gameRuntime;
-		this.scene = gameRuntime.gameScene();
+		this.scene = gameRuntime.scene();
 				
 		clientSocket = new DatagramSocket();
 		
@@ -392,10 +392,12 @@ public class NetworkClient implements NetworkedInstance {
 		//send unreliable message to server
 		try (PacketCoder coder = new PacketCoder()) {
 
+			byte packetName = networkedPlayer.updateSequence();
+			networkedPlayer.advanceUpdateSequence();
+			
 			coder
 				.bflag(UPDATE)
-				.bupdateSequence(networkedPlayer.updateSequence++)
-				.bControlStrokes(networkedPlayer.controlStates())
+				.bControlStrokes(packetName , networkedPlayer.controlStates())
 			;
 			
 			clientSocket.send(new DatagramPacket(coder.get() , coder.position()));

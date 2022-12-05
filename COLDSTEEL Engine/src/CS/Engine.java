@@ -28,6 +28,9 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
+import CSUtil.Dialogs.Debug.PerformanceDebug;
+import CSUtil.Dialogs.Debug.ResourceDebug;
+import CSUtil.Dialogs.Debug.SceneDebug;
 import Core.Console;
 import Core.Executor;
 import Core.Scene;
@@ -77,19 +80,23 @@ public final class Engine {
     private static int framesLastSecond = 0;
     private static double iterRate;
 	private static int runtimeSeconds = 0;
-    public static boolean printFPS = true;
+    public static boolean printFPS = false;
     
 	public EngineConfig config = new EngineConfig();	
 	private final CSQueue<Executor> events = new CSQueue<>();
+	private Console engineConsole;
+	private SceneDebug sceneViewerDebug;
+	private SceneDebug renderSceneViewerDebug;
+	private DebugInfo debugInfo;
+	private ResourceDebug resourceDebugInfo = new ResourceDebug("Native Resources" , 715 , 5);
+	private PerformanceDebug performanceDebugInfo;
 	
 	private Levels currentLevel;
 	private MacroLevels currentMacroLevel;
-	private Console engineConsole;
 	
 	private Editor editor;
 	private GameRuntime gameRuntime;
 	private Renderer renderer;
-	private DebugInfo debugInfo;
 	private ReentrantLock shutDownOrder = new ReentrantLock();		
 	
 	public Engine(RuntimeState state) {
@@ -135,6 +142,7 @@ public final class Engine {
 				editor.initialize(this , engineConsole);
 				renderer.toggleRenderDebug(null);
 				renderer.renderScene(editor.scene());
+				sceneViewerDebug = new SceneDebug("Editor Scene" , editor.scene() , 5 , 5);
 				
 			}
 				
@@ -142,13 +150,16 @@ public final class Engine {
 				
 				gameRuntime = new GameRuntime();
 				gameRuntime.initialize(this);
-				renderer.renderScene(gameRuntime.gameScene());		
+				renderer.renderScene(gameRuntime.scene());
+				sceneViewerDebug = new SceneDebug("Editor Scene" , gameRuntime.scene() , 5 , 5);
 				
 			}			
 			
 		}
 	
+		renderSceneViewerDebug = new SceneDebug("Render Scene" , renderer.renderScene() , 360 , 5);		
 		debugInfo = new DebugInfo(this , gameRuntime);
+		performanceDebugInfo = new PerformanceDebug(this , "Performance Debug" , 1070 , 5);
 		clientControls = new Controls();
 		
 		//read and set controls
@@ -191,6 +202,7 @@ public final class Engine {
 					editor = new Editor();
 					editor.initialize(this , engineConsole);
 					renderer.toggleRenderDebug(null);	    		
+					sceneViewerDebug.scene(editor.scene());
 					
 				}
 				
@@ -208,7 +220,8 @@ public final class Engine {
 				}
 				
 				gameRuntime.setState(GameState.MAIN_MENU);
-				renderer.renderScene(gameRuntime.gameScene());
+				renderer.renderScene(gameRuntime.scene());	
+				sceneViewerDebug.scene(gameRuntime.scene());
 								
 				break;
 				
@@ -220,6 +233,8 @@ public final class Engine {
 	
 		}
 				
+		renderSceneViewerDebug.scene(renderer.renderScene());
+		
 	}	
 	
 	private void updateEngineState() {
@@ -311,7 +326,7 @@ public final class Engine {
 	
 	void updateWorldOnWindowResize(int width , int height) {
 		
-		renderer.schedule(() -> renderer.setViewport(width , height));
+		Renderer.schedule(() -> renderer.setViewport(width , height));
 		UserInterface.currentWindowDimensions[0] = width;
 		UserInterface.currentWindowDimensions[1] = height;
 		
@@ -319,7 +334,7 @@ public final class Engine {
 	
 	void setViewPort(int width , int height) {
 		
-		renderer.schedule(() -> glViewport(0, 0, width , height));
+		Renderer.schedule(() -> glViewport(0, 0, width , height));
 		
 	}
 	
@@ -407,9 +422,12 @@ public final class Engine {
 	}
 	
 	void toggleDebugInfo() {
-		
-		if(debugInfo.showing()) debugInfo.hide();
-		else debugInfo.show();		
+
+		debugInfo.toggle();
+		sceneViewerDebug.toggle();
+		renderSceneViewerDebug.toggle();
+		resourceDebugInfo.toggle();
+		performanceDebugInfo.toggle();
 		
 	}
 		
@@ -568,6 +586,18 @@ public final class Engine {
 		
 	}
 	
+	public Editor editor() {
+		
+		return editor;
+		
+	}
+	
+	public GameRuntime gameRuntime() {
+		
+		return gameRuntime;
+		
+	}
+	
 	/*
      * ______________________________________________________
      * |													|
@@ -628,7 +658,7 @@ public final class Engine {
 			player.previouslyUsedLoadDoor(currentLevel.getLoadDoorByName(loadDoor.linkedLoadDoorName()));
 			float[] doorPos = player.previouslyUsedLoadDoor().getConditionArea().getMidpoint();
 			player.moveTo(doorPos[0] , doorPos[1]);
-			gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
+			gameRuntime.scene().entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
 
 			NetworkClient playerAsClient = gameRuntime.client();
@@ -680,7 +710,7 @@ public final class Engine {
 					
 					PlayerCharacter player = gameRuntime.player();
 					
-					if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
+					if(player == null) player = new PlayerCharacter(gameRuntime.scene());
 					player.load(reader);
 					player.nextSave(Character.getNumericValue(selectedSaveAbsPath.charAt(selectedSaveAbsPath.length() - 6)));
 					player.playersEntity().LID(0);
@@ -695,7 +725,7 @@ public final class Engine {
 					cstf.endList();
 					
 					player.moveTo(playersPosition[0] , playersPosition[1]);
-					gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
+					gameRuntime.scene().entities().addStraightIn(player.playersEntity());
 									
 					gameRuntime.setState(targetState);				
 					gameRuntime.player(player);
@@ -720,7 +750,7 @@ public final class Engine {
 				
 				PlayerCharacter player = gameRuntime.player();
 				
-				if(player == null) player = new PlayerCharacter(gameRuntime.gameScene());
+				if(player == null) player = new PlayerCharacter(gameRuntime.scene());
 				player.load(reader);
 				player.nextSave(Character.getNumericValue(selectedSaveAbsPath.charAt(selectedSaveAbsPath.length() - 6)));
 				player.playersEntity().LID(0);
@@ -735,7 +765,7 @@ public final class Engine {
 				cstf.endList();
 				
 				player.moveTo(playersPosition[0] , playersPosition[1]);
-				gameRuntime.gameScene().entities().addStraightIn(player.playersEntity());
+				gameRuntime.scene().entities().addStraightIn(player.playersEntity());
 								
 				gameRuntime.setState(targetState);				
 				gameRuntime.player(player);
@@ -825,7 +855,7 @@ public final class Engine {
 	 */
 	public void g_loadClearDeploy(String filepath) {
 				
-		Levels newLevel = new Levels(gameRuntime.gameScene() , (CharSequence)(filepath));
+		Levels newLevel = new Levels(gameRuntime.scene() , (CharSequence)(filepath));
 		MacroLevels macroLevel = newLevel.associatedMacroLevel();
 		
 		if(currentMacroLevel == null) setupMacroLevelOST(macroLevel); 
@@ -839,8 +869,8 @@ public final class Engine {
 		
 		currentMacroLevel = macroLevel;
 		
-		gameRuntime.gameScene().clear();
-		newLevel.deploy(gameRuntime.gameScene());
+		gameRuntime.scene().clear();
+		newLevel.deploy(gameRuntime.scene());
 		
 		currentLevel = newLevel;
 	

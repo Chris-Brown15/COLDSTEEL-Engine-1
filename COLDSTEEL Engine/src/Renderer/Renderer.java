@@ -93,6 +93,7 @@ import java.util.Objects;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 import org.joml.Matrix4f;
 import org.joml.Vector2f;
@@ -113,7 +114,7 @@ import Core.Executor;
 import CS.Engine;
 import CS.GLFWWindow;
 import CS.UserInterface;
-import CSUtil.DataStructures.CSLinked;
+import CSUtil.DataStructures.CSCHashMap;
 import CSUtil.DataStructures.CSStack;
 import CSUtil.DataStructures.Tuple2;
 import Core.CSType;
@@ -131,9 +132,11 @@ import Game.Levels.MacroLevels;
 
 public final class Renderer {
 
-	private static volatile CSLinked<Textures> LOADED_TEXTURES = new CSLinked<Textures>();
+	private static volatile CSCHashMap<Textures , String> LOADED_TEXTURES = new CSCHashMap<Textures , String>(29);
 	private static volatile ReentrantLock REQUEST_LOCK = new ReentrantLock();
 	private static volatile CSStack<Tuple2<Textures , String>> TEXTURE_LOAD_REQUESTS = new CSStack<>();
+	private static volatile CSStack<Tuple2<Textures , String>> TEXTURE_INITIALIZE_REQUESTS = new CSStack<>();
+	private static volatile CSQueue<Executor> rendererCallbacks = new CSQueue<Executor>();
 
     private static int drawCalls = 0;
     private static double renderTime;
@@ -221,54 +224,50 @@ public final class Renderer {
 		} else {
 			
 			REQUEST_LOCK.lock();
-			texture.initialize(filepath);
-			LOADED_TEXTURES.add(texture);
-			if(checkErrors()) {
-				
-				try {
-					
-					throw new IllegalStateException("GL Error thrown on call to loadTexture. Parameters: " + filepath);
-					
-				} finally {
-					
-					REQUEST_LOCK.unlock();
-					
-				}
-				
-			} else REQUEST_LOCK.unlock();			
+			
+			boolean didntHave = LOADED_TEXTURES.put(texture, filepath);
+			if(!didntHave) texture.viewOf(LOADED_TEXTURES.get(filepath));
+			else texture.initialize(filepath);
+			errorCheckAndUnlock();
 			
 		}
 		
 	}
 
-	public static void loadTexture(Textures texture) {
+	public static void initializeTexture(Textures texture , String filepath) {
 
 		if(!Thread.currentThread().equals(theRenderThread)) { 
 			
 			REQUEST_LOCK.lock();
-			TEXTURE_LOAD_REQUESTS.push(new Tuple2<>(texture , null));
+			TEXTURE_INITIALIZE_REQUESTS.push(new Tuple2<>(texture , filepath));
 			REQUEST_LOCK.unlock();		
 			
 		} else {
 			
 			REQUEST_LOCK.lock();
-			texture.initialize();
-			LOADED_TEXTURES.add(texture);
-			if(checkErrors()) {
-				
-				try {
-					
-					throw new IllegalStateException("GL Error thrown on call to loadTexture. no Parameters.");
-					
-				} finally {
-					
-					REQUEST_LOCK.unlock();
-					
-				}
-				
-			} else REQUEST_LOCK.unlock();
+			boolean didntHave = LOADED_TEXTURES.put(texture , filepath);
+			if(didntHave) texture.initialize();			
+			errorCheckAndUnlock();
 			
 		}
+		
+	}
+	
+	private static void errorCheckAndUnlock() {
+		
+		if(checkErrors()) {
+			
+			try {
+				
+				throw new IllegalStateException("GL Error thrown on call to loadTexture. no Parameters.");
+				
+			} finally {
+				
+				REQUEST_LOCK.unlock();
+				
+			}
+			
+		} else REQUEST_LOCK.unlock();
 		
 	}
 	
@@ -281,12 +280,26 @@ public final class Renderer {
 		Tuple2<Textures , String> request;
 		while(!TEXTURE_LOAD_REQUESTS.empty()) {
 			
-			request = TEXTURE_LOAD_REQUESTS.pop();			
-			if(request.getSecond() != null) loadTexture(request.getFirst() , request.getSecond());
-			else if (request.getSecond() == null) loadTexture(request.getFirst());
+			request = TEXTURE_LOAD_REQUESTS.pop();
+			loadTexture(request.getFirst() , request.getSecond());
 			
 		}
 		
+		while(!TEXTURE_INITIALIZE_REQUESTS.empty()) {
+
+			request = TEXTURE_INITIALIZE_REQUESTS.pop();
+			initializeTexture(request.getFirst() , request.getSecond());
+			
+		}
+					
+		REQUEST_LOCK.unlock();
+		
+	}
+	
+	public static void forEachTexture(Consumer<Textures> callback) {
+		
+		REQUEST_LOCK.lock();
+		LOADED_TEXTURES.forEachEntry(entry ->  callback.accept(entry.getFirst()));
 		REQUEST_LOCK.unlock();
 		
 	}
@@ -298,15 +311,24 @@ public final class Renderer {
      * 
      * @param freeThis — the macro level to free
      */
-    public static synchronized void freeMacroLevel(MacroLevels freeThis) {
+    public static void freeMacroLevel(MacroLevels freeThis) {
     	
-    	while(!freeThis.loadedTextures().empty()) LOADED_TEXTURES.removeVal(freeThis.loadedTextures().pop()).val.shutDown();
+    	schedule(() -> {
+
+        	while(!freeThis.loadedTextures().empty()) {
+        		
+        		Textures poppedTexture = freeThis.loadedTextures().pop();
+        		removeTexture(poppedTexture.filepath);
+        	
+        	}
+        	
+    	});
     	
     }
     
-    public static synchronized void removeTexture(int index) {
+    public static void removeTexture(String filepath) {
     	
-    	LOADED_TEXTURES.removeVal(index).shutDown();
+    	LOADED_TEXTURES.remove(filepath).getFirst().shutDown();
     	
     }
     
@@ -347,8 +369,6 @@ public final class Renderer {
 	private IntBuffer elementBuffer;
 
 	private boolean renderOthers = true;
-
-	private volatile CSQueue<Executor> rendererCallbacks = new CSQueue<Executor>();
 
 	private GLFWWindow window;
 
@@ -476,7 +496,12 @@ public final class Renderer {
     	this.renderScene = renderScene;
     	
     }
+
+    public Scene renderScene() {    	
     
+    	return renderScene;
+    	
+    }
 	public void initialize(Scene renderScene , GLFWWindow window){
 
 		this.window = window;
@@ -504,7 +529,7 @@ public final class Renderer {
 		
 	}
 	
-	public void schedule(Executor callback) {
+	public static void schedule(Executor callback) {
 		
 		synchronized(rendererCallbacks) {
 			
@@ -674,7 +699,7 @@ public final class Renderer {
 
     }
     
-    private void drawByType(Quads quad , CSType type) {
+    private void drawByType(Matrix4f matrix , Quads quad , CSType type) {
     	
     	switch(type) {
     		
@@ -686,6 +711,11 @@ public final class Renderer {
 			    	shader.uniformMatrix4("uView", camera.getViewMatrix());
 			    	drawQuad(quad);
 			    	
+				} else {
+				
+					shader.uniformMatrix4("uView", matrix);
+			    	drawQuad(quad);
+					
 				}
 				
 			}
@@ -727,13 +757,14 @@ public final class Renderer {
     	
     	setVertexAttribPointersScene();
     	shader.uniformMatrix4("uProjection", camera.getProjectionMatrix());
-    	shader.uniformMatrix4("uView", camera.getViewMatrix());
+    	Matrix4f view = camera.getViewMatrix();
+    	shader.uniformMatrix4("uView", view);
     	
     	REQUEST_LOCK.lock();
     	
     	if(renderScene != null) { 
     		
-    		renderScene.forDefault(list -> list.forEach(instanceOfQuads -> drawByType(instanceOfQuads , list.TYPE)));    		
+    		renderScene.forDefault(list -> list.forEach(instanceOfQuads -> drawByType(view , instanceOfQuads , list.TYPE)));    		
     		renderScene.finalArrays().forEachVal(array -> drawData(array));
     		
     	}    	
@@ -1068,7 +1099,7 @@ public final class Renderer {
     	    	
 		System.out.println("Shutting down Renderer...");
 		
-		LOADED_TEXTURES.forEachVal(Textures::shutDown);
+		LOADED_TEXTURES.forEachEntry(entry-> entry.getFirst().shutDown());
 		
         shader.disableShader();
         glDeleteTextures(null_texture.texture().id());

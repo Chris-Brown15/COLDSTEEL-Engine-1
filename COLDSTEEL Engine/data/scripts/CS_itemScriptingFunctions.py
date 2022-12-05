@@ -86,7 +86,7 @@ def getOwnersJointPosition(ownerJointIndex):
 		return [ownerData[18] - ownerJointOffsetX , ownerData[10] + ownerJointOffsetY]
 
 def render():
-	Renderer.draw_foreground(I)
+	lib.render(I)
 
 def animate(spriteSet):
 	if spriteSet.defaultDirection() != E_components[DOFF]:

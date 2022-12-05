@@ -116,13 +116,14 @@ public final class PacketCoder implements AutoCloseable {
 		
 	}
 	
-	public PacketCoder bControlStrokes(byte[] controls) {
+	public PacketCoder bControlStrokes(byte tickNumber , byte[] controls) {
 		
 		//bytes in controls are control IDs a client is sending to the server.
 		
 		bytes.put(CONTROL_KEY_STROKES);
+		bytes.put(tickNumber);
 		boolean pressed = false;
-		for(int i = 0 ; i < controls.length ; i ++) {
+		for(int i = 1 ; i < controls.length ; i ++) {
 			
 			pressed = Engine.controlKeyPressed((byte)(controls[i] & KEYCODE_MASK));
 			if(pressed) bytes.put((byte) (controls[i] | CONTROL_PRESSED_MASK));
@@ -131,13 +132,6 @@ public final class PacketCoder implements AutoCloseable {
 		}
 		
 		bytes.put(CONTROL_KEY_STROKES);
-		return this;
-		
-	}
-	
-	public PacketCoder bupdateSequence(byte update) {
-		
-		bytes.put(UPDATE_SEQUENCE).put(update);
 		return this;
 		
 	}
@@ -205,20 +199,14 @@ public final class PacketCoder implements AutoCloseable {
 		if(!correct) except("buffer read control key strokes at invalid position");
 		
 		//this is an array of bytes so read byte by byte, constructing an array of shorts representing them
+		//the first element is the tick number this was sent on, so it is not a control
 		int startingPos = bytes.position() , endingPos = bytes.position();
 		while(bytes.get(endingPos++) != CONTROL_KEY_STROKES);
-		byte[] expandedControlView = new byte[endingPos - 1 - startingPos];
-		for(int i = 0 ; i < expandedControlView.length ; i ++) expandedControlView[i] = bytes.get();		
+		byte[] controls = new byte[1 + endingPos - 1 - startingPos];
+		controls[0] = bytes.get();
+		for(int i = 1 ; i < controls.length ; i ++) controls[i] = bytes.get();		
 		bytes.position(endingPos + 1);
-		return expandedControlView;
-		
-	}
-	
-	public int rupdateSequence() {
-		
-		boolean correct = bytes.get() == UPDATE_SEQUENCE;
-		if(!correct) except("buffer reawd update sequence at invalid position");
-		return bytes.get();
+		return controls;
 		
 	}
 	

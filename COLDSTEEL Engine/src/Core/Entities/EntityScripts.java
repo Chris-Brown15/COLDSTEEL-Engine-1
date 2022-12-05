@@ -166,7 +166,11 @@ public class EntityScripts extends PythonScriptEngine{
 	
 	public void call(String code) {
 		
-		python.exec(code);
+		try {
+			
+			python.exec(code);
+		
+		} catch(Exception e) {}
 		
 	}
 

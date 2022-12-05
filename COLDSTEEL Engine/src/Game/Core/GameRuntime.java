@@ -56,7 +56,7 @@ public class GameRuntime {
 		
 	}
 	
-	public Scene gameScene() {
+	public Scene scene() {
 		
 		return gameScene;
 		

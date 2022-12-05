@@ -88,7 +88,7 @@ public class Editor {
 	SelectionArea selection;
 	Levels backupLevel = new Levels(scene , "Editor Backup");
 	// reference to any instance of quads that was selected
-	Quads activeQuad = null;
+	volatile Quads activeQuad = null;
 	boolean background = true;
 	// whether the active object should follow the cursor or not, toggled each left click
 	boolean spawnAtCursor = false;
@@ -788,6 +788,30 @@ public class Editor {
 
 	}
 
+	void modActiveWidthBi(float mod) {
+		
+		if(activeQuad != null) activeQuad.modWidthBi(mod); 
+		
+	}
+
+	void modActiveHeightUp(float mod) {
+		
+		if(activeQuad != null) activeQuad.modHeightUp(mod);
+		
+	}
+
+	void modActiveTranslucency(float mod) {
+		
+		if(activeQuad != null) activeQuad.modTranslucency(mod);
+		
+	}
+	
+	void changeActiveColor(int vertex , float red , float green , float blue) {
+		
+		if(activeQuad != null) activeQuad.quickChangeColor(vertex, red, green, blue);
+		
+	}
+	
 	public void deleteScene() {
 
 		scene.clear();
@@ -1006,15 +1030,15 @@ public class Editor {
 
 			System.out.println(filepath.get());
 			
-//			Levels newLevel = new Levels(scene , (CharSequence) filepath.get());
-//			newLevel.deploy(scene);
-//			setupTileSetUIImages(scene.tiles1() , background);
-//			setupTileSetUIImages(scene.tiles2() , !background);
-//			currentLevel = newLevel;
-//			say("Loaded level: " + newLevel.gameName());
-//			uiManager.loadDoorEditor.currentLoadDoor = null;
-//			currentTrigger = null;
-//			uiManager.loadDoorEditor.linkedLevel = null;
+			Levels newLevel = new Levels(scene , (CharSequence) filepath.get());
+			newLevel.deploy(scene);
+			setupTileSetUIImages(scene.tiles1() , background);
+			setupTileSetUIImages(scene.tiles2() , !background);
+			currentLevel = newLevel;
+			say("Loaded level: " + newLevel.gameName());
+			uiManager.loadDoorEditor.currentLoadDoor = null;
+			currentTrigger = null;
+			uiManager.loadDoorEditor.linkedLevel = null;
 
 		});
 

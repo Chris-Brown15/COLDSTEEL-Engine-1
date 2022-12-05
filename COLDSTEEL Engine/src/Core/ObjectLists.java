@@ -53,7 +53,7 @@ public class ObjectLists extends AbstractGameObjectLists<Quads> {
     }
 
     public Quads get(int index){
-
+    	
     	return list.getVal(index);
 
     }

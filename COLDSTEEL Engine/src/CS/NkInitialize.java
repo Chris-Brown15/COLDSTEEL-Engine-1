@@ -225,7 +225,7 @@ public class NkInitialize {
 		    
 	    });
 	    
-	    Renderer.Renderer.loadTexture(fontTexture);
+	    Renderer.Renderer.initializeTexture(fontTexture , CS.COLDSTEEL.assets + "ui/FiraSans-Bold.ttf");
 	     
 	}
 	

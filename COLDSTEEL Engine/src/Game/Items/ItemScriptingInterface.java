@@ -180,7 +180,7 @@ public class ItemScriptingInterface {
 		
 	}
 
-	public hitboxScan checkHitBoxes(Items I , Entities target , float deltaTime) {
+	public hitboxScan checkHitBoxes(Items I , Entities target) {
 		
 		if(I.has(ItemComponents.HITBOXABLE) && target.has(ECS.HITBOXES)) {
 			
@@ -254,7 +254,7 @@ public class ItemScriptingInterface {
 		
 	}
 
-	public void checkHitBoxesAndHurt(Items I , float deltaTime , DamageType... damage) {
+	public void checkHitBoxesAndHurt(Items I , DamageType... damage) {
 
 		if(!I.has(ItemComponents.HITBOXABLE)) return;
 		
@@ -360,5 +360,17 @@ public class ItemScriptingInterface {
 		owner.entities().add(projectile);
 		
 	}
+	
+	public void render(Items I) {
 		
+		owner.quads2().add(I);
+		
+	}
+
+	public void unRender(Items I) { 
+		
+		owner.quads2().delete(I);
+		
+	}
+	
 }

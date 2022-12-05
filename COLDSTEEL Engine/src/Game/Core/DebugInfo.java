@@ -1,7 +1,6 @@
 package Game.Core;
 
 import static CSUtil.BigMixin.toByte;
-import static CSUtil.BigMixin.toggle;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
 import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_RIGHT;
@@ -20,13 +19,11 @@ import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_checkbox_label;
 
-import Audio.SoundEngine;
 import CS.Engine;
 import CS.RuntimeState;
 import CS.UserInterface;
 import Core.Entities.Entities;
 import Game.Player.PlayerCharacter;
-import Renderer.Renderer;
 
 /**
  * Intended to be a debug UI for viewing during game play
@@ -37,9 +34,6 @@ import Renderer.Renderer;
 public class DebugInfo extends UserInterface {
 
 	private static final int uiOptions = NK_WINDOW_MOVABLE|NK_WINDOW_BORDER|NK_WINDOW_MINIMIZABLE|NK_WINDOW_TITLE ;
-	
-	private boolean showAllEntities = false;
-	private boolean showAllSounds = false;
 	
 	private boolean seeAllLoadDoors = false;	
 	private boolean freeze = false;
@@ -63,16 +57,6 @@ public class DebugInfo extends UserInterface {
 				playerEntity.freeze(freeze);
 				
 			}
-			
-			nk_layout_row_dynamic(context , 20 , 1);
-			nk_text(context , "Performance" , NK_TEXT_ALIGN_CENTERED);
-			
-			nk_layout_row_dynamic(context , 20 , 2);
-			nk_text(context , "Logic Thread FPS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
-			nk_text(context , "Render Thread FPS: " + engine.renderFramesLastSecond() , NK_TEXT_ALIGN_LEFT);
-						
-			nk_layout_row_dynamic(context , 20 , 1);
-			nk_text(context , "Draw Calls: " + Renderer.sceneDrawCalls() , NK_TEXT_ALIGN_LEFT);
 			
 			nk_layout_row_dynamic(context , 20 , 1);
 			nk_text(context , "Runtime Variables" , NK_TEXT_ALIGN_CENTERED);
@@ -135,47 +119,11 @@ public class DebugInfo extends UserInterface {
 				}
 				
 			}
-			
-			int symbol = showAllEntities ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
-			nk_layout_row_dynamic(context , 20 , 1);
-			if(nk_selectable_symbol_text(context , symbol , "Entities" , NK_TEXT_ALIGN_CENTERED , toByte(ALLOCATOR , showAllEntities))) 
-				showAllEntities = toggle(showAllEntities);
-			
-			if(showAllEntities) {
-				
-				runtime.gameScene().entities().forEach(x -> {
-					
-					nk_layout_row_dynamic(context , 20 , 1);
-					nk_text(context , x.toString() , NK_TEXT_ALIGN_LEFT);
-					
-				});
-				
-			}
-			
-			symbol = showAllSounds ? NK_SYMBOL_TRIANGLE_DOWN:NK_SYMBOL_TRIANGLE_RIGHT;
-			nk_layout_row_dynamic(context , 20 , 1);
-			if(nk_selectable_symbol_text(context , symbol , "Sound Files" , NK_TEXT_ALIGN_CENTERED , toByte(ALLOCATOR , showAllSounds))) 
-				showAllSounds = showAllSounds ? false : true;
-			
-			if(showAllSounds) {
-				
-				SoundEngine.forEach(x -> {
-				
-					nk_layout_row_begin(context , NK_STATIC , 20 , 2);
-					nk_layout_row_push(context , 260);
-					nk_text(context , x.name() , NK_TEXT_ALIGN_LEFT);
-					nk_layout_row_push(context , 55);
-					nk_text(context , "At Index " + x.ID() , NK_TEXT_ALIGN_RIGHT);
-					nk_layout_row_end(context);
-					
-				});
-				
-			}
-		
-			
+						
 		});
 		
 	}
+	
 	public void show() {
 		
 		show = true;
@@ -185,6 +133,12 @@ public class DebugInfo extends UserInterface {
 	public void hide() {
 		
 		show = false;
+		
+	}
+	
+	public void toggle() {
+		
+		show = show ? false:true;
 		
 	}
 	

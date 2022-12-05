@@ -538,15 +538,19 @@ public class UserHostedServer implements NetworkedInstance {
 				sender.timer.start();
 				sender.busy = false;
 				byte[] controls;
-				int sequence;
+				byte sequence;
 				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
 					
-					sequence = coder.rupdateSequence();
 					controls = coder.rControlStrokes();
+					sequence = controls[0];
 					
 				}
 				
-				if(sequence != sender.entity.advanceUpdateSequence()) System.out.println(sequence);
+				if(sequence != sender.entity.updateSequence()) {
+					
+					System.out.println("Possible Packet Loss, packed named: " + sequence + ", current sequence, " + sender.entity.updateSequence());
+					 					
+				}
 				
 //				if(sequence != 0 && sequence < sender.entity.advanceUpdateSequence()) { 
 //					
@@ -572,10 +576,13 @@ public class UserHostedServer implements NetworkedInstance {
 
 						try(PacketCoder recipientCoder = new PacketCoder()) {
 							
+							byte packetName = sender.entity.updateSequence();
+							sender.entity.advanceUpdateSequence();
+							
 							recipientCoder
 								.bflag(UPDATE)
 								.bconnectionID(sender.index)
-								.bControlStrokes(controls)	
+								.bControlStrokes(packetName , controls)	
 							;
 							
 							DatagramPacket updatePacket = new DatagramPacket(recipientCoder.get() , 0 , recipientCoder.position());
