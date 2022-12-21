@@ -1,4 +1,8 @@
-package Core;
+package Core.Entities;
+
+import Audio.Sounds;
+import CSUtil.DataStructures.CSArray;
+import Game.Items.Inventories;
 
 public enum ECS {
 	
@@ -80,6 +84,47 @@ public enum ECS {
 		name += current.substring(0 , 1) + nameSansFirst;
 				
 		return name;
+		
+	}
+	
+	public Object[] deepCopy() {
+		
+		return switch(this) {
+			case HORIZONTAL_PLAYER_CONTROLLER -> new Object[] {data[0] , data[1] , data[2]};
+			case COLLISION_DETECTION -> {
+				
+				if(data[0] == null) yield new Object[] {null , data[1] , data[2]};
+				else {
+					
+					float[] copiedArray = new float[((float[])data[0]).length];
+					System.arraycopy((float[])data[0], 0 , copiedArray , 0, copiedArray.length);
+					yield new Object[] {copiedArray , data[1] , data[2]};
+					
+				}
+				
+			}
+			
+			case GRAVITY_CONSTANT -> new Object[] {data[0] , data[1] , data[2] , data[3]};
+			case HORIZONTAL_DISPLACEMENT -> new Object[] {data[0] , data[1]};
+			case VERTICAL_PLAYER_CONTROLLER -> new Object[] {data[0] , data[1] , data[2] , data[3] , data[4] , null , data[6]};
+			case VERTICAL_DISPLACEMENT -> new Object[] {data[0] , data[1]};
+			case SCRIPT -> new Object[] {data[0] == null ? null : ((EntityScripts)data[0]).copy() , data[1]};
+			case HITBOXES -> new Object[] {data[0] == null ? null : ((EntityHitBoxes)data[0]).copy()};
+			case ANIMATIONS -> new Object[] {data[0] == null ? null : ((EntityAnimations)data[0]).copy() , data[1]};		
+			case RPG_STATS -> new Object[] {data[0] == null ? null : ((EntityRPGStats)data[0]).copy()};
+			case CAMERA_TRACK -> new Object[] {data[0] , data[1] , data[2]};
+			case DIRECTION -> new Object[] {data[0] , data[1] , data[2]};			
+			case INVENTORY -> new Object[] {data[0] == null ? null : ((Inventories)data[0]).copy()};			
+			case FLAGS -> new Object[] {null};
+			case AUDIO_EMIT -> {
+				
+				@SuppressWarnings("unchecked") CSArray<Sounds> source = (CSArray<Sounds>)data[0];
+				CSArray<Sounds> newArray = new CSArray<Sounds>(source.size());
+				source.forEach(sound -> newArray.add(sound));
+				yield new Object[] {newArray};				
+			}
+				
+		};
 		
 	}
 	

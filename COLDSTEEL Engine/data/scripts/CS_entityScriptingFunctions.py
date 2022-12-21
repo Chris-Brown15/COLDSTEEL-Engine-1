@@ -236,10 +236,28 @@ def anyStruck(controls):
     return lib.anyStruck(E , controls)
 
 def syncControls(controls):
-    lib.setNetworkedControls(controls)
+    lib.setNetworkedControls(E , controls)
 
 def onServer():
     return lib.onServer(E)
 
 def createUI(fileName):
     return lib.createUI(fileName)
+
+def syncVariable(variableName , copyCallback):
+    lib.syncVariable(E , variableName , copyCallback)
+
+def copyPositionCallback():
+    return [xMid() , yMid()] 
+
+def syncECS(component):
+    lib.syncECS(E , component)
+
+def onResync(variableName , resyncCallback):
+    lib.onResync(E , variableName , resyncCallback)
+
+def moveTo(x , y):
+    E.moveTo(x , y)
+
+def asFloat(pyFloat):
+    return lib.asFloat(pyFloat)

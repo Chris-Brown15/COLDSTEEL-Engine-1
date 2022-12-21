@@ -112,6 +112,7 @@ public class CSCHashMap <T , K> {
 	private T getInternal(final Tuple2<T , K>[] map , K key) {
 		
 		int hashedIndex = hashScheme.apply(key , mapSize);
+		if(map[hashedIndex] == null && alternateMap(map)[hashedIndex] == null) return null;
 		Tuple2<T , K> indexed = map[hashedIndex];
 		if (indexed != null && indexed.getSecond().equals(key)) return indexed.getFirst();
 		else return getInternal(alternateMap(map) , key);

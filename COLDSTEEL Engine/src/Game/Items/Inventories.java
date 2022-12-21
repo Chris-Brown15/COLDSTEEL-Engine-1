@@ -322,4 +322,29 @@ public class Inventories implements ItemOwner {
 				
 	}
 	
+	public Inventories copy() {
+		
+		Inventories copy = new Inventories(owner);
+		copy.weightLimit = weightLimit;
+		copy.currentWeight = currentWeight;
+		copy.xDimension = xDimension;
+		copy.yDimension = yDimension;
+		inventory.forEachVal(tuple -> {
+		
+			for(int i = 0 ; i < tuple.getSecond().get() ; i ++) copy.acquire(tuple.getFirst());			
+			
+		});
+		
+		equipSlots.forEach(item -> {
+			
+			if(item != null) copy.equip(item);
+			
+		});
+
+		copy.onAcquire = onAcquire;
+		
+		return copy;
+		
+	}
+	
 }

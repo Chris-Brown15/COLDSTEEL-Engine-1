@@ -2,6 +2,8 @@ package Core.Entities;
 
 import static CS.Engine.INTERNAL_ENGINE_PYTHON;
 
+import java.util.function.Consumer;
+
 import org.joml.Random;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
@@ -10,12 +12,11 @@ import org.python.util.PythonInterpreter;
 
 import CS.Engine;
 import CS.RuntimeState;
-
+import CSUtil.Copy;
 import CS.Controls;
 import Core.SpriteSets;
 import Core.UIScript;
 import Core.Entities.EntityLists.hitboxScan;
-import Core.ECS;
 import Core.Scene;
 import Core.Console;
 import Core.Direction;
@@ -25,6 +26,7 @@ import Game.Items.LootTables;
 import Networking.UserHostedServer.UserHostedServer;
 import Networking.NetworkClient;
 import Networking.NetworkedEntities;
+import Networking.NetworkedInstance;
 import Physics.Kinematics;
 import Physics.MExpression;
 import Renderer.ParticleEmitter;
@@ -524,7 +526,15 @@ public class EntityScriptingInterface {
 	 * @param foreground — true if particles should be placed in the foreground, else they will be in the background
 	 * @return — a newly created {@code ParticleEmitter} object
 	 */
-	public ParticleEmitter createParticleEmitter(int number , double lifetime , MExpression xFunction , MExpression yFunction , String textureAbsPath , String animAbsPath , boolean foreground) {
+	public ParticleEmitter createParticleEmitter(
+		int number , 
+		double lifetime , 
+		MExpression xFunction , 
+		MExpression yFunction , 
+		String textureAbsPath , 
+		String animAbsPath , 
+		boolean foreground
+	) {
 		
 		return new ParticleEmitter(scene , number , lifetime , xFunction , yFunction , textureAbsPath , animAbsPath , foreground);
 			
@@ -553,7 +563,18 @@ public class EntityScriptingInterface {
 	 * @param foreground — true if particles should be placed in the foreground, else they will be in the background
 	 * @return newly created {@code ParticleEmitter} object
 	 */
-	public ParticleEmitter createParticleEmitter(int number , double lifetime , MExpression xFunction , MExpression yFunction , float R , float G , float B , float width , float height , boolean foreground) {
+	public ParticleEmitter createParticleEmitter(
+		int number , 
+		double lifetime , 
+		MExpression xFunction , 
+		MExpression yFunction , 
+		float R , 
+		float G , 
+		float B , 
+		float width , 
+		float height , 
+		boolean foreground
+	) {
 		
 		return new ParticleEmitter(scene , number , lifetime , xFunction , yFunction , R , G , B , width , height , foreground); 
 				
@@ -582,7 +603,15 @@ public class EntityScriptingInterface {
 	 * @param foreground — true if particles should be placed in the foreground, else they will be in the background
 	 * @return newly created {@code ParticleEmitter} object
 	 */
-	public ParticleEmitter createParticleEmitter(int numberParticles , double lifetimeMillis , MExpression xFunction , MExpression yFunction , String textureAbsPath , SpriteSets animation , boolean foreground) {
+	public ParticleEmitter createParticleEmitter(
+		int numberParticles , 
+		double lifetimeMillis , 
+		MExpression xFunction , 
+		MExpression yFunction , 
+		String textureAbsPath , 
+		SpriteSets animation , 
+		boolean foreground
+	) {
 		
 		return new ParticleEmitter(scene , numberParticles , lifetimeMillis , xFunction , yFunction , textureAbsPath , animation , foreground);
 		
@@ -624,15 +653,12 @@ public class EntityScriptingInterface {
 	 * 
 	 * @param keyCodes — list of key codes to send; should be either user settings or GLFW codes
 	 */
-	public void setNetworkedControls(byte... controls) { 
-		
-		if(client != null) { 
-
-			System.out.println("syncing controls in library");
-			client.syncPeripheralsByControls(controls);
-			
-		}
-		
+	public void setNetworkedControls(Entities E , byte... controls) { 
+				
+		if(client != null && client.networkedEntity().networked() == E) client.syncPeripheralsByControls(controls);
+		else if (client != null) NetworkedInstance.getNetworkedEntityForEntity(client , E).setControlsToSync(controls);
+		else if (server != null) server.getNetworkedEntity(E).setControlsToSync(controls);
+				
 	}
 
 	/**
@@ -645,7 +671,7 @@ public class EntityScriptingInterface {
 		
 		if(server != null || client != null && client.networkedEntity().networked() != E) {
 			
-			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : client.getNetworkedByEntity(E);			
+			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : NetworkedInstance.getNetworkedEntityForEntity(client , E);			
 			return networked.pressed(controlID);
 			
 		} else return Engine.controlKeyPressed(controlID);
@@ -664,7 +690,7 @@ public class EntityScriptingInterface {
 		
 		if(server != null || client != null && client.networkedEntity().networked() != E) {
 			
-			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : client.getNetworkedByEntity(E);			
+			NetworkedEntities networked = server != null ? server.getNetworkedEntity(E) : NetworkedInstance.getNetworkedEntityForEntity(client , E);			
 			return networked.struck(controlID);
 			
 		} else return Engine.controlKeyStruck(controlID);
@@ -735,6 +761,44 @@ public class EntityScriptingInterface {
 	public Kinematics kinematics() {
 		
 		return scene.kinematics();
+		
+	}
+	
+	public void syncVariable(Entities E , String variableName , Copy variableReference) {
+		
+		if(!onServer(E)) return;
+		if(client != null) client.getNetworkedEntity(E).sync(variableName, variableReference);
+		if(server != null) server.getNetworkedEntity(E).sync(variableName, variableReference);
+		
+	}
+			
+	public void syncECS(Entities E , ECS component) {
+		
+		if(!onServer(E)) return;
+		if(client != null) client.getNetworkedEntity(E).sync(component);
+		if(server != null) server.getNetworkedEntity(E).sync(component);
+		
+	}
+	
+	public void onResync(Entities E , String variableName , Consumer<Object> resyncCallback) {
+		
+		if(!onServer(E)) return;
+		if(client != null) client.getNetworkedEntity(E).onResync(variableName , resyncCallback);
+		if(server != null) server.getNetworkedEntity(E).onResync(variableName , resyncCallback);
+		
+	}
+
+	public void onResync(Entities E , String variableName , PyObject resyncCallback) {
+		
+		if(!onServer(E)) return;
+		if(client != null) client.getNetworkedEntity(E).onResync(variableName , resyncCallback);
+		if(server != null) server.getNetworkedEntity(E).onResync(variableName , resyncCallback);
+		
+	}
+	
+	public float asFloat(PyObject x) {
+		
+		return (float) x.__tojava__(Float.class);
 		
 	}
 	

@@ -24,6 +24,8 @@ import org.lwjgl.system.MemoryUtil.MemoryAllocationReport;
 
 import Editor.CursorState;
 import Editor.EditorMode;
+import Editor.EditorState;
+
 import java.nio.IntBuffer;
 import java.nio.DoubleBuffer;
 import static CSUtil.BigMixin.getSCToWCForX;
@@ -366,7 +368,8 @@ public class GLFWWindow {
 
 					case GLFW_RELEASE:
 
-						if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) glPolygonMode(GL_FRONT_AND_BACK , GL_LINE);    							
+						if(keyboardPressed(GLFW_KEY_LEFT_SHIFT)) glPolygonMode(GL_FRONT_AND_BACK , GL_LINE);    	
+						else engine.toggleFPSDebug();
 						break;
 
 					case GLFW_REPEAT:break;
@@ -2187,7 +2190,11 @@ public class GLFWWindow {
 
             					boolean selectedSame = engine.e_select((float)cursorWorldXOnPress , (float) cursorWorldYOnPress);
             					if(selectedSame && engine.e_cursorState() == CursorState.DRAGGING) engine.e_setCursorState(CursorState.SELECTABLE);
-            					else if (selectedSame) engine.e_setCursorState(CursorState.DRAGGING);
+            					else if (selectedSame && engine.e_getEditor().editorState() == EditorState.GENERIC) {
+            						
+            						engine.e_setCursorState(CursorState.DRAGGING);
+            						
+            					}
             								       		            							            					
             				} 
     						
@@ -2201,14 +2208,17 @@ public class GLFWWindow {
             					float xDim = (float) cursorWorldXOnRelease - cursorWorldXOnPress;
             					float yDim = (float) cursorWorldYOnRelease - cursorWorldYOnPress;
     
-            					engine.e_getEditor().moveSelectionAreaTo((float) cursorWorldXOnPress, (float)cursorWorldYOnPress);
-            					engine.e_getEditor().setSelectionAreaDimensions(xDim, yDim);
+            					if(Engine.STATE == RuntimeState.EDITOR) {
+            						
+            						engine.e_getEditor().moveSelectionAreaTo((float) cursorWorldXOnPress, (float)cursorWorldYOnPress);
+            						engine.e_getEditor().setSelectionAreaDimensions(xDim, yDim);
+            					
+            					}
             							            					
             				} 
         				
     						break;
-    						
-    						
+    						    						
     					case GLFW_REPEAT:break;
 					
 					}			

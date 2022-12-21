@@ -18,7 +18,7 @@ public abstract class NetworkingConstants {
 	 */
 	public static final int
 		//mask for the bits of the byte that represent the control ID 
-		KEYCODE_MASK = 63 ,		
+		KEYCODE_MASK = 63 ,	
 		//mask for the eighth bit in a byte which represents a press state for the control ID of the preceding first six bits
 		CONTROL_PRESSED_MASK = -128,
 		//mask for the seventh bit of a number, telling that this key was struck
@@ -45,8 +45,12 @@ public abstract class NetworkingConstants {
 		LOCATION_CHANGE_OUT = 6,
 		//notifies the client with useful information aobut the level they just loaded into
 		LEVEL_LOAD_INFO = 7,
+		//initially sent to the server to let it know a new player is connecting
+		PRE_CONNECT = 8,
+		//contains info for clients to use to reorient the specified the entity according to the servers view
+		RESYNC = 9,
 		//tells the recipient keystrokes the sender has made and state of synced variables.
-		UPDATE = 8		
+		UPDATE = 10
 	;
 	
 	public static final boolean isFlag(byte possiblyFlag) {

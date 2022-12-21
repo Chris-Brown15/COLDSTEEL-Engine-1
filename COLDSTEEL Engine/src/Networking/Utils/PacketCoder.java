@@ -1,12 +1,10 @@
 package Networking.Utils;
 
-import static Networking.Utils.NetworkingConstants.*;
-
 import CSUtil.DataStructures.CSQueue;
+import CSUtil.DataStructures.LinkedRingBuffer;
 import CSUtil.DataStructures.RingBuffer;
 
 import java.nio.ByteBuffer;
-import CS.Engine;
 
 /**
  * This class is a minimal-state conviencience class for constructing arrays for packets given a particular layout.
@@ -82,7 +80,7 @@ public final class PacketCoder implements AutoCloseable {
 	public PacketCoder bflag(byte flag) {
 		
 		boolean correct = bytes.position() == 0 && NetworkingConstants.isFlag(flag);
-		if(!correct) except("buffer write position invalid or invalid argument");
+		if(!correct) except("buffer write position invalid or invalid argument" , flag);
 		bytes.put(flag);
 		return this;
 		
@@ -116,46 +114,43 @@ public final class PacketCoder implements AutoCloseable {
 		
 	}
 	
-	public PacketCoder bControlStrokes(byte tickNumber , byte[] controls) {
+	public PacketCoder bControlStrokes(final byte updateNumber , LinkedRingBuffer<byte[]> controls) {
 		
-		//bytes in controls are control IDs a client is sending to the server.
+		bytes.put(UPDATE_SEQUENCE);
+		bytes.put(updateNumber);
 		
-		bytes.put(CONTROL_KEY_STROKES);
-		bytes.put(tickNumber);
-		boolean pressed = false;
-		for(int i = 1 ; i < controls.length ; i ++) {
+		controls.forEach(controlState -> {
+			//bytes in controls are control IDs a client is sending to the server.
+			bytes.put(CONTROL_KEY_STROKES);		
+			bytes.put(controlState);
+			bytes.put(CONTROL_KEY_STROKES);
 			
-			pressed = Engine.controlKeyPressed((byte)(controls[i] & KEYCODE_MASK));
-			if(pressed) bytes.put((byte) (controls[i] | CONTROL_PRESSED_MASK));
-			else bytes.put((byte)controls[i]);
-			
-		}
-		
-		bytes.put(CONTROL_KEY_STROKES);
+		});
+				
 		return this;
 		
 	}
 	
 	public float[] rposition() {
 
-		boolean correct = bytes.get() == POSITION;
-		if(!correct) except("Buffer read position at invalid position");
+		byte correct = bytes.get();
+		if(correct != POSITION) except("Buffer read position at invalid position" , correct);
 		return new float[] {bytes.getFloat() , bytes.getFloat()};
 		
 	}
 	
 	public short rconnectionID() {
 		
-		boolean correct = bytes.get() == CONNECTION_ID; 
-		if(!correct) except("Buffer read connection at invalid position");
+		byte correct = bytes.get(); 
+		if(correct != CONNECTION_ID) except("Buffer read connection at invalid position" , correct);
 		return bytes.getShort();
 		
 	}
 
 	public String rstring() {
 		
-		boolean correct = bytes.get() == STRING;
-		if(!correct) except("Buffer read string at invalid position");
+		byte correct = bytes.get();
+		if(correct != STRING) except("Buffer read string at invalid position" , correct);
 		int pos = bytes.position() , stringStart = bytes.position();
 		while(bytes.get(pos++) != STRING) ;
 		String newStr = new String(bytes.array() , stringStart , pos - 1 - stringStart);
@@ -166,8 +161,8 @@ public final class PacketCoder implements AutoCloseable {
 	
 	public CSQueue<Object> rRepititions(byte...types) {
 		
-		boolean correct = bytes.get() == REPITITION;
-		if(!correct) except("buffer read repititions at invalid position");
+		byte flag = bytes.get();
+		if(flag != REPITITION) except("buffer read repititions at invalid position" , flag);
 		short reps = bytes.getShort();
 		short numberItems = bytes.get();
 		if(numberItems < 0) numberItems *= -1; 
@@ -193,20 +188,27 @@ public final class PacketCoder implements AutoCloseable {
 		
 	}
 	
-	public byte[] rControlStrokes() {
+	public byte rControlStrokes(final LinkedRingBuffer<byte[]> controlStores) {
+	
+		byte flag = bytes.get();
+		if(flag != UPDATE_SEQUENCE) except("buffer read update at invalid position" , flag);
 		
-		boolean correct = bytes.get() == CONTROL_KEY_STROKES;
-		if(!correct) except("buffer read control key strokes at invalid position");
+		byte updateNumber = bytes.get();		
+				
+		for(int i = 0 ; i < controlStores.capacity ; i++) {
+			
+			flag = bytes.get();
+			if(flag != CONTROL_KEY_STROKES) except("buffer read control key strokes at invalid position" , flag);
+					
+			byte[] thisInput = new byte[controlStores.getAndPut().length];
+			int iter = 0;
+			byte currentByte;
+			while((currentByte = bytes.get()) != CONTROL_KEY_STROKES) thisInput[iter++] = currentByte;
+			controlStores.put(thisInput);
+			
+		}
 		
-		//this is an array of bytes so read byte by byte, constructing an array of shorts representing them
-		//the first element is the tick number this was sent on, so it is not a control
-		int startingPos = bytes.position() , endingPos = bytes.position();
-		while(bytes.get(endingPos++) != CONTROL_KEY_STROKES);
-		byte[] controls = new byte[1 + endingPos - 1 - startingPos];
-		controls[0] = bytes.get();
-		for(int i = 1 ; i < controls.length ; i ++) controls[i] = bytes.get();		
-		bytes.position(endingPos + 1);
-		return controls;
+		return updateNumber;
 		
 	}
 	
@@ -236,9 +238,9 @@ public final class PacketCoder implements AutoCloseable {
 		
 	}
 		
-	private static void except(String error) {
+	private static void except(String error , byte given) {
 		
-		throw new IllegalArgumentException("PACKET BUILDER ERROR: " + error);
+		throw new IllegalArgumentException("PACKET BUILDER ERROR: " + error + " given byte: " + given);
 		
 	}
 

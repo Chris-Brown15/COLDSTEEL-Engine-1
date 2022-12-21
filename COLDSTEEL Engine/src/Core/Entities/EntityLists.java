@@ -8,6 +8,7 @@ import static CSUtil.BigMixin.getTrianglePointArea;
 import static CSUtil.BigMixin.toggle;
 
 import java.util.ArrayList;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.joml.Math;
@@ -23,7 +24,6 @@ import CSUtil.Dialogs.DialogUtils;
 import Core.AbstractGameObjectLists;
 import Core.CSType;
 import Core.Direction;
-import Core.ECS;
 import Core.Executor;
 import Core.Quads;
 import Core.Scene;
@@ -2565,7 +2565,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		
 	}
 	
-	private void internalRunInitialSystems(Entities E) {
+	public void internalRunInitialSystems(Entities E) {
 
 		Object[] comps = E.components();
 		
@@ -2582,7 +2582,7 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 	
 	}
 
-	private void internalRunFinalSystems(Entities E) {
+	public void internalRunFinalSystems(Entities E) {
 
 		Object[] comps = E.components();
 
@@ -2611,7 +2611,43 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 
 			//final iteration to finish a tick
 			iter = list.get(0);
-			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) internalRunFinalSystems(iter.val);
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) {
+
+				if(iter.val.freeze) continue;
+				internalRunFinalSystems(iter.val);
+				
+			}
+
+			if(after != null) after.execute();
+			
+		});
+		
+	}
+
+	private void internalRunSystems(Function<Entities , Boolean> shouldRun , Executor start , Executor between , Executor after) {
+
+		locked(() -> {
+
+			if(start != null) start.execute();
+			
+			cdNode<Entities> iter = list.get(0);
+			for(int i = 0 ; i < size() ; i ++ , iter = iter.next) {
+				
+				if(iter.val.freeze || !shouldRun.apply(iter.val)) continue;			
+				internalRunInitialSystems(iter.val);
+							
+			}
+			
+			if(between != null) between.execute();
+
+			//final iteration to finish a tick
+			iter = list.get(0);
+			for(int i = 0 ; i < list.size() ; i ++ , iter = iter.next) { 
+
+				if(iter.val.freeze || !shouldRun.apply(iter.val)) continue;	
+				internalRunFinalSystems(iter.val);
+			
+			}
 
 			if(after != null) after.execute();
 			
@@ -2652,7 +2688,37 @@ public class EntityLists extends AbstractGameObjectLists<Entities> {
 		frameThisSecond++;	
 		
 	}
-	
+
+	/**
+	 * Update function for use in the editor. We need to know the current frame rate because we want to ensure physics occurs
+	 * correctly even if the framerate is not 60 or some set-in-stone number.
+	 * 
+	 * We can divide {@code framesLastSecond} into 60 'ticks.' On frames of a certain interval, we will enter this method and run game logic.
+	 * Thus this method gets called 60 times a second, while other procesing like rendering happens as fast as it can.
+	 * <br><br>
+	 *  
+	 * @param start — a function to call before any entities are processed, but only on a frame they will be processed, 
+	 * @param inbetween — a function to call between initial physics calls, scripts, and animations, but before finishing physics calls
+	 * @param after — a function to call after all entities have been processed.
+	 *  
+	 */
+	public void entitySystems(Function<Entities , Boolean> shouldRun , Executor start , Executor inbetween , Executor after) {
+		
+		if(!runSystems) return;
+		
+		if(secondTimer.getElapsedTimeSecs() >= 1) {
+			
+			framesLastSecond = frameThisSecond;
+			frameThisSecond = 0;
+			
+		}
+				
+		internalRunSystems(shouldRun , start , inbetween , after);
+		
+		frameThisSecond++;	
+		
+	}
+
 	/**
 	 * Stores the subject's x midpoint as an initial horiztonal position for calculations that need dispalcement
 	 */

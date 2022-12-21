@@ -9,7 +9,6 @@ import Audio.Sounds;
 import CS.PythonScriptEngine;
 import CSUtil.DataStructures.CSArray;
 import Core.SpriteSets;
-import Core.ECS;
 import Core.Scene;
 import Game.Items.Inventories;
 
@@ -31,6 +30,7 @@ public class EntityScripts extends PythonScriptEngine{
 	private boolean initialized = false;
 	//if true, this script will stop running once its initialization is complete.
 	boolean stopOnInitialization = false;
+	private Scene owner;
 	
 	/**
 	 * Initializes this Entity's Script Interpreter. It will use the script name given to compile the script into PyCode, then 
@@ -46,6 +46,7 @@ public class EntityScripts extends PythonScriptEngine{
 			
 			code = python.compile(new FileReader(CS.COLDSTEEL.data + "scripts/" + scriptName));
 			this.scriptName = scriptName;
+			this.owner = owner;
 						
 			python.set("E" , E);
 			
@@ -177,6 +178,12 @@ public class EntityScripts extends PythonScriptEngine{
 	public boolean initialized() {
 		
 		return initialized;
+		
+	}
+	
+	public EntityScripts copy() {
+		
+		return new EntityScripts(owner , (Entities) python.get("E").__tojava__(Entities.class) , scriptName);
 		
 	}
 	

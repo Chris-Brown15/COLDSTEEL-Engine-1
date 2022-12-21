@@ -1,7 +1,5 @@
 package Core.Entities;
 
-import Core.ECS;
-
 /**
  * This small class is used as a way to handle scans for entities in way that ensures scripts cannot break encapsulation.
  * To prevent breaking of encapsulation, the Entity result field is protected, so scripts, which require fields and methods

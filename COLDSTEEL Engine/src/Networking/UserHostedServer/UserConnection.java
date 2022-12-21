@@ -31,6 +31,22 @@ public class UserConnection {
 		this.timer = new Timer();
 		
 	}
+
+	public UserConnection(short index , int port , InetAddress address) {
+		
+		this.index = index;
+		this.port = port;
+		this.address = address;
+		this.entity = new NetworkedEntities(index);
+		this.timer = new Timer();
+		
+	}
+	
+	public boolean initialized() {
+		
+		return entity.initialized();
+		
+	}
 	
 	public int hashCode() {
 		

@@ -40,7 +40,6 @@ import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
 import Core.Console;
-import Core.ECS;
 import Core.Executor;
 import Core.GameFiles;
 import Core.HitBoxSets;
@@ -48,6 +47,7 @@ import Core.Quads;
 import Core.Scene;
 import Core.SpriteSets;
 import Core.TemporalExecutor;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityFlags;
@@ -2550,6 +2550,12 @@ public class Editor {
 	void modColliderOffset(Tiles tile , float x , float y) {
 		
 		tile.modColliderOffset(x, y);
+		
+	}
+	
+	void roundActiveVertices() {
+		
+		if(activeQuad != null) activeQuad.roundVertices();
 		
 	}
 	

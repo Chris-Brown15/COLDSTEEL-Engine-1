@@ -35,5 +35,11 @@ public enum Direction {
 		else return Direction.NONE;
 		
 	}
+	
+	public Direction copy() {
+		
+		return Direction.this;
+		
+	}
 		
 }

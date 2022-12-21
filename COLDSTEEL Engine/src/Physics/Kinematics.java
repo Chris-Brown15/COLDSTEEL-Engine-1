@@ -27,7 +27,9 @@ public class Kinematics {
 	public static float maxSpeed = 100f;
 	public static float minSpeed = -100f;
 	
-	Scene owner;
+	Scene owner;	
+	private CSLinked<Pair> forces = new CSLinked<>();	
+	public float[] values = new float[2];	
 	
 	public Kinematics(Scene owner){
 		
@@ -79,10 +81,6 @@ public class Kinematics {
 		}
 						
 	}
-			
-	private CSLinked<Pair> forces = new CSLinked<>();	
-
-	public float [] values = new float[2];	
 	
 	/**
 	 * Creates a new managed impulse. This impulse will persist on the object until it's time has run out.
@@ -367,6 +365,84 @@ public class Kinematics {
 				continue;
 				
 			}
+			
+			currentForce = currentPair.current().val;	//current force
+						
+			currentForce.timerStart();
+			
+			if(currentForce.finished()) {
+				
+				currentPair.queue.safeRemove(currentPair.current());
+				
+				if(currentPair.empty()) {
+					
+					iter = forces.safeRemove(iter);
+					if(iter == null) break;
+					
+				}
+				
+			}			
+			
+			values = currentForce.update();
+						
+			switch (currentPair.obj.type) {
+
+				case PROJECTILE: case ENTITY: 
+					
+					Entities E = (Entities)currentPair.obj;
+					owner.entities().moveHorizChecked(E , values[0]);
+					owner.entities().moveVertChecked(E , values[1]);
+					
+					break;
+					
+				case ITEM:
+				
+					owner.entities().moveHorizChecked((Items) currentPair.obj , values[0]);
+					owner.entities().moveVertChecked((Items) currentPair.obj , values[1]);
+					
+					break;				
+								
+				case GENERIC: case PARTICLE:
+					
+					currentPair.obj.translate(values[0] , values[1]);
+					
+					break;
+				
+				default:
+					
+					if(COLDSTEEL.DEBUG_CHECKS) assert false : "Invalid object for Kinematic Force: " + currentPair.obj.type.toString();
+					
+					break;
+			
+			}
+
+		}
+				
+	}
+	
+	/**
+	 * Like {@code process()} but only processes impulses acting on {@code target}.
+	 * 
+	 * @param target — a single object to modify 
+	 */
+	public void process(Quads target) {
+		
+		cdNode<Pair> iter = forces.get(0);
+		Pair currentPair;
+		KinematicForce currentForce;		
+		
+		for(int i = 0 ; i < forces.size() ; i ++ , iter = iter.next) {
+			
+			currentPair = iter.val;						//current pair			
+			if(currentPair.shouldKill()) {
+				
+				iter = forces.safeRemove(iter);
+				if(iter == null) break;
+				continue;
+				
+			}
+			
+			if(currentPair.obj != target) continue;
 			
 			currentForce = currentPair.current().val;	//current force
 						

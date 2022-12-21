@@ -85,6 +85,7 @@ import static org.lwjgl.system.MemoryUtil.memFree;
 
 import static CSUtil.BigMixin.async;
 import static CSUtil.BigMixin.TRY;
+import static CS.UserInterface.NUKLEAR_RUNNABLE;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
@@ -113,15 +114,14 @@ import CSUtil.DataStructures.CSQueue;
 import Core.Executor;
 import CS.Engine;
 import CS.GLFWWindow;
-import CS.UserInterface;
 import CSUtil.DataStructures.CSCHashMap;
 import CSUtil.DataStructures.CSStack;
 import CSUtil.DataStructures.Tuple2;
 import Core.CSType;
 import Core.Direction;
-import Core.ECS;
 import Core.Quads;
 import Core.Scene;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
 import Core.Statics.Statics;
@@ -154,52 +154,21 @@ public final class Renderer {
 		
 		int errorCode;
 		boolean error = false;
-		while((errorCode = glGetError()) != GL_NO_ERROR) switch(errorCode) {
+		while((errorCode = glGetError()) != GL_NO_ERROR) {
+			
+			switch(errorCode) {
+			
+				case GL_INVALID_ENUM -> System.err.println("GL error thrown; Invalid Enum");				
+				case GL_INVALID_VALUE -> System.err.println("GL error thrown; Invalid Value");				
+				case GL_INVALID_OPERATION -> System.err.println("GL error thrown; Invalid Operation");				
+				case GL_STACK_OVERFLOW -> System.err.println( "GL error thrown; Stack Overflow");				
+				case GL_STACK_UNDERFLOW -> System.err.println("GL error thrown; Stack Underflow");				
+				case GL_OUT_OF_MEMORY -> System.err.println("GL error thrown; Out Of Memory");
 		
-			case GL_INVALID_ENUM -> { 
-				
-				System.err.println("GL error thrown; Invalid Enum:");
-				error = true;
-				
-			}
-			
-			case GL_INVALID_VALUE -> { 
-				
-				System.err.println("GL error thrown; Invalid Value:");
-				error = true;
-				
-			}
-			
-			case GL_INVALID_OPERATION -> { 
-				
-				System.err.println("GL error thrown; Invalid Operation:");
-				error = true;
-				
-			}
-			
-			case GL_STACK_OVERFLOW -> { 
-				
-				System.err.println( "GL error thrown; Stack Overflow:");
-				error = true;
-				
-			}
-			
-			case GL_STACK_UNDERFLOW -> { 
-				
-				System.err.println("GL error thrown; Stack Underflow:");
-				error = true;
-				
-			}
-			
-			case GL_OUT_OF_MEMORY -> { 
-				
-				System.err.println("GL error thrown; Out Of Memory:");
-				error = true;
-				
-			}
-	
-		}	
-		
+			}	
+
+			error = true;
+		}
 		return error;
 		
 	}
@@ -390,10 +359,10 @@ public final class Renderer {
     		initialize(renderScene , window);    		
     		while(persisting.get()) { 
     		
-    		 	Future<?> uiDrawFuture = async(UserInterface.NUKLEAR_RUNNABLE);
+    			Future<?> UIFinish = async(NUKLEAR_RUNNABLE);
     			checkedGL(() -> handleScheduledEvents());
     			clear();
-    			run(uiDrawFuture);
+    			run(UIFinish);
     			
       	    	window.swapBuffers();
       	    	
@@ -739,7 +708,7 @@ public final class Renderer {
 
     }
     
-    private void run(Future<?> uiDrawFuture) {
+    private void run(Future<?> UIFinish) {
 
 		if(renderTimer.getElapsedTimeSecs() >= 1) {
 			
@@ -775,7 +744,7 @@ public final class Renderer {
     	
     	if(initializedNuklear) {
     		
-    		TRY(() -> uiDrawFuture.get());
+    		TRY(() -> UIFinish.get());
     		renderUI();
     		
     	}

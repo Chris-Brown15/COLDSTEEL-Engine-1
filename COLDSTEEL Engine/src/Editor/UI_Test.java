@@ -3,16 +3,14 @@ package Editor;
 import static org.lwjgl.nuklear.Nuklear.nk_button_label;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 
-import java.util.function.Supplier;
-
 import CS.UserInterface;
-import CSUtil.Dialogs.DialogUtils;
-import Core.TemporalExecutor;
 import Game.Items.LootTables;
+import Physics.ForceType;
 
 public class UI_Test extends UserInterface {
 
 	LootTables table;
+	volatile boolean shouldRun = false;
 	
 	public UI_Test(Editor editor , String title, float x, float y, float w, float h, int normalOptions, int unopenedOptions) {
 		
@@ -31,30 +29,54 @@ public class UI_Test extends UserInterface {
 				
 			}
 			
-			nk_layout_row_dynamic(context , 30 , 2);
+			nk_layout_row_dynamic(context , 30 , 1);
 			if(nk_button_label(context , "chance item")) table.computeLootTable();
 			
-			if(nk_button_label(context , "print")) table.print();
-				
-			if(nk_button_label(context , "text")) {
-				
-				Supplier<String> input = DialogUtils.newInputBox("test number", 5, 270, UserInterface.NUMBER_FILTER);
-				TemporalExecutor.onTrue(() -> input.get() != null, () -> table.computeLootTable(Float.parseFloat(input.get())));
-				
+			nk_layout_row_dynamic(context , 30 , 2);
+			if(nk_button_label(context , "initialize test")) {
+
+				editor.schedule(e -> {
+
+					editor.scene.quads1().add();
+					editor.scene.quads1().add();
+					editor.scene.quads1().get(1).translate(1000, 1000);
+					
+					editor.scene.quads1().get(0).setSnapToPixels(false);
+					editor.scene.quads1().get(1).setSnapToPixels(false);
+					
+					shouldRun = true;
+					
+				});
+								
 			}
 			
-			nk_layout_row_dynamic(context , 30 , 1);
-			if(nk_button_label(context , "test")) {}
+			if(nk_button_label(context , "Test new Impulse")) {
+				
+				editor.schedule(e -> {
+					
+					e.scene.kinematics().impulse(ForceType.LINEAR , 1000d , 0.5f , 0.0f , 0.0f, 0.0f , editor.scene.quads1().get(0));
+					e.scene.kinematics().then(ForceType.LINEAR , 1000d , 0.5f , 0.0f , 0.0f, 0.0f);
+
+					e.scene.kinematics().impulse(ForceType.LINEAR , 1000d , 0.5f , 0.0f , 0.0f, 0.0f , editor.scene.quads1().get(1));
+					e.scene.kinematics().then(ForceType.LINEAR , 1000d , 0.5f , 0.0f , 0.0f, 0.0f);
+					
+				});
+				
+			}			
 			
-			nk_layout_row_dynamic(context , 30 , 2);
-			if(nk_button_label(context , "test 2")) {}
-			
-			if(nk_button_label(context , "test 3")) {}
-			
-			nk_layout_row_dynamic(context , 30 , 1);
-			if(nk_button_label(context , "test 4")) {}
+			if(shouldRun) {
+				
+				editor.scene.kinematics().process(editor.scene.quads1().get(0));
+				System.out.println("running");
+			}
 				
 		});
+		
+	}
+	
+	public void show() {
+		
+		show = true;
 		
 	}
 

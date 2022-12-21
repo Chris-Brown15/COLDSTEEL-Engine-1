@@ -30,10 +30,7 @@ public abstract class TemporalExecutor {
 	public static final int EVENTS_TIMEOUT = 99999999;
 	
 	/**
-	 * Executes some code at the elapse of either a span of milliseconds or a number of game ticks.
-	 * 
-	 * @author Chris Brown
-	 *
+	 * Executes some code at the elapse of either a span of milliseconds or a number of game ticks. 
 	 */
 	private static class event {
 		
@@ -78,8 +75,6 @@ public abstract class TemporalExecutor {
 	/**
 	 * Executes some code up to and until the elapse of some milliseconds or a number of game ticks.
 	 * 
-	 * @author Chris Brown
-	 *
 	 */
 	private static class continuous {
 		

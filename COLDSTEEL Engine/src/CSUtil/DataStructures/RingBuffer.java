@@ -33,7 +33,7 @@ public class RingBuffer <T> {
 		end %= buffer.length;
 		
 	}	
-	
+		
 	@SuppressWarnings("unchecked") public T get() {
 
 		T got = (T) buffer[start];
@@ -43,7 +43,27 @@ public class RingBuffer <T> {
 		return got;
 
 	}
+
+	@SuppressWarnings("unchecked") public T getInPlace() {
+
+		T got = (T) buffer[start];
+		return got;
+
+	}
 	
+	/**
+	 * Returns the element at the next position to be written to and advances the buffer.
+	 * 
+	 * @return element at the next buffer position to be written to.
+	 */
+	@SuppressWarnings("unchecked") public T getAndPut() {
+
+		T got = (T) buffer[end++];		
+		end %= buffer.length;
+		return got;
+
+	}
+
 	@SuppressWarnings("unchecked") public T get(int index) { 
 		
 		return (T) buffer[index % buffer.length];
@@ -88,6 +108,14 @@ public class RingBuffer <T> {
 		
 	}
 	
+	public void rewind() {
+		
+		end = 0;
+		start = 0;
+		size = 0;
+		
+	}
+	
 	public int getEndFromRewind(int offsetFromCurrent) {
 		
 		if(offsetFromCurrent == 0) return end;
@@ -104,6 +132,13 @@ public class RingBuffer <T> {
 		} else whatEndWouldBe -= offsetFromCurrent;
 		
 		return whatEndWouldBe;
+		
+	}
+	
+	public boolean has(T element) {
+		
+		for(int i = 0 ; i < buffer.length; i ++) if(element == buffer[i]) return true;
+		return false;
 		
 	}
 	
@@ -130,5 +165,5 @@ public class RingBuffer <T> {
 		return size == 0;
 		
 	}
-	
+
 }

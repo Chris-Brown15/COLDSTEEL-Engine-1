@@ -226,6 +226,13 @@ public abstract class BigMixin {
 		
 	}
 
+	public static final String read(ByteBuffer text , IntBuffer length) {
+		
+		if(length.get(0) == 0) return null;
+		return read(text.position(0).slice(0 , length.get(0)));
+		
+	}
+
 	public static final ByteBuffer returnText(ByteBuffer text){
 
 		for(int i = 0 ; i < text.capacity() ; i++){
@@ -1245,6 +1252,22 @@ public abstract class BigMixin {
     		System.exit(-1);
     		
     	}
+    	
+    }
+    
+    /**
+     * Utility method for reducing space in places with many try catch blocks. This will call some code via callback within
+     * a try-catch block and do nothing if an exception occurs.
+     *  
+     * @param code — code which can throw an exception
+     */
+    public static final void Try(DangerCode code) {
+    	
+    	try {
+    		
+    		code.call();
+    		
+    	} catch(Exception e) {}
     	
     }
     

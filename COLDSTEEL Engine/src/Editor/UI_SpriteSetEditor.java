@@ -61,8 +61,8 @@ public class UI_SpriteSetEditor extends UserInterface {
 					
 				}
 	
-				editor.snapSelectionArea();
-				editor.activeQuad.roundVertices();
+				editor.schedule(e -> e.snapSelectionArea());
+				editor.schedule(Editor::roundActiveVertices);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Reset Dimensions And UVs")) editor.schedule(Editor::resetDimensionsAndUVs);

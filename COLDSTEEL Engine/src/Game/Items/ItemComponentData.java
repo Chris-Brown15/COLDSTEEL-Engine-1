@@ -9,9 +9,9 @@ import CSUtil.DataStructures.Tuple2;
 import Core.Direction;
 import Core.Executor;
 import Core.HitBoxSets;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityHitBoxes;
-import Core.ECS;
 
 public class ItemComponentData {
 

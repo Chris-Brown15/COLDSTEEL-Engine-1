@@ -22,7 +22,7 @@ import static org.lwjgl.nuklear.Nuklear.nk_text;
 import java.nio.FloatBuffer;
 
 import CS.UserInterface;
-import Core.ECS;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 

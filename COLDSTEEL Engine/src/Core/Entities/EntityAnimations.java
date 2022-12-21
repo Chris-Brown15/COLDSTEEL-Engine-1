@@ -239,4 +239,19 @@ public class EntityAnimations {
 		
 	}
 	
+	public EntityAnimations copy() {
+
+		EntityAnimations copy = new EntityAnimations(anims.size());
+		for(int i = 0 ; i < anims.size() ; i ++) copy.add(anims.get(i).copy());
+		copy.active = active;
+		copy.animate = animate;
+		copy.hangup = hangup;
+		copy.hangupIndex = hangupIndex;
+		copy.hangupRepititions = hangupRepititions;
+		copy.hangupCallback = hangupCallback;
+
+		return copy;
+		
+	}
+	
 }

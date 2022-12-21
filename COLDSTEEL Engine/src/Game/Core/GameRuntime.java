@@ -3,6 +3,7 @@ package Game.Core;
 import static CS.COLDSTEEL.data;
 
 import java.io.IOException;
+
 import CS.Engine;
 import Core.Scene;
 import Core.TemporalExecutor;
@@ -12,6 +13,8 @@ import Game.Player.CharacterCreator;
 import Game.Player.PlayerCharacter;
 import Game.Player.PlayerLoader;
 import Networking.NetworkClient;
+import Networking.NetworkedEntities;
+import Networking.NetworkedInstance;
 import Networking.UserHostedServer.UserHostedServer;
 
 /**
@@ -45,7 +48,7 @@ public class GameRuntime {
 	private NetworkClient client;
 	private boolean runEntitySystems = true;
 	private Scene gameScene;
-	private GameMenu menu;	
+	private GameMenu menu;
 	
 	public GameRuntime() {}	
 	
@@ -62,9 +65,9 @@ public class GameRuntime {
 		
 	}
 	
-	public void startUserHostedServer(Engine engine) {
+	public void startUserHostedServer(Engine engine , String serverName) {
 		
-		hostedServer = new UserHostedServer(engine);
+		hostedServer = new UserHostedServer(engine , serverName);
 		runEntitySystems = false;
 		
 	}
@@ -88,7 +91,7 @@ public class GameRuntime {
 	}
 	
 	public void run(Engine engine) {
-
+		
 		switch(gameState) {
 		
 			case GAME_RUNTIME_SINGLEPLAYER -> {
@@ -107,28 +110,35 @@ public class GameRuntime {
 				});
 							
 				engine.g_levelUpdate();
-				
+								
 			}
 			
 			case GAME_RUNTIME_MULTIPLAYER -> {
 				
 				//only called on clients, where there will aways be exactly one scene which will always be bound
-				if(runEntitySystems) gameScene.entities().entitySystems(() -> {				
-			        
-				} , () -> {
-				
-					gameScene.kinematics().process();
-					TemporalExecutor.process();
-				
-				} , () -> {
-				
-					engine.releaseKeys();
-					client.instanceUpdate();				
-				
-				});
+				if(runEntitySystems) {
+					
+					gameScene.entities().entitySystems((entity) -> {
+						
+						NetworkedEntities networked = NetworkedInstance.getNetworkedEntityForEntity(client , entity);
+						return networked == null || networked.isReady;
+												
+					} ,
+					null , 
+					() -> {
+						
+						gameScene.kinematics().process();
+						TemporalExecutor.process();
 							
-				engine.g_levelUpdate();	
+					} , 
+					() -> engine.releaseKeys());
+								
+				}
 				
+				client.instanceUpdate();
+				engine.g_levelUpdate();	
+				client.forEachNetworkedEntity(networked -> networked.isReady = false);
+								
 			}
 			
 			case MAIN_MENU -> {
@@ -170,8 +180,10 @@ public class GameRuntime {
 				
 				if(loadScreen.load() != null) { 
 					
-					gameState = GameState.MAIN_MENU;
-					loadScreen.hide();
+					engine.g_loadSave(loadScreen.load() , GameState.GAME_RUNTIME_MULTIPLAYER , false);
+					((EntityScripts)player.playersEntity().components()[Entities.SOFF]).recompile();
+					((NetworkClient) client).connectAndStart(player , engine.currentLevel());
+					clientSideUpdateMultiplayerVariables();
 					
 				}
 				
@@ -235,7 +247,7 @@ public class GameRuntime {
 						//multiplayer here
 						try {
 						
-							client = new NetworkClient(this , engine.currentLevel());
+							client = new NetworkClient(this , mainMenu.getServerConnectionInfo());
 							clientSideUpdateMultiplayerVariables();
 							engine.fadeIn(1000);
 							
@@ -254,27 +266,27 @@ public class GameRuntime {
 				
 			}
 			
+			/*
+			 * To join a server, submit a connection request and await a response. 
+			 * 
+			 */
 			case JOIN_MULTIPLAYER -> {
 				
 				TemporalExecutor.process();
 
-				engine.g_loadSave(loadScreen.load() , GameState.GAME_RUNTIME_MULTIPLAYER , false);
-
-				//multiplayer here
 				try {
-				
-					client = new NetworkClient(this , engine.currentLevel());
-					clientSideUpdateMultiplayerVariables();
-					((EntityScripts)player.playersEntity().components()[Entities.SOFF]).recompile();
+					
+					client = new NetworkClient(this , mainMenu.getServerConnectionInfo());
 					
 				} catch (IOException e) {
-
+					
 					System.err.println("Error Connecting to Server.");
 					e.printStackTrace();
 					
 				}
-
-				((NetworkClient) client).connectAndStart(player , mainMenu.getServerConnectionInfo());
+				
+				setState(GameState.LOAD_MULTIPLAYER);
+				mainMenu.hideAll();
 				
 			}
 			

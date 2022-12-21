@@ -33,12 +33,13 @@ public interface NetworkedInstance {
 		NetworkedEntities elem;
 		for(Iterator<NetworkedEntities> iter = instance.managedConnections().iterator() ; iter.hasNext() ; ) {
 			
-			elem = iter.next();
+			elem = iter.next(); 
+			if(elem == null || elem.networked() == null) continue;
 			if(elem.networked().equals(e)) return elem;
 			
 		}
-		
-		throw new IllegalArgumentException("Entity " + e.name() + " not managed by: " + instance.toString());
+
+		return null;
 		
 	}
 	

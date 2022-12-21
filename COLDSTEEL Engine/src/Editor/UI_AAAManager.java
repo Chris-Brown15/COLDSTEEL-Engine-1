@@ -101,6 +101,7 @@ public class UI_AAAManager {
 		itemEditor.show();
 		tilesetEditor.show();
 		sceneView.show();
+		test.show();
 		
 	}
 	

@@ -28,6 +28,7 @@ import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
 import CSUtil.DataStructures.cdNode;
 import CSUtil.Dialogs.DialogUtils;
+import CSUtil.Dialogs.Debug.FPSDebug;
 import CSUtil.Dialogs.Debug.PerformanceDebug;
 import CSUtil.Dialogs.Debug.ResourceDebug;
 import CSUtil.Dialogs.Debug.SceneDebug;
@@ -87,6 +88,8 @@ public final class Engine {
 	private Console engineConsole;
 	private SceneDebug sceneViewerDebug;
 	private SceneDebug renderSceneViewerDebug;
+	private FPSDebug logicFPSDebug = new FPSDebug("Logic" , 0 , 0 , () -> framesLastSecond);
+	private FPSDebug rendererFPSDebug;
 	private DebugInfo debugInfo;
 	private ResourceDebug resourceDebugInfo = new ResourceDebug("Native Resources" , 715 , 5);
 	private PerformanceDebug performanceDebugInfo;
@@ -160,6 +163,7 @@ public final class Engine {
 		renderSceneViewerDebug = new SceneDebug("Render Scene" , renderer.renderScene() , 360 , 5);		
 		debugInfo = new DebugInfo(this , gameRuntime);
 		performanceDebugInfo = new PerformanceDebug(this , "Performance Debug" , 1070 , 5);
+		rendererFPSDebug = new FPSDebug("Renderer" , (int) (logicFPSDebug.getWidth() + 5) , 0 , () -> renderer.framesLastSecond);
 		clientControls = new Controls();
 		
 		//read and set controls
@@ -183,7 +187,7 @@ public final class Engine {
 
 		System.gc();
 		CSLogger.log("Successfully initialized");
-		System.out.println("Engine Initialization Complete.");
+		System.out.println("Engine Initialization Complete.\n");
 		
 	}
 	
@@ -281,10 +285,10 @@ public final class Engine {
     		
     		framesThisSecond++;
     		
-        	//I lock us into 62 fps by waiting until 16 ms have passed because 
+        	//I lock us into 60 fps by waiting until 16 ms have passed because 
        		//I don't think theres any real benefit of high frame rates
        		//for this engine, although they certainly could be achieved 
-    		while(16 - frameTimer.getElapsedTimeMillis() > 0.0d);
+    		while(16.66d - frameTimer.getElapsedTimeMillis() > 0.0d);
     		    		
         }
         
@@ -431,6 +435,13 @@ public final class Engine {
 		
 	}
 		
+	void toggleFPSDebug() {
+
+		logicFPSDebug.toggle();
+		rendererFPSDebug.toggle();
+		
+	}
+	
 	public Levels currentLevel() {
 		
 		return currentLevel;
@@ -661,24 +672,14 @@ public final class Engine {
 			gameRuntime.scene().entities().addStraightIn(player.playersEntity());
 			player.playersEntity().LID(0);
 
-			NetworkClient playerAsClient = gameRuntime.client();
-			
-			if(playerAsClient != null) { 
-				
-				try {
-					
-					playerAsClient.onLevelLoad(currentLevel , doorPos);
-					
-				} catch (IOException e) {
-					
-					e.printStackTrace();
-					
-				}
-				
-			}
-			
 			gameRuntime.setState(previousState);
 			fadeIn(100d);
+			TemporalExecutor.onElapseOf(100d, () -> {
+
+				NetworkClient playerAsClient = gameRuntime.client();
+				if(playerAsClient != null) BigMixin.TRY(() -> playerAsClient.onLevelLoad(currentLevel , doorPos)); 
+				
+			});			
 			
 		});
 		
@@ -893,9 +894,9 @@ public final class Engine {
 		
 	}
 	
-	public void mg_startHostedServer() {
+	public void mg_startHostedServer(String serverName) {
 		
-		gameRuntime.startUserHostedServer(this);
+		gameRuntime.startUserHostedServer(this , serverName);
 		
 	}
 	

@@ -20,7 +20,7 @@ import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import CS.UserInterface;
-import Core.ECS;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityHitBoxes;

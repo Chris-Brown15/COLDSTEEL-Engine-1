@@ -27,7 +27,6 @@ import CSUtil.RefInt;
 import CSUtil.DataStructures.CSArray;
 import Core.CSType;
 import Core.Direction;
-import Core.ECS;
 import Core.GameFiles;
 import Core.HitBoxSets;
 import Core.Quads;
@@ -59,7 +58,7 @@ public class Entities extends Quads implements GameFiles<Entities>{
 	private final Object[] comps = new Object[numberComponents + 1];
 	private BitSet componentsBits = new BitSet(512); //used to know what components an entitiy has. 	
 	protected String name;
-	boolean freeze = false;
+	volatile boolean freeze = false;
 	private int LID = -1;
 	private float[] defaultSprite = new float[6]; 
 		

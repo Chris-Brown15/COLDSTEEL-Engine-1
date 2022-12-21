@@ -8,21 +8,72 @@ The implementation of these two functions is given by an entity's script compone
 # init
 if not initialized:
     
-    #1 if on the ground, 2 if crouching, 3 if in the air , 4 if back dashing, 5 if taking damage
+    # 1 if on the ground ,
+    # 2 if crouching , 
+    # 3 if in the air , 
+    # 4 if back dashing, 
+    # 5 if taking damage
     actionState = 1
     
     from Core import UIScript
     from Physics import MExpression
     from Renderer import ParticleEmitter
     from Game.Items import ItemComponents
+    from Core.Entities import ECS
+
+    syncControls([
+        Controls.UP , 
+        Controls.DOWN , 
+        Controls.LEFT , 
+        Controls.RIGHT , 
+        Controls.JUMP , 
+        Controls.ATTACK1 , 
+        Controls.ATTACK2 , 
+        Controls.POWER1
+    ])
     
-    print("Syncing controls in alucard script")
-    syncControls([Controls.UP , Controls.DOWN , Controls.LEFT , Controls.RIGHT , Controls.JUMP , Controls.ATTACK1 , Controls.ATTACK2 , Controls.POWER1])
+    syncVariable("position" , lambda param: [xMid() , yMid()])
+    syncVariable("actionState" , lambda param: actionState)
+
+    #previous will be None, ignore it
+    def copyVerticalMovementVariables(previous):
+        comps = E.components()
+        return [
+            comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset] , 
+            comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset + 2] , 
+            comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset + 3]
+        ]
+
+    def resetVerticalMovementVariables(previous):
+        comps = E.components()
+        comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset] = asFloat(previous[0])
+        comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset + 2] = asFloat(previous[1])
+        comps[ECS.VERTICAL_PLAYER_CONTROLLER.offset + 3] = previous[2]
+
+    #TODO: resetVerticalMovementVariables doesnt work because comps[VCOff] becomes double after it is called even though the source array
+    #      is converted to a java float
+    #syncVariable("verticalMovement" , copyVerticalMovementVariables)
+    #onResync("verticalMovement" , resetVerticalMovementVariables)
+
+    onResync("position" , lambda previousState: moveTo(previousState[0] , previousState[1]))
+    syncECS(ECS.RPG_STATS)
 
     isBackDashing = FALSE
 
     hurtBloodExpr = MExpression("srand ( 125 / x )" , TRUE)
-    hurtBloodEmitter = createParticleEmitter(160 , 2400 , hurtBloodExpr , hurtBloodExpr , 0.90 , 0.0 , 0.0 , 1.5 , 1.5 , TRUE) 
+    hurtBloodEmitter = createParticleEmitter(
+        160 , 
+        2400 , 
+        hurtBloodExpr , 
+        hurtBloodExpr , 
+        0.90 , 
+        0.0 , 
+        0.0 , 
+        1.5 , 
+        1.5 , 
+        TRUE
+    ) 
+
     hurtBloodEmitter.setEmissionRate(1)
 
     if not onServer():
@@ -47,8 +98,7 @@ if not initialized:
         global actionState
         actionState = val
 
-    # shuts down the script. This gets called from java when the entity is being removed. This is mainly for
-    # closing UI elements this entity had running. 
+    #Used to clean up things that need to be removed. Called from Java
     def shutDown():
         hurtBloodEmitter.shutDown()        
 
@@ -68,14 +118,32 @@ if not initialized:
         activateAnim(e_AlucardSpinning)
         hurtBloodEmitterSetup()
         setControl(FALSE)
-
         getHurtSound().play()
         global hurtHorizontalDirection
         hurtHorizontalDirection = horizontally(entityHurtData)
         face(hurtHorizontalDirection)
         initialX = 4.5 if hurtHorizontalDirection == Direction.LEFT else -4.5
-        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , 0.0 , 5.5 , 0.0 , 0.08 , E)
-        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 2500  , initialX , 0.0 , 0.08 , 0.0 , E)
+
+        lib.kinematics.impulse(
+            ForceType.LINEAR_DECAY , 
+            2500 , 
+            0.0 , 
+            5.5 , 
+            0.0 , 
+            0.08 , 
+            E
+        )
+
+        lib.kinematics.impulse(
+            ForceType.LINEAR_DECAY , 
+            2500  , 
+            initialX , 
+            0.0 , 
+            0.08 , 
+            0.0 , 
+            E
+        )
+
         lib.kinematics.onFinish(lambda: setState(6))
         moveV(5)
         moveH(initialX)
@@ -93,11 +161,27 @@ if not initialized:
         attackerDirection = horizontally(entityHurtData)
         face(attackerDirection)
         initialX = -4.5 if attackerDirection == Direction.LEFT else 4.5
-        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , 0.0 , 5.5 , 0.0 , 0.08 , E)
-        lib.kinematics.impulse(ForceType.LINEAR_DECAY , 5000  , initialX , 0.0 , 0.08 , 0.0 , E)
+        lib.kinematics.impulse(
+            ForceType.LINEAR_DECAY , 
+            5000 , 
+            0.0 , 
+            5.5 , 
+            0.0 , 
+            0.08 , 
+            E
+        )
+
+        lib.kinematics.impulse(
+            ForceType.LINEAR_DECAY , 
+            5000 , 
+            initialX , 
+            0.0 , 
+            0.08 , 
+            0.0 , 
+            E
+        )
         
-    def grounded():
-        
+    def grounded():        
         setControl(TRUE)
         if isRunning:
             activateAnim(e_AlucardRun)
@@ -108,31 +192,29 @@ if not initialized:
             activateAnim(e_AlucardIdle)
     
     def airborn():
-
         setControl(TRUE)
         global isBackDashing
         isBackDashing = FALSE
         
         if isJumping:
-
             setAutoOrient(TRUE)                       
             if anyPressed([Controls.RIGHT , Controls.LEFT]):
                 activateAnim(e_AlucardJumpingHoriz)
             else:
                 activateAnim(e_AlucardJumpStraight)
+
             if animations[e_AlucardJumpStraight].lastFrameOfLastSprite():
                 animations[e_AlucardJumpStraight].freeze = TRUE
+
             if animations[e_AlucardJumpingHoriz].lastFrameOfLastSprite():
-                animations[e_AlucardJumpingHoriz].freeze = TRUE
-                
+                animations[e_AlucardJumpingHoriz].freeze = TRUE                
         else:
             activateAnim(e_AlucardFalling)
             setAutoOrient(TRUE)            
             if(animations[e_AlucardFalling].lastFrameOfLastSprite()):
                 animations[e_AlucardFalling].freeze = TRUE    
             
-    def crouch():
-        
+    def crouch():        
         global isBackDashing
         activateAnim(e_AlucardDucking)
         if animations[e_AlucardDucking].getCurrentSprite() == 11:
@@ -160,20 +242,16 @@ if not initialized:
             if isHungup():
                 endHangup()
 
-            if actionState == 1:#punching standing up
-                
+            if actionState == 1:#punching standing up                
                 activateAnim(e_AlucardStandingPunch)
                 setHorizontalControl(FALSE)
                 startHangup(2)
-
             elif actionState == 2:#punching while crouching
                 activateAnim(e_AlucardDuckingPunch)
                 startHangup(1)
                 if animations[e_AlucardDuckingPunch].lastSprite:
                     animations[e_AlucardDucking].setCurrentSprite(11)
-
             elif actionState == 3: #punching while in the air
-
                 if pressed(Controls.DOWN):
                     activateAnim(e_AlucardJumpingPunchDown)
                 else:
@@ -210,31 +288,23 @@ if not initialized:
 
     def getActionState():
         global actionState
-
-        if actionState == 7:
-            actionState = 7
-
-        elif actionState == 5:
-            actionState = 5
-
-        elif actionState == 6:
-            actionState = 6
-
-        elif not nearFloor or pressed(Controls.JUMP) : #in the air
+        if actionState >= 5:
+            return
+        elif not nearFloor or pressed(Controls.JUMP): #in the air
             actionState = 3
-
-        elif nearFloor and pressed(Controls.DOWN) :#crouching
+        elif nearFloor and pressed(Controls.DOWN):#crouching
             actionState = 2
-
         elif nearFloor and (pressed(Controls.POWER1) or actionState == 4):#back dashing
             actionState = 4
-
         elif nearFloor:
             actionState = 1 #walking
 
     def hurtBloodEmitterSetup():
         hurtBloodEmitter.start()  
-        TemporalExecutor.forMillis(1000 , lambda: hurtBloodEmitter.setPosition(xMid() , yMid()))  
+        TemporalExecutor.forMillis(
+            1000 , 
+            lambda: hurtBloodEmitter.setPosition(xMid() , yMid())
+        )  
 
     def useItem(slot):
         equipped = inventory.getEquippedItem(slot)
@@ -268,7 +338,6 @@ if struck(Controls.INVENTORY):
 if actionState <= 3 and pressed(Controls.ATTACK1):
     useSword()
     useItem(0)
-
 else:
     if actionState == 6:
         knockbackStandUp()
@@ -278,7 +347,7 @@ else:
         crouch()
     elif actionState == 3:
         airborn() 
-    elif(actionState == 4):
+    elif actionState == 4:
         backDash()
 
 #handles unarmed attacks and accounts for state on its own

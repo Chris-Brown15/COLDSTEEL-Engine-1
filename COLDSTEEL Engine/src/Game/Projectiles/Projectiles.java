@@ -4,11 +4,11 @@ import static Game.Projectiles.ProjectileIndices.*;
 
 import Core.CSType;
 import Core.Direction;
-import Core.ECS;
 import Core.HitBoxSets;
 import Core.Quads;
 import Core.Scene;
 import Core.SpriteSets;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 import Core.Entities.EntityAnimations;
 import Core.Entities.EntityHitBoxes;

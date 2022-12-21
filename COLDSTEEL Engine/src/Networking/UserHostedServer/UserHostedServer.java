@@ -1,8 +1,9 @@
 package Networking.UserHostedServer;
 
+import static Networking.Utils.DatagramPacketUtils.*;
+
 import static CSUtil.BigMixin.TRY;
 import static CSUtil.BigMixin.toBool;
-import static CSUtil.CSLogger.LOGGING_ENABLED;
 import static CSUtil.CSLogger.log;
 import static Networking.Utils.NetworkingConstants.*;
 import static org.lwjgl.nuklear.Nuklear.NK_STATIC;
@@ -24,7 +25,9 @@ import static org.lwjgl.nuklear.Nuklear.nk_layout_row_push;
 import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_text_wrap;
+import static org.lwjgl.nuklear.Nuklear.nk_slider_int;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -32,12 +35,15 @@ import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 import CS.COLDSTEEL;
 import CS.Engine;
@@ -46,8 +52,12 @@ import CSUtil.RefInt;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.CSQueue;
+import CSUtil.DataStructures.CSStack;
+import CSUtil.DataStructures.LinkedRingBuffer;
+import CSUtil.DataStructures.RingBuffer;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.cdNode;
+import CSUtil.Dialogs.Debug.NetworkedEntityPreviousFrameViewer;
 import Core.Scene;
 import Core.TemporalExecutor;
 import Core.Entities.Entities;
@@ -59,6 +69,7 @@ import Networking.NetworkedInstance;
 import Networking.ReliableDatagram;
 import Networking.Utils.ByteArrayUtils;
 import Networking.Utils.PacketCoder;
+import Networking.Utils.PacketLoser;
 
 /**
  * 
@@ -72,26 +83,31 @@ public class UserHostedServer implements NetworkedInstance {
 
 	private static final int DEFAULT_PORT = 32900;
 	
+	private final Engine engine;
+	private final ServerUI ui;
+	private final MultiplayerChatUI chatUI;
+	
+	public final String serverName;
+	
 	//holds data about all players in the server
 	private volatile ConcurrentHashMap<Integer , UserConnection> connections = new ConcurrentHashMap<>(17);
 	//holds references to levels that have previously been loaded. If all players leave a a level, we keep it in memory and once
 	//another player enters it, we redeploy the level
-	private volatile ConcurrentHashMap<Tuple2<Levels , Scene> , CSLinked<UserConnection>> loadedLevels = new ConcurrentHashMap<>(4);
-	private volatile CSQueue<Tuple2<DatagramPacket , Integer>> packetsToHandle = new CSQueue<>();
-	private final Engine engine;
-	private final ServerUI ui;
-	private final MultiplayerChatUI chatUI;
-	private volatile short nextConnectionID = 0;
-	private volatile boolean running = false;
+	private volatile ConcurrentHashMap<Tuple2<Levels , Scene> , CSLinked<UserConnection>> liveLevels = new ConcurrentHashMap<>(4);
 	
-	private final Thread serverListeningThread = new Thread(new Runnable() {
-		
-		@Override public void run() {
+	private volatile CSQueue<Tuple2<DatagramPacket , Integer>> packetsToHandle = new CSQueue<>();
+	private volatile RingBuffer<Long> previousPacketChecksums = new RingBuffer<Long>(25);
+	
+	private PacketLoser packetLoser = new PacketLoser();
+	private final NetworkedEntityPreviousFrameViewer previousFrameViewer = new NetworkedEntityPreviousFrameViewer(connections , 5 , 5);
+	
+	private volatile short nextConnectionID = 0;
+	private volatile boolean running = false;	
+	
+	private final Thread serverListeningThread = new Thread(() -> {
 			
-			while(true) TRY(() -> listen());
-			
-		}
-		
+		while(true) TRY(() -> listen());
+				
 	});
 	
 	private final Thread serverUpdateThread = new Thread(new Runnable() {
@@ -119,9 +135,12 @@ public class UserHostedServer implements NetworkedInstance {
 		serverListeningThread.setDaemon(true);
 	}	
 	
-	public UserHostedServer(Engine engine) {
+	public UserHostedServer(Engine engine , String serverName) {
 		
 		this.engine = engine;
+		this.serverName = serverName;
+		
+		createServerFile(serverName);
 		
 		ui = new ServerUI();
 		chatUI = new MultiplayerChatUI("SERVER" , this);
@@ -144,11 +163,7 @@ public class UserHostedServer implements NetworkedInstance {
 			
 		}
 		
-		if(LOGGING_ENABLED) {
-			
-			log("Server Launched");
-			
-		}
+		log("Server Launched");
 		
 	}
 	
@@ -156,180 +171,141 @@ public class UserHostedServer implements NetworkedInstance {
 		
 		switch(packet.getData()[offset]) {
 		
+			case PRE_CONNECT -> {
+
+				System.out.println("Preconnecting new user.");
+				
+				short connectionID = nextConnectionID++;
+				UserConnection newClient = new UserConnection(connectionID , packet.getPort() , packet.getAddress());
+				
+				try(PacketCoder response = new PacketCoder()) {
+					
+					response
+						.bflag(PRE_CONNECT)
+						.bconnectionID(connectionID)						
+					;
+					
+					TRY(() -> sendReliable(response.get() , 1308513902 , 1000 , newClient.address , newClient.port));
+					
+				}
+
+				connections.put(UserConnection.computeHashCode(packet.getAddress() , packet.getPort()) , newClient);
+				System.out.println("Finished preconnecting new user.");
+				
+			}
+		
 			case CHANGE_CONNECTION -> {
-			
-				int key;
-				if(connections.containsKey(key = UserConnection.computeHashCode(packet.getAddress(), packet.getPort()))) {
+				
+				/*
+				 * 
+				 * Connect and sync the entrant to the server
+				 * The entrant will either be in a level other players are in, or not.
+				 * The packet we send back should contain all the needed info for the client. 
+				 * Start with pairs of IDs and Entity names for each player on the server
+				 * then a list of IDs and positions corresponding to players in the same level
+				 * as entrant.
+				 * 
+				 */					
+				//initialize resourcse
+				try(PacketCoder entrantCoder = new PacketCoder(packet.getData() , offset + 1) ; 
+					PacketCoder toOthersInside = new PacketCoder() ;
+					PacketCoder toOthersOutside = new PacketCoder() ;
+					PacketCoder toEntrant = new PacketCoder() ;
+				) {
 					
-					connections.remove(key);
-					//disconnected
-
-				} else {
+					UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
 					
-					/*
-					 * 
-					 * Connect and sync the entrant to the server
-					 * The entrant will either be in a level other players are in, or not.
-					 * The packet we send back should contain all the needed info for the client. 
-					 * Start with pairs of IDs and Entity names for each player on the server
-					 * then a list of IDs and positions corresponding to players in the same level
-					 * as entrant.
-					 * 
-					 */
-					System.out.println("Connecting new user");
+					String sendersEntityName = entrantCoder.rstring() + ".CStf";
+					float[] sendersPos = entrantCoder.rposition();
+					String sendersLevel = entrantCoder.rstring();
 					
-					//initialize resourcse
-					try(PacketCoder entrantCoder = new PacketCoder(packet.getData() , offset + 1) ; 
-						PacketCoder toOthersOutside = new PacketCoder() ;  
-						PacketCoder toEntrant = new PacketCoder()
-					) {
+					//first, determine if the sender's level is already present.
+					Tuple2<Tuple2<Levels , Scene> , CSLinked<UserConnection>> operantLevelSceneAndPlayers = findLevelSceneAndPlayersByString(sendersLevel);
+					NetworkedEntities sendersEntity = sender.entity;
+					
+					//toEntrant contains ids of players and their entity names. 
+					//If a player is in the same level as the sender, their position is included too.
+					toEntrant
+						.bflag(CHANGE_CONNECTION)
+						.brepitition((short) (connections.size() - 1) , (byte) 2);
+					;
+					
+					connections.forEach((hash , conn) -> {
 						
-						String entrantName = entrantCoder.rstring() + ".CStf";
-						float[] entrantPos = entrantCoder.rposition();
-						String entrantmacroLevelLevel = entrantCoder.rstring();
-						short connectionID = nextConnectionID++;
+						if(conn == sender || conn.entity.networked() == null) return;
 						
-						//this packet gets sent to people who are in the server but outside the level the entrant connected from
-						toOthersOutside
-							.bflag(CLIENT_CONNECTED)
-							.bconnectionID(connectionID)
-							.bstring(entrantName)
-						;
-						
-						//this coder will hold IDs and names of entities and then IDs and positions of players in the level the client is connecting to 
 						toEntrant
-							.bflag(CHANGE_CONNECTION)					
-							.bconnectionID(connectionID)
-							.brepitition((short) connections.size() , (byte) 2)
+							.bconnectionID(conn.index)
+							.bstring(conn.entity.networked().name())
 						;
 						
-						//populate the coder for the entrant of ALL players ID and entity
-						connections.forEach((hash , connection) -> {
+					});
+
+					//message to players inside the same level as the sender
+					toOthersInside
+						.bflag(CHANGE_CONNECTION)
+						.bconnectionID(sender.index)
+						.bstring(sendersEntityName)
+						.bposition(sendersPos)
+					;
+
+					//message to players in other levels
+					toOthersOutside
+						.bflag(CLIENT_CONNECTED)
+						.bconnectionID(sender.index)
+						.bstring(sendersEntityName)
+					;
+					
+					//adds the new player to a level that is already in play, or adds them a new level if no one was in the level the new player is in
+					if(operantLevelSceneAndPlayers == null) operantLevelSceneAndPlayers = newLiveLevel(sendersLevel);
+					
+					//finally create the entity for the sender
+					sendersEntity.networked(new Entities(operantLevelSceneAndPlayers.getFirst().getSecond() , sendersEntityName) , false);
+					//add the sender to a level scene
+					addConnectionToLiveLevel(sender , operantLevelSceneAndPlayers);	
+					
+					//iterate over the list of players in the same level as the sender
+					if(operantLevelSceneAndPlayers.getSecond().size() > 1) {
+
+						toEntrant.brepitition((short) (operantLevelSceneAndPlayers.getSecond().size() - 1) , (byte) 2);
+						
+						operantLevelSceneAndPlayers.getSecond().forEachVal(conn -> {
 							
-							toEntrant
-								.bconnectionID(connection.index)
-								.bstring(connection.entity.networked().name())
-							;
+							//if the current iteration is a player other than the sender
+							if(conn != sender) {
+								
+								//append the information of the iteration's user connection to the message that will eventually get sent to the sender
+								toEntrant								
+									.bconnectionID(conn.index)
+									.bposition(conn.entity.networked().getMidpoint())
+								;
+								
+								//send the message to the players inside the level
+								TRY(() -> sendReliable(toOthersInside.get() , CLIENT_CONNECTED + conn.index , 1000 , conn.address , conn.port));
 							
-						});
-						
-						RefInt foundLevel = new RefInt(0);
-						UserConnection newClient = null;
-						
-						Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> entries = loadedLevels.entrySet();
-						
-						for(Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>> x : entries) {
-
-							Levels level = x.getKey().getFirst();
-							Scene scene = x.getKey().getSecond();
-							CSLinked<UserConnection> players = x.getValue();
-							//if this is true, the entrant is in a level that is already in play
-							if(foundLevel.get() == 0 && (level.macroLevel() + "/" + level.gameName() + ".CStf").equals(entrantmacroLevelLevel)) { 
-								
-								foundLevel.set(1);
-								
-								try(PacketCoder toOthersInside = new PacketCoder()) {
-									
-									toOthersInside
-										.bflag(CLIENT_CONNECTED)
-										.bconnectionID(connectionID)
-										.bstring(entrantName)
-										.bposition(entrantPos)
-									;
-									
-									//this packet gets sent to people who are in the server and inside the level teh entrant connected from
-									toEntrant.brepitition((short) players.size(), (byte)2);
-									
-									players.forEachVal(player -> TRY(() -> {
-
-										//add this player's data to the packet going to the entrant 
-										toEntrant
-											.bconnectionID(player.index)
-											.bposition(player.entity.networked().getMidpoint())
-										;
-										
-										//send the packet to players inside the level the entrant is in to each player
-										sendReliable(toOthersInside.get() , 102894191 + player.index , 1000 , player.address , player.port);
-									
-									}));
-									
-								} 
-								
-								NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(
-									connectionID , 
-									new Entities(scene , entrantName) , 
-									false
-								);
-																
-								newClientNetworkedEntity.setNetworkControlled();
-								
-								newClient = new UserConnection(
-									connectionID , 
-									packet.getPort() , 
-									packet.getAddress() ,
-									newClientNetworkedEntity
-								);
-								
-								newClientNetworkedEntity.networked().moveTo(entrantPos[0] , entrantPos[1]);
-								
-								//adds the new client to the level they said they were in
-								players.add(newClient);
-								scene.entities().add(newClient.entity.networked());
-								
-							} else {
-								
-								players.forEachVal(player -> TRY(() ->  {
-									//send the packet to players outside the level the entrant is in to each player not in entrants level
-									sendReliable(toOthersOutside.get() , 102892191 + player.index , 1000 , player.address , player.port);
-
-								}));
-								
 							}
-													
-						}
-						
-						//if we did not find a level the client was in, we add a new level
-						if(foundLevel.get() == 0)  {
-
-							Scene newLevelScene = new Scene(engine);
-							Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + entrantmacroLevelLevel));						
-
-							newLevelScene.entityScriptingInterface().server(this);
 							
-							NetworkedEntities newClientNetworkedEntity = new NetworkedEntities(
-								connectionID , 
-								new Entities(newLevelScene , entrantName) , 
-								false
-							);
-														
-							newClientNetworkedEntity.setNetworkControlled();
-							
-							newClient = new UserConnection(
-								connectionID , 
-								packet.getPort() , 
-								packet.getAddress() ,
-								newClientNetworkedEntity
-							);
-							
-							newClientNetworkedEntity.networked().moveTo(entrantPos[0] , entrantPos[1]);
-							
-							newLevelScene.entities().setNetworkInstance(this);
-							newLiveLevel.deploy(newLevelScene);
-							newLevelScene.entities().add(newClient.entity.networked());
-							loadedLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(newClient));
-							
-						}
-						
-						//key the entity
-						connections.put(key, newClient);
-						//finally respond to client
-						TRY(() -> sendReliable(toEntrant.get() , 1020103984 + connectionID , 1000 , packet.getAddress() , packet.getPort()));
-						
-						System.out.println("New Player Connected as: " + entrantName);
-						
+						});				
+											
 					}
 					
-				} 
+					//for all levels other than the one the sender is in, send the appropriate message
+					forAllLiveLevelsBut(operantLevelSceneAndPlayers.getFirst() , entry -> entry.getValue().forEachVal((conn) -> TRY(() -> {
+						
+						sendReliable(toOthersOutside.get() , CLIENT_CONNECTED + conn.index , 1000 , conn.address , conn.port);
+					
+					})));
+								
+					//some initialization for the newly created entity. we need to run its script so some data structures specified in the script
+					//which the server needs can be generated.
+					sender.entity.networked().moveTo(sendersPos[0] , sendersPos[1]);
+					sender.entity.runScript();					
+					
+					TRY(() -> sendReliable(toEntrant.get() , CHANGE_CONNECTION + sender.index , 1000 , packet.getAddress() , packet.getPort()));
+					
+					System.out.println("Finished connecting player: " + sendersEntityName);
+								
+				}
 				
 			}
 			
@@ -344,11 +320,7 @@ public class UserHostedServer implements NetworkedInstance {
 				
 				connections.forEach((hash , connection) -> {
 					
-					if(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()) != hash) {
-						
-						TRY(() -> sendReliable(chatData , 9349491 , 1500));
-						
-					}
+					if(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()) != hash) TRY(() -> sendReliable(chatData , 9349491 , 1500));
 					
 				});
 				
@@ -373,7 +345,7 @@ public class UserHostedServer implements NetworkedInstance {
 					
 				}
 				
-				Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> levels = loadedLevels.entrySet();
+				Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> levels = liveLevels.entrySet();
 					
 				boolean removedSenderFromOldLevel = false;
 				
@@ -517,51 +489,75 @@ public class UserHostedServer implements NetworkedInstance {
 				//if we did not find the level the player is entering, we need to make a new one for them
 				if(!foundNewLevelYet) {
 					
-					//same procedure as when a player enters a level for the first time
-					Scene newLevelScene = new Scene(engine);
-					newLevelScene.entityScriptingInterface().server(this);
-					Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + levelEntered));						
-					newLevelScene.entities().setNetworkInstance(this);
-					newLiveLevel.deploy(newLevelScene);
+					var newLiveArea = newLiveLevel(levelEntered);
 					sender.entity.networked().moveTo(posInNewLevel[0] , posInNewLevel[1]);
-					newLevelScene.entities().add(sender.entity.networked());
-					((EntityScripts)sender.entity.networked().components()[Entities.SOFF]).resetLib(newLevelScene.entityScriptingInterface());
-					loadedLevels.put(new Tuple2<Levels , Scene>(newLiveLevel , newLevelScene) , new CSLinked<UserConnection>(sender));
-				
+					addConnectionToLiveLevel(sender , newLiveArea);
+					
 				}	
 								
 			}
 			
 			case UPDATE -> {
 				
-				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));				
+				UserConnection sender = connections.get(UserConnection.computeHashCode(packet.getAddress(), packet.getPort()));
+				
+				Scene sendersScene = getSceneByUserConnection(sender);
+
+				byte serversViewOfUpdateNumber = sender.entity.getUpdateNumber();
+				LinkedRingBuffer<byte[]> previousInputs = sender.entity.previousInputs();
+				
 				sender.timer.start();
 				sender.busy = false;
-				byte[] controls;
 				byte sequence;
+				
 				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
 					
-					controls = coder.rControlStrokes();
-					sequence = controls[0];
+					sequence = coder.rControlStrokes(previousInputs);
 					
+					byte[] currentControls = previousInputs.getAndPut();
+					sender.entity.updateControlStateView(currentControls);
+
+					if(sequence != serversViewOfUpdateNumber) {
+						
+						int dropped = sender.entity.getNumberLostPackets(sequence);
+						
+						System.out.println("Packet loss detected, received: " + sequence + ", expecting: " + serversViewOfUpdateNumber);
+						System.out.println("Dropped " + dropped + " packets.");
+
+						//simulates the lost frames
+						if(dropped < previousInputs.capacity) {
+							
+							CSStack<byte[]> previousInputsStack = new CSStack<byte[]>();
+							int iter = 0;
+							while(iter < dropped) {
+								
+								previousInputsStack.push(previousInputs.get());
+								iter++;
+								
+							}
+										
+							sender.entity.rewindStateToCapture();
+							
+							while(!previousInputsStack.empty()) {
+								
+								sender.entity.updateControlStateView(previousInputsStack.pop());
+								sendersScene.entities().internalRunInitialSystems(sender.entity.networked());
+								
+								//serverside physics simulation
+								sendersScene.kinematics().process(sender.entity.networked());
+								
+								sendersScene.entities().internalRunFinalSystems(sender.entity.networked());
+							
+							}
+
+						}	
+							
+					} 
+										
+					sender.entity.setUpdateNumber((byte) (++sequence));
+					sender.entity.isReady = true;
+
 				}
-				
-				if(sequence != sender.entity.updateSequence()) {
-					
-					System.out.println("Possible Packet Loss, packed named: " + sequence + ", current sequence, " + sender.entity.updateSequence());
-					 					
-				}
-				
-//				if(sequence != 0 && sequence < sender.entity.advanceUpdateSequence()) { 
-//					
-//					sender.entity.inSync = false;
-//					
-//				} else sender.entity.inSync = true;
-				
-				/*
-				 * Sets the server's view of the keystrokes sender made last 
-				 */		
-				sender.entity.controlsState(controls);
 				
 				/*
 				 * Update other players by finding the level the sender of this update packet is in by:
@@ -570,19 +566,17 @@ public class UserHostedServer implements NetworkedInstance {
 				 		send it for each client other than the one who sent it.
 				 * 
 				 */
-				loadedLevels.forEach((levelSceneTuple , connectionsTherein) -> {
+				byte seq = sequence;
+				liveLevels.forEach((levelSceneTuple , connectionsTherein) -> {
 					
 					if(levelSceneTuple.getSecond().entities().has(sender.entity.networked())) {
 
 						try(PacketCoder recipientCoder = new PacketCoder()) {
 							
-							byte packetName = sender.entity.updateSequence();
-							sender.entity.advanceUpdateSequence();
-							
 							recipientCoder
 								.bflag(UPDATE)
 								.bconnectionID(sender.index)
-								.bControlStrokes(packetName , controls)	
+								.bControlStrokes(seq , sender.entity.previousInputs())	
 							;
 							
 							DatagramPacket updatePacket = new DatagramPacket(recipientCoder.get() , 0 , recipientCoder.position());
@@ -597,28 +591,71 @@ public class UserHostedServer implements NetworkedInstance {
 							
 						}						
 						
-						return;
-						
 					}
 					
 				});
 				
 			}
 			
-			default -> {
-				
-				System.err.println("Invalid packet flag given: " + packet.getData()[offset]);
-				System.err.println("Packet bytes: ");
-				for(int i = 0 ; i < packet.getLength() ; i ++) System.err.println("" + packet.getData()[i]);
-				
-				throw new IllegalArgumentException();
-				
-			}
-		
 		}
 		
 	}
 
+	private Tuple2<Tuple2<Levels , Scene> , CSLinked<UserConnection>> newLiveLevel(String level) {
+		
+		//same procedure as when a player enters a level for the first time
+		Scene newLevelScene = new Scene(engine);
+		newLevelScene.entityScriptingInterface().server(this);
+		Levels newLiveLevel = new Levels(newLevelScene , (CharSequence)(COLDSTEEL.data + "macrolevels/" + level));						
+		newLevelScene.entities().setNetworkInstance(this);
+		newLiveLevel.deploy(newLevelScene);
+		Tuple2<Levels , Scene> newTuple = new Tuple2<>(newLiveLevel , newLevelScene);
+		CSLinked<UserConnection> newListOfPlayers = new CSLinked<UserConnection>();
+		liveLevels.put(newTuple, newListOfPlayers);		
+		return new Tuple2<Tuple2<Levels , Scene> , CSLinked<UserConnection>>(newTuple , newListOfPlayers);
+		
+	}
+	
+	private Scene getSceneByUserConnection(UserConnection connection) {
+
+		Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> entries = liveLevels.entrySet();
+		for(Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>> x : entries) if(x.getValue().has(connection)) return x.getKey().getSecond();
+		return null;
+		
+	}	
+	
+	private Tuple2<Tuple2<Levels , Scene> , CSLinked<UserConnection>> findLevelSceneAndPlayersByString(String sendersLevel) {
+		
+		Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> levels = liveLevels.entrySet();
+		
+		String longName;
+		for(Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>> x : levels) {
+			
+			longName = x.getKey().getFirst().macroLevel() + "/" + x.getKey().getFirst().gameName() + ".CStf";			
+			if(longName.equals(sendersLevel)) return new Tuple2<>(x.getKey() , x.getValue());
+			
+		}
+		
+		return null;
+		
+	}
+	
+	private void forAllLiveLevelsBut(Tuple2<Levels , Scene> ignoreThis , Consumer<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> callback) {
+
+		Set<Entry<Tuple2<Levels , Scene> , CSLinked<UserConnection>>> levels = liveLevels.entrySet();
+		for(var x : levels) if(x.getKey() != ignoreThis) callback.accept(x);
+		
+		
+	}	
+	
+	private void addConnectionToLiveLevel(UserConnection connection , Tuple2<Tuple2<Levels , Scene> , CSLinked<UserConnection>> liveLevel) {
+		
+		liveLevel.getFirst().getSecond().entities().add(connection.entity.networked());
+		((EntityScripts)connection.entity.networked().components()[Entities.SOFF]).resetLib(liveLevel.getFirst().getSecond().entityScriptingInterface());
+		liveLevel.getSecond().add(connection);		
+		
+	}
+	
 	public boolean running() {
 		
 		return running;
@@ -655,6 +692,22 @@ public class UserHostedServer implements NetworkedInstance {
 		
 	}
 	
+	public void createServerFile(String serverName) {
+		
+		if(serverName == null) serverName = "null";
+		
+		File[] servers = new File(CS.COLDSTEEL.data + "servers/").listFiles();
+		for(File x : servers) if(x.getName().equals(serverName)) return;
+		String name = serverName;
+		TRY(() -> {
+			
+			Files.createDirectory(Paths.get(CS.COLDSTEEL.data + "servers/" + name));
+			Files.createDirectory(Paths.get(CS.COLDSTEEL.data + "servers/" + name + "/saves/"));
+			
+		});		
+		
+	}
+	
 	@Override public void instanceUpdate() {
 		
 		try {
@@ -671,39 +724,42 @@ public class UserHostedServer implements NetworkedInstance {
 				}
 				
 			}			
-			
-			loadedLevels.forEach((levelSceneTuple , listOfConnections) -> {
-				
-				levelSceneTuple.getSecond().entities().entitySystems(
-					() -> {
 						
-					} , () -> {
+			liveLevels.forEach((levelSceneTuple , listOfConnections) -> {
+							
+				levelSceneTuple.getSecond().entities().entitySystems(entity -> {
+					
+						NetworkedEntities asNetworked = NetworkedInstance.getNetworkedEntityForEntity(this , entity);
+						return asNetworked != null && asNetworked.isReady;
+					
+					} ,
+					() -> {} , () -> {
 		
 						//serverside physics simulation
 						levelSceneTuple.getSecond().kinematics().process();
 						TemporalExecutor.process();
-										
+						
 					} , 
 					//release server view of connection's keys
-					() -> {
-						
-						listOfConnections.forEachVal(connection -> {
-							
-//							if(!connection.busy && connection.timer.getElapsedTimeMillis() > 17) { 
-//								
-//								System.err.print("LIKELY LOST PACKET FROM:" + connection.index);
-//								System.err.println(" ELAPSED SINCE UPDATE: " + connection.timer.getElapsedTimeMillis());
-//								
-//							}
-							connection.entity.unStrikeKeys();
-							
-						});
-						
-					}		
+					() -> {}
 					
 				);
-								
+
+				levelSceneTuple.getSecond().entities().forEach(entity -> {
+
+					NetworkedEntities asNetworked = NetworkedInstance.getNetworkedEntityForEntity(this , entity);
+					if(asNetworked != null) {
+						
+						asNetworked.isReady = false;
+						asNetworked.captureSyncedVariables();
+						
+					}					
+					
+				});
+				
 			});
+			
+			connections.forEach((hash , conn) -> conn.entity.isReady = false);
 				
 		} catch (IOException e) {
 				
@@ -741,8 +797,18 @@ public class UserHostedServer implements NetworkedInstance {
 
 	@Override public void listen() throws IOException {
 		
-		DatagramPacket packet = new DatagramPacket(new byte[256] , 256);
+		DatagramPacket packet = new DatagramPacket(new byte[512] , 512);
 		serverSocket.receive(packet);
+		
+		if(packetLoser.receive(packet) == null) return;
+		
+		if(handleChecksum(checksum(packet) , previousPacketChecksums)) {
+			
+//			System.out.println("RECEIVED IDENTICAL PACKET: " + flagAsString(packet));
+			return;
+		
+		}
+		
 		int offset = 0; 
 		boolean isAck = false;
 		if(ReliableDatagram.isReliableDatagramPacket(packet)) {
@@ -766,9 +832,7 @@ public class UserHostedServer implements NetworkedInstance {
 				
 			}
 			
-		}
-				
-	}
+		}}
 
 	@Override public boolean host() {
 
@@ -786,6 +850,7 @@ public class UserHostedServer implements NetworkedInstance {
 
 		ui.toggleShow();
 		chatUI.toggle();
+		previousFrameViewer.toggle();
 		
 	}
 
@@ -804,9 +869,8 @@ public class UserHostedServer implements NetworkedInstance {
 		
 		private ByteBuffer freeze = ALLOCATOR.bytes((byte)0);
 		private ByteBuffer renderDebug = ALLOCATOR.bytes((byte)0);
+		private IntBuffer packetLossSlider = ALLOCATOR.ints(-1);
 		private final DecimalFormat decimalFormatter = new DecimalFormat();
-		
-		private ReentrantLock ptrModLock = new ReentrantLock();
 		
 		public ServerUI() {
 			
@@ -816,8 +880,6 @@ public class UserHostedServer implements NetworkedInstance {
 		
 			layoutBody((frame) -> {
 
-				ptrModLock.lock();
-				
 				nk_layout_row_dynamic(context , 20 , 2);
 				nk_text(context , "Server Address:" , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_MIDDLE);
 				nk_text(context , serverSocket.getLocalAddress().toString() , NK_TEXT_ALIGN_RIGHT|NK_TEXT_ALIGN_MIDDLE);
@@ -835,7 +897,7 @@ public class UserHostedServer implements NetworkedInstance {
 					
 					RefInt iter = new RefInt(0);
 					
-					loadedLevels.forEach((levelSceneTuple , listOfPlayers) -> {
+					liveLevels.forEach((levelSceneTuple , listOfPlayers) -> {
 						
 						nk_layout_row_dynamic(context , 20 , 1);
 						if(nk_button_label(context , "Show " + levelSceneTuple.getFirst().gameName())) {
@@ -889,12 +951,24 @@ public class UserHostedServer implements NetworkedInstance {
 				nk_text(context , "FLS: " + Engine.framesLastSecond() , NK_TEXT_ALIGN_LEFT);
 				nk_text(context , "IRLS: " + decimalFormatter.format(Engine.iterationRateLastSecond()) , NK_TEXT_ALIGN_LEFT);
 					
-				ptrModLock.unlock();
+				nk_layout_row_dynamic(context , 20 , 2);
+				nk_text(context , "Packet Loss Rate:" , NK_TEXT_ALIGN_LEFT);
+				nk_text(context , "" + packetLoser.rate , NK_TEXT_ALIGN_RIGHT);
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				nk_slider_int(context , -1 , packetLossSlider , 100 , 1);
+				
+				packetLoser.rate = packetLossSlider.get(0);
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				if(nk_button_label(context , "Print Previous Packet Checksums")) {
+					
+					previousPacketChecksums.forEach(System.out::println);
+					
+				}								
 				
 			});
 			
-			show = true;
-
 		}
 
 		public void toggleShow() {

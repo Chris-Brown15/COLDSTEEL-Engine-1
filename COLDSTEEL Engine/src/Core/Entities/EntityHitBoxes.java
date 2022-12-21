@@ -185,7 +185,15 @@ public class EntityHitBoxes implements Iterable<HitBoxSets> {
 		
 		for(int i = 0 ; i < sets.size() ; i ++) if(sets.get(i).name().equals(marker.name())) return i;
 		return -1;
-				
+		
+	}
+	
+	public EntityHitBoxes copy() {
+		
+		EntityHitBoxes copy = new EntityHitBoxes(sets.size());
+		for(HitBoxSets x : this) copy.addSet(x.copy());
+		copy.active = active;
+		return copy;
 		
 	}
 	

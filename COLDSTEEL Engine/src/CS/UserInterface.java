@@ -21,7 +21,6 @@ import static org.lwjgl.stb.STBImage.stbi_set_flip_vertically_on_load;
 
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 
 import org.lwjgl.nuklear.NkBuffer;
@@ -34,8 +33,10 @@ import org.lwjgl.system.MemoryStack;
 import org.python.core.PyObject;
 import org.python.core.adapter.ClassicPyObjectAdapter;
 
+import CSUtil.DataStructures.CSLinked;
 import CSUtil.DataStructures.Tuple2;
 import CSUtil.DataStructures.Tuple4;
+import CSUtil.DataStructures.cdNode;
 import Core.Console;
 import Core.Executor;
 import Renderer.Renderer;
@@ -59,11 +60,10 @@ public abstract class UserInterface {
 	public static final NkPluginFilter DEFAULT_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_default);
 	public static final NkPluginFilter NUMBER_FILTER = NkPluginFilter.create(Nuklear::nnk_filter_float);
 	
-	private static volatile ConcurrentLinkedQueue<UserInterface> ELEMENTS = new ConcurrentLinkedQueue<>();
+	private static volatile CSLinked<UserInterface> ELEMENTS = new CSLinked<>();
 	protected static volatile int[] currentWindowDimensions = new int[2];
 	
-	/*
-	 * All actions on the Nuklear data structures must be synchronized. One of three threads may want to modify them
+	/* All actions on the Nuklear data structures must be synchronized. One of three threads may want to modify them
 	 * 		1) This thread, which wants to enqueue draw commands
 	 * 		2) The render thread, which wants to dequeue draw commands 
 	 * 		3) the main thread, which wants to write user input state  
@@ -71,20 +71,29 @@ public abstract class UserInterface {
 	 * The actions of the render thread must be synchronized against this thread, and the actions of the main thread must
 	 * be synchronized against this thread, but the actions the main thread and the render thread take on Nuklear structs
 	 * +++I dont think+++ need to be synchronized against each other.
-	 *  
 	 */
 	public static final Runnable NUKLEAR_RUNNABLE = () -> {
 
-		ELEMENTS.forEach((element) -> {
-		
-			if(element.end) { 
-				
-				ELEMENTS.remove(element);
-				element.onEnd.execute();
-				
-			} else element.layout();
+		synchronized(ELEMENTS) {
+
+			cdNode<UserInterface> iter = ELEMENTS.get(0);
+			for(int i = 0 ; i < ELEMENTS.size() ; i ++) {
 			
-		});
+				if(iter.val.end) {
+					
+					if(iter.val.onEnd != null) iter.val.onEnd.execute();
+					iter = ELEMENTS.safeRemove(iter);
+					
+				} else {
+					
+					iter.val.layout();
+					iter = iter.next;
+					
+				}
+				
+			}
+						
+		}
 		
 	};
 			
@@ -209,14 +218,27 @@ public abstract class UserInterface {
 	protected String name;
 	private NkRect rect;	
 	private boolean firstTimeOpening = true;
+	protected float x;
+	protected float y;
+	protected float w;
+	protected float h;
 	
 	public UserInterface(String title , float x , float y , float w , float h , int normalOptions , int unopenedOptions) {
+		
+		this.x = x;
+		this.y = y;
+		this.w = w;
+		this.h = h;
 		
 		this.normalOptions = normalOptions;
 		this.unopenedOptions = unopenedOptions;
 		this.name = title;
 		rect = NkRect.malloc(ALLOCATOR).set(x, y, w, h);
-		ELEMENTS.add(this);
+		synchronized(ELEMENTS) {
+			
+			ELEMENTS.add(this);
+		
+		}
 		
 	}
 	

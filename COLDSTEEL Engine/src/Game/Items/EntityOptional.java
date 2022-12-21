@@ -1,6 +1,6 @@
 package Game.Items;
 
-import Core.ECS;
+import Core.Entities.ECS;
 import Core.Entities.Entities;
 
 /**

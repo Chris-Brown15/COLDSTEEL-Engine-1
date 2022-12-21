@@ -205,7 +205,7 @@ public class EntityRPGStats {
    
 		switch(variableName) {
 		
-			case "Strength":  case "strength":				
+			case "Strength": case "strength":				
 				strength = value;
 				break;
 				
@@ -1135,4 +1135,17 @@ public class EntityRPGStats {
 		
 	}
 
+	public EntityRPGStats copy() {
+		
+		EntityRPGStats copy = new EntityRPGStats(entity);
+		forEachStat((name , value) -> copy.setCharacteristicForName(name, value));
+		forEachLSM((name , value) -> copy.setLSMForName(name, value));
+		forEachSkill((name , value) -> copy.setSkillForName(name, value));
+		copy.invincibilityTimeMillis = invincibilityTimeMillis;
+		
+		return copy;
+		
+		
+	}
+	
 }

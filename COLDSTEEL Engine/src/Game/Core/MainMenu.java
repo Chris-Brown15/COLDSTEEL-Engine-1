@@ -1,6 +1,7 @@
 package Game.Core;
 
 import static CSUtil.BigMixin.put;
+import static CSUtil.BigMixin.read;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_FIELD;
 import static org.lwjgl.nuklear.Nuklear.NK_EDIT_SELECTABLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_CENTERED;
@@ -56,6 +57,9 @@ public class MainMenu  {
 		
 	ByteBuffer portAndInetAddrInput = memCalloc(1 , 23);
 	IntBuffer portAndInetAddrLength = memCallocInt(1);
+	
+	ByteBuffer serverNameInput = memCalloc(1 , 999);
+	IntBuffer serverNameLength = memCallocInt(1);
 	private final Main main;
 	private final Multiplayer multi ;
 	private final MultiplayerJoiner multiplayerJoin;
@@ -180,14 +184,16 @@ public class MainMenu  {
 		else return memUTF8Safe(portAndInetAddrInput.slice(0, portAndInetAddrLength.get(0)));
 		
 	}
-	
+		
 	void shutDown() {
 		
 		memFree(portAndInetAddrInput);
 		memFree(portAndInetAddrLength);
+		memFree(serverNameInput);
+		memFree(serverNameLength);
 		
 	}
-	
+		
 	class Main extends UserInterface {
 
 		public Main(Engine engine , GameRuntime runtime) {
@@ -256,6 +262,8 @@ public class MainMenu  {
 	
 	class Multiplayer extends UserInterface {
 
+		boolean inputServerName = false;
+		
 		public Multiplayer(Engine engine) {
 			
 			super("" , 810 , 540 , 300 , 310, uiOptions|NK_WINDOW_TITLE , uiOptions|NK_WINDOW_TITLE);
@@ -265,7 +273,12 @@ public class MainMenu  {
 				if(engine.mg_isHostedServerRunning()) {
 					
 					nk_layout_row_dynamic(context , 20 , 1);
-					nk_text(context , "Server is Running. Join it to Play" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
+					nk_text(
+						context , 
+						"Server " + engine.gameRuntime().server().serverName + " is running. Join it to play." , 
+						NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE
+					);
+					
 					nk_layout_row_dynamic(context , 20 , 1);
 					nk_text(context , "IP Address: " + engine.mg_hostedServerIPAddress() , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
 					nk_layout_row_dynamic(context , 20 , 1);
@@ -273,8 +286,31 @@ public class MainMenu  {
 					
 				} else {
 					
-					nk_layout_row_dynamic(context , 30 , 1);
-					if(nk_button_label(context , "Host Session")) engine.mg_startHostedServer();
+					if(!inputServerName) {
+						
+						nk_layout_row_dynamic(context , 30 , 1);
+						if(nk_button_label(context , "Host Session")) inputServerName = true;
+						
+					} else {
+
+						nk_layout_row_dynamic(context , 20 , 1);
+						nk_text(context , "Input Server Name" , NK_TEXT_ALIGN_CENTERED|NK_TEXT_ALIGN_MIDDLE);
+						
+						nk_layout_row_dynamic(context , 30 , 1);
+						nk_edit_string(
+							context , 
+							NK_EDIT_FIELD|NK_EDIT_SELECTABLE , 
+							serverNameInput , 
+							serverNameLength , 
+							22 , 
+							UserInterface.DEFAULT_FILTER
+						);
+						
+						nk_layout_row_dynamic(context , 30 , 2);
+						if(nk_button_label(context , "Accept")) engine.mg_startHostedServer(read(serverNameInput , serverNameLength));						
+						if(nk_button_label(context , "Back")) inputServerName = true;
+						
+					}
 					
 				}
 
@@ -290,7 +326,6 @@ public class MainMenu  {
 				if(nk_button_label(context , "Join Server With Existing Character")) {
 					
 					menuState = MenuStates.MULTIPLAYER_JOINING;
-					runtime.setState(GameState.LOAD_MULTIPLAYER);
 				
 				}
 				
@@ -329,12 +364,7 @@ public class MainMenu  {
 				nk_edit_string(context , NK_EDIT_FIELD|NK_EDIT_SELECTABLE , portAndInetAddrInput , portAndInetAddrLength , 22 , UserInterface.DEFAULT_FILTER);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
-				if(nk_button_label(context , "Join")) { 
-					
-					runtime.setState(GameState.JOIN_MULTIPLAYER);
-					hideAll();
-					
-				}
+				if(nk_button_label(context , "Join")) runtime.setState(GameState.JOIN_MULTIPLAYER);
 				
 				nk_layout_row_dynamic(context , 30 , 1);
 				if(nk_button_label(context , "Back")) menuState = MenuStates.MULTIPLAYER_MAIN;

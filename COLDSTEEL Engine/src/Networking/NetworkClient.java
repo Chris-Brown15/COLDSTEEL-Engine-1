@@ -1,5 +1,7 @@
 package Networking;
 
+import static Networking.Utils.DatagramPacketUtils.*;
+
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_BORDER;
 import static org.lwjgl.nuklear.Nuklear.NK_WINDOW_TITLE;
 import static org.lwjgl.nuklear.Nuklear.NK_TEXT_ALIGN_LEFT;
@@ -11,8 +13,11 @@ import static org.lwjgl.nuklear.Nuklear.NK_SYMBOL_TRIANGLE_DOWN;
 import static org.lwjgl.nuklear.Nuklear.nk_layout_row_dynamic;
 import static org.lwjgl.nuklear.Nuklear.nk_text;
 import static org.lwjgl.nuklear.Nuklear.nk_selectable_symbol_label;
+import static org.lwjgl.nuklear.Nuklear.nk_slider_int;
 
 import static CSUtil.BigMixin.toByte;
+import static CSUtil.BigMixin.Try;
+import static CSUtil.BigMixin.TRY;
 import static Networking.Utils.NetworkingConstants.*;
 
 import java.io.IOException;
@@ -20,21 +25,27 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
+import java.nio.IntBuffer;
 import java.util.Iterator;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import CS.UserInterface;
 import CSUtil.Timer;
 import CSUtil.DataStructures.CSQueue;
+import CSUtil.DataStructures.CSStack;
+import CSUtil.DataStructures.LinkedRingBuffer;
+import CSUtil.DataStructures.RingBuffer;
+import CSUtil.DataStructures.Tuple2;
+import CSUtil.Dialogs.Debug.NetworkedEntityPreviousFrameViewer;
 import Core.Scene;
-import Core.TemporalExecutor;
 import Core.Entities.Entities;
 import Game.Core.GameRuntime;
 import Game.Core.GameState;
 import Game.Levels.Levels;
 import Game.Player.PlayerCharacter;
 import Networking.Utils.PacketCoder;
+import Networking.Utils.PacketLoser;
 
 /**
  * Representation of a user's client connection to another user's UserHostedSession server. This class facilitates communication between users.
@@ -47,53 +58,85 @@ import Networking.Utils.PacketCoder;
  */
 public class NetworkClient implements NetworkedInstance {
 
-	/**
-	 * list of key codes to query from GLFW and send to servers. 
-	 * 
-	 */	
-	private final CopyOnWriteArrayList<NetworkedEntities> otherClients = new CopyOnWriteArrayList<>();
-	private final Levels level;
-	private ClientDebugUI debugUI = new ClientDebugUI();
-	private MultiplayerChatUI chatUI;
+	private volatile ClientState state = ClientState.DORMANT;
+	
 	private GameRuntime gameRuntime;
+	
+	private Levels level;
 	private Scene scene;
-	private final DatagramSocket clientSocket;	
-	private final Thread clientListeningThread; //thread responsible for recieving messages
-	private volatile boolean connected = false;	
+	
 	private NetworkedEntities networkedPlayer;
-	private Timer timeoutTimer = new Timer();
+	private final CopyOnWriteArrayList<NetworkedEntities> otherClients = new CopyOnWriteArrayList<>();
+	
+	private ClientDebugUI debugUI;
+	private MultiplayerChatUI chatUI;
+	private NetworkedEntityPreviousFrameViewer thisNetworkedPreviousInputViewer;
+	
+	private final DatagramSocket clientSocket = new DatagramSocket();	
+	private final Thread clientListeningThread; //thread responsible for recieving messages
+	private final Thread clientPacketHandlingThread; //thread responsible for handling received messages
+	private final CSQueue<Tuple2<DatagramPacket , Integer>> packetsToHandle = new CSQueue<>();
+		
+	private volatile boolean connected = false;
 	private short connectionID = -1;
 	
-	public NetworkClient(GameRuntime gameRuntime , Levels currentLevel) throws IOException {
+	private Timer timeoutTimer = new Timer();
+	private PacketLoser packetLoser = new PacketLoser();
+	private RingBuffer<Long> receivedPacketChecksums = new RingBuffer<Long>(25);
+
+	public NetworkClient(GameRuntime gameRuntime , String connectionInfo) throws IOException {
 		
-		this.level = currentLevel;
 		this.gameRuntime = gameRuntime;
 		this.scene = gameRuntime.scene();
-				
-		clientSocket = new DatagramSocket();
 		
-		clientListeningThread = new Thread(new Runnable() {
+		String[] split = connectionInfo.split(":");
 
-			@Override public void run() {
+		clientSocket.setSoTimeout(30000); //try to connect for 30 seconds, returning to the main menu otherwise.
 
-				while (true) {
+		try {
+			
+			clientSocket.connect(InetAddress.getByName(split[0]) , Integer.parseInt(split[1]));
+			
+		} catch(IOException e) {
+			
+			System.err.println("Failed to conenct to User Hosted Server.");
+			e.printStackTrace();
+						
+		}
+		
+		clientListeningThread = new Thread(() -> {
+
+			while(true) Try(() -> listen());
 					
-					try {
-						
-						listen();
-						
-					} catch (IOException e) {
-						
-						e.printStackTrace();
-						
-					}
-					
-				}
-			}
+		});
+
+		clientPacketHandlingThread = new Thread(() -> {
+			
+			while(true) handlePackets();
 			
 		});
 		
 		clientListeningThread.setDaemon(true);
+		clientPacketHandlingThread.setDaemon(true);
+		
+		/*
+		 * Here, we start listening for a response from the server. If 30 seconds elapse and we recieve no message return to the main menu
+		 * and TODO: display an error message. 
+		 */				
+		clientListeningThread.start();
+		clientPacketHandlingThread.start();
+		timeoutTimer.start();
+		
+		try(PacketCoder preconnect = new PacketCoder()) {
+			
+			preconnect.bflag(PRE_CONNECT);
+
+			System.out.println("Sending preconnect message.");
+			
+			TRY(() -> sendReliable(preconnect.get() , 184912801 , 1000));
+			setState(ClientState.AWAITING_PRE_CONNECTION);
+			
+		}
 		
 	}
 	
@@ -103,26 +146,16 @@ public class NetworkClient implements NetworkedInstance {
 	 * 
 	 * @param fadeInFunction — some code which should call the engine fade in method.
 	 */
-	public void connectAndStart(PlayerCharacter player , String connectionInfo) {
+	public void connectAndStart(PlayerCharacter player , Levels currentLevel) {
 
-		networkedPlayer = new NetworkedEntities((short) -1 , player.playersEntity() , true);
-		String[] split = connectionInfo.split(":");
+		System.out.println("completing connection");
 		
-		try {
-			
-			clientSocket.connect(InetAddress.getByName(split[0]) , Integer.parseInt(split[1]));
-			
-		} catch(IOException e) {
-			
-			e.printStackTrace();
-			System.exit(-1);
-			
-		}
+		this.level = currentLevel;
+		networkedPlayer = new NetworkedEntities((short) -1 , player.playersEntity() , true);
+		thisNetworkedPreviousInputViewer = new NetworkedEntityPreviousFrameViewer(networkedPlayer , 1565 , 5);
 		
 		try { 
 			
-			clientSocket.setSoTimeout(30000);//try to connect for 30 seconds, returning to the main menu otherwise.
-
 			String levelAsString = level.macroLevel() + "/" + level.gameName() + ".CStf";
 				
 			try(PacketCoder coder = new PacketCoder()){
@@ -135,26 +168,22 @@ public class NetworkClient implements NetworkedInstance {
 				;
 				
 				//message containing this client's name, position and level 
-				sendReliable(coder.get() , CHANGE_CONNECTION , 1200 );
+				sendReliable(coder.get() , CHANGE_CONNECTION , 1200);
 			
 			}
 			
-			/*
-			 * Here, we start listening for a response from the server. If 30 seconds elapse and we recieve no message return to the main menu
-			 * and TODO: display an error message. 
-			 */				
-			clientListeningThread.start();
-			timeoutTimer.start();
-			
 			//block and wait for a connection message
-			while(timeoutTimer.getElapsedTimeSecs() < 30 && !connected);
+			while(timeoutTimer.getElapsedTimeSecs() < 30 && getState() == ClientState.AWAITING_PRE_CONNECTION);
 			
-			if(timeoutTimer.getElapsedTimeSecs() >= 30) throw new SocketTimeoutException();//failed to connect
-			else if (connected) { //connected
+			if(timeoutTimer.getElapsedTimeSecs() >= 30) System.err.println("Failed to finish connecting to User Hosted Server.");
+			else { //connected
 				
+				connected = true;
 				chatUI = new MultiplayerChatUI(player.playerCharacterName() , this);
+				debugUI = new ClientDebugUI();
 				timeoutTimer.start();				
 				scene.entityScriptingInterface().client(this);
+				scene.entities().internalRunInitialSystems(networkedPlayer.networked());
 				System.out.println("Successfully connected to server");
 
 			}
@@ -174,62 +203,68 @@ public class NetworkClient implements NetworkedInstance {
 		
 		switch(packet.getData()[offset]) { 
 		
-			case CHANGE_CONNECTION -> { 
+			case PRE_CONNECT -> {
 				
-				connected = connected ? false:true;
+				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
+					
+					connectionID = coder.rconnectionID();					
+					setState(ClientState.AWAITING_CONNECTION);
+					
+				}
+				
+				System.out.println("pre connection successful");
+				
+			}
+		
+			case CHANGE_CONNECTION -> { 
 				
 				if(!connected) System.exit(-1); //TODO actual disconect code
 				
+				setState(ClientState.READY);
+				
 				scene.entities().setNetworkInstance(this);
-				//we have to offload this code to the main thread because OpenGL is only available there. what this means is that for frame
-				//0 of the connection we still won't know about other players and on frame 1 we will drop frames as we load them all.
-				TemporalExecutor.onTrue(() -> true, () -> {
 
-					try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
+				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
+					
+					//contains all other players in the server's ID and entity name
+					CSQueue<Object> othersData = coder.rRepititions(PacketCoder.CONNECTION_ID , PacketCoder.STRING);
+					//dequeues other player's data and stores it 
+					while(!othersData.empty()) {
 						
-						connectionID = coder.rconnectionID();
-						networkedPlayer.connectionIndex(connectionID);
-						//contains all other players in the server's ID and entity name
-						CSQueue<Object> othersData = coder.rRepititions(PacketCoder.CONNECTION_ID , PacketCoder.STRING);
-						//dequeues other player's data and stores it 
-						while(!othersData.empty()) {
-							
-							short othersID = (short) othersData.dequeue();
-							String entName = (String) othersData.dequeue();
-							Entities otherClient = new Entities(scene , entName + ".CStf");
-							NetworkedEntities newNetworked = new NetworkedEntities(othersID , otherClient , false);
-							otherClients.add(newNetworked);
-							newNetworked.setNetworkControlled();						
-							
-						}
+						short othersID = (short) othersData.dequeue();
+						String entName = (String) othersData.dequeue();
+						Entities otherClient = new Entities(scene , entName + ".CStf");
+						NetworkedEntities newNetworked = new NetworkedEntities(othersID , otherClient , true);
+						otherClients.add(newNetworked);
+						newNetworked.runScript();
 						
-						//if the coder has more data it will be a repititon
-						if(coder.testFor(PacketCoder.REPITITION)) {
+					}
+					
+					//if the coder has more data it will be a repititon
+					if(coder.testFor(PacketCoder.REPITITION)) {
+						
+						CSQueue<Object> othersInLevelData = coder.rRepititions(PacketCoder.CONNECTION_ID , PacketCoder.POSITION);
+						while(!othersInLevelData.empty()) {
 							
-							CSQueue<Object> othersInLevelData = coder.rRepititions(PacketCoder.CONNECTION_ID , PacketCoder.POSITION);
-							while(!othersInLevelData.empty()) {
+							short othersID = (short) othersInLevelData.dequeue();
+							float[] othersPos = (float[]) othersInLevelData.dequeue();
+							otherClients.forEach(otherClient -> {
 								
-								short othersID = (short) othersInLevelData.dequeue();
-								float[] othersPos = (float[]) othersInLevelData.dequeue();
-								otherClients.forEach(otherClient -> {
+								if(otherClient.connectionIndex() == othersID) {
 									
-									if(otherClient.connectionIndex() == othersID) {
-										
-										otherClient.networked().moveTo(othersPos[0] , othersPos[1]);
-										scene.entities().add(otherClient.networked());
-										
-									}
+									otherClient.networked().moveTo(othersPos[0] , othersPos[1]);
+									scene.entities().add(otherClient.networked());
 									
-								});
+								}
 								
-							}
+							});
 							
 						}
 						
 					}
-										
-				});
-				
+					
+				}
+					
 			}
 			
 			case CLIENT_CONNECTED -> {
@@ -248,7 +283,6 @@ public class NetworkClient implements NetworkedInstance {
 					String newClientsName = coder.rstring();
 					
 					NetworkedEntities newClientsEntity = new NetworkedEntities(newClientsID , new Entities(scene , newClientsName) , false);
-					newClientsEntity.setNetworkControlled();
 					
 					if(coder.testFor(PacketCoder.POSITION)) {
 						
@@ -336,22 +370,52 @@ public class NetworkClient implements NetworkedInstance {
 				try(PacketCoder coder = new PacketCoder(packet.getData() , offset + 1)) {
 				
 					short senderID = coder.rconnectionID();
-					byte[] controlStrokes = coder.rControlStrokes();
+					NetworkedEntities e = getNetworkedEntity(senderID);
 					
-					Iterator<NetworkedEntities> iter = otherClients.iterator();
-					NetworkedEntities e;
+					LinkedRingBuffer<byte[]> previousInputs = e.previousInputs();
+					byte sequence = coder.rControlStrokes(previousInputs);
+					byte clientsViewOfUpdateNumer = e.getUpdateNumber();
 					
-					while(iter.hasNext()) {
+					if(sequence == e.getUpdateNumber()) {
+						 
+						e.updateControlStateView(e.previousInputs().get());
+						e.incrementUpdateNumber();
+						 
+					} else {
+
+						int dropped = e.getNumberLostPackets(sequence);
 						
-						e = iter.next();
-						if(e.connectionIndex() == senderID) {
+						System.out.println("Possible Packet Loss, packed named: " + sequence + ", current sequence, " + clientsViewOfUpdateNumer);
+						System.out.println("Dropped " + dropped + " packets.");
+						e.isReady = false;
+
+						CSStack<byte[]> previousInputsStack = new CSStack<byte[]>();
+						int iter = 0;
+						while(iter < dropped) {
 							
-							e.controlsState(controlStrokes);
-							break;
+							previousInputsStack.push(previousInputs.get());
+							iter++;
 							
 						}
 						
+						e.rewindStateToCapture();
+							
+						while(!previousInputsStack.empty()) {
+							
+							e.updateControlStateView(previousInputsStack.pop());
+							scene.entities().internalRunInitialSystems(e.networked());
+							
+							scene.kinematics().process(e.networked());
+							
+							scene.entities().internalRunFinalSystems(e.networked());
+						
+						}
+
+												
 					}
+					
+					e.setUpdateNumber(++sequence);
+					e.isReady = true;
 					
 				}
 					
@@ -387,29 +451,77 @@ public class NetworkClient implements NetworkedInstance {
 		
 	}
 	
-	@Override public void instanceUpdate() {
+	private NetworkedEntities getNetworkedEntity(short connectionID) {
+
+		Iterator<NetworkedEntities> iter = otherClients.iterator();
+		NetworkedEntities e;
 		
+		while(iter.hasNext()) {
+			
+			e = iter.next();
+			if(e.connectionIndex() == connectionID) return e;
+		
+		}
+		
+		throw new IllegalArgumentException(connectionID + " is invalid as a connection ID for a networked client.");
+			
+	}
+
+	public NetworkedEntities getNetworkedEntity(Entities networkedEntity) {
+
+		Iterator<NetworkedEntities> iter = otherClients.iterator();
+		NetworkedEntities e;
+		
+		while(iter.hasNext()) {
+			
+			e = iter.next();
+			if(e.networked() == networkedEntity) return e;
+		
+		}
+		
+		throw new IllegalArgumentException(connectionID + " is invalid as a connection ID for a networked client.");
+			
+	}
+	
+	public void handlePackets() {
+
+		synchronized(packetsToHandle) {
+			
+			while(!packetsToHandle.empty()) {
+				
+				var packet = packetsToHandle.dequeue();
+				handleFlags(packet.getFirst() , packet.getSecond());
+				
+			}
+			
+		}			
+			
+	}
+	
+	@Override public void instanceUpdate() {
+	
 		//send unreliable message to server
 		try (PacketCoder coder = new PacketCoder()) {
 
-			byte packetName = networkedPlayer.updateSequence();
-			networkedPlayer.advanceUpdateSequence();
+			networkedPlayer.constructUpdatedViewOfControls();
 			
 			coder
 				.bflag(UPDATE)
-				.bControlStrokes(packetName , networkedPlayer.controlStates())
+				.bControlStrokes(networkedPlayer.getUpdateNumber() , networkedPlayer.previousInputs())
 			;
-			
+					
 			clientSocket.send(new DatagramPacket(coder.get() , coder.position()));
-		
-		} catch (IOException e) {
+			networkedPlayer.incrementUpdateNumber();
+			networkedPlayer.unPressKeys();
+			 
+ 		} catch (IOException e) {
 
 			e.printStackTrace();
-
+ 
 		}
 		
 		timeoutTimer.start();
-			
+		
 		if(timeoutTimer.getElapsedTimeSecs() > 30) {
 			
 			System.err.println("TIMED OUT");
@@ -417,16 +529,8 @@ public class NetworkClient implements NetworkedInstance {
 		
 		}
 
-		try {
-			
-			ReliableDatagram.tickLiveDatagrams(clientSocket);
-			
-		} catch (IOException e) {
-			
-			e.printStackTrace();
-			
-		}
-		
+		TRY(() -> ReliableDatagram.tickLiveDatagrams(clientSocket));
+				
 	}
 	
 	public Iterable<NetworkedEntities> managedConnections() {
@@ -447,11 +551,14 @@ public class NetworkClient implements NetworkedInstance {
 			;
 			
 			sendReliable(coder.get() , 190249113 , 1200);
-			
-			//block until we get a message TODO
-			
-			
+						
 		}
+		
+	}
+	
+	public void forEachNetworkedEntity(Consumer<NetworkedEntities> callback) {
+		
+		otherClients.forEach(callback);
 		
 	}
 	
@@ -475,29 +582,40 @@ public class NetworkClient implements NetworkedInstance {
 
 	@Override public void listen() throws IOException {
 		
-		DatagramPacket received = new DatagramPacket(new byte[256] , 256);
+		DatagramPacket received = new DatagramPacket(new byte[512] , 512);
 		clientSocket.receive(received);
+		
+		if(packetLoser.receive(received) == null) return;
+		
+		//prevents duplicate packets
+		if(handleChecksum(checksum(received) , receivedPacketChecksums)) return;
+		
+		boolean isAck = false;
+		int off = 0;
 		
 		if(ReliableDatagram.isReliableDatagramPacket(received)) {
 		
-			if(ReliableDatagram.isAcknowledgement(received)) ReliableDatagram.acceptAcknowledgement(received);
-			else {
+			off = 8;
+			
+			if(ReliableDatagram.isAcknowledgement(received)) {
 				
-				ReliableDatagram.acknowledge(clientSocket, received);
-				// Offload handling of flags to another thread if possible, but if we are not connected yet, handle them in this thread
-				// because TemporalExecutor is not running at that time.
-				if (connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received , 8));
-				else handleFlags(received , 8);
-			
-			}
+				ReliableDatagram.acceptAcknowledgement(received);
+				isAck = true;
+				
+			} else ReliableDatagram.acknowledge(clientSocket, received);
 						
-		} else {
+		}
+		
+		if(!isAck){
 			
-			if(connected) TemporalExecutor.onTrue(() -> true, () -> handleFlags(received , 0));
-			else handleFlags(received , 0);
+			synchronized(packetsToHandle) {
+				
+				packetsToHandle.enqueue(new Tuple2<>(received , off));
+				
+			}
 			
 		}
-				
+		
 	}
 
 	@Override public boolean host() {
@@ -515,7 +633,8 @@ public class NetworkClient implements NetworkedInstance {
 	@Override public void toggleUI() {
 		
 		chatUI.toggle();
-		debugUI.toggle();
+		debugUI.toggle();		
+		thisNetworkedPreviousInputViewer.toggle();
 		
 	}
 	
@@ -549,31 +668,34 @@ public class NetworkClient implements NetworkedInstance {
 		
 	}
 	
-	public NetworkedEntities getNetworkedByEntity(Entities E) {
-		
-		if(E == networkedPlayer.networked()) throw new IllegalArgumentException("Invalid parameter, gave this client's entity");
-		Iterator<NetworkedEntities> iter = otherClients.iterator();
-		NetworkedEntities element;
-		while(iter.hasNext()) if((element = iter.next()).networked() == E) return element;
-		throw new IllegalArgumentException("Entity " + E.name() + " not found among networked entities");
-		
-	}
-	
 	public void syncPeripheralsByControls(byte... controls) {
 		
-		networkedPlayer.syncPeripheralsByControls(controls);
+		networkedPlayer.setControlsToSync(controls);
 		
 	}
 	
+	public ClientState getState() {
+		
+		return state;
+		
+	}
+
+	public void setState(ClientState state) {
+		
+		this.state = state;
+		
+	}
+
 	private class ClientDebugUI extends UserInterface {
 	
 		private boolean playersDropDown = false;
 		private boolean show = false;
+		private IntBuffer packetLossSlider = ALLOCATOR.ints(-1);
 		
 		ClientDebugUI() {		
 			
-			super("Multiplayer Debug" , 1210 , 5 , 350 , 600 , NK_WINDOW_BORDER|NK_WINDOW_TITLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE);
-		
+			super("Multiplayer Debug" , 1240 , 5 , 350 , 600 , NK_WINDOW_BORDER|NK_WINDOW_TITLE , NK_WINDOW_BORDER|NK_WINDOW_TITLE);
+			
 			layoutBody((frame) -> {
 
 				int playersListDropDown = playersDropDown ? NK_SYMBOL_TRIANGLE_RIGHT : NK_SYMBOL_TRIANGLE_DOWN;
@@ -596,6 +718,9 @@ public class NetworkClient implements NetworkedInstance {
 					nk_text(context , x.connectionIndex() + "|" + x.networked().name() , NK_TEXT_ALIGN_LEFT|NK_TEXT_ALIGN_RIGHT);
 						
 				}
+				
+				nk_layout_row_dynamic(context , 30 , 1);
+				nk_slider_int(context , -1 , packetLossSlider , 100 , 1);
 				
 			});
 			

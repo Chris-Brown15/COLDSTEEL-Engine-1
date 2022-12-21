@@ -223,4 +223,37 @@ public class Controls {
 		
 	}
 	
+	public static String getNameByID(byte ID) {
+		
+		return switch(ID) {
+			case UP -> "Up";
+			case LEFT -> "Left";
+			case DOWN -> "Down";
+			case RIGHT -> "Right";
+			case JUMP -> "Jump";
+			case ATTACK1 -> "Attack 1";
+			case ATTACK2 -> "Attack 2";
+			case ATTACK3 -> "Attack 3";
+			case ATTACK4 -> "Attack 4";
+			case ATTACK5 -> "Attack 5";
+			case POWER1 -> "Power 1";
+			case POWER2 -> "Power 2";
+			case POWER3 -> "Power 3";
+			case POWER4 -> "Power 4";
+			case POWER5 -> "Power 5";
+			case POWER6 -> "Power 6";
+			case POWER7 -> "Power 7";
+			case POWER8 -> "Power 8";
+			case POWER9 -> "Power 9";
+			case POWER10 -> "Power 10";
+			case INVENTORY -> "Inventory";
+			case CHARACTER_SHEET -> "Character Sheet";
+			case ACTIVATE -> "Activate";			
+			case MAP -> "Map";
+			default -> throw new IllegalArgumentException("Unexpected value: " + ID);
+			
+		};
+		
+	}
+	
 }
